@@ -1,0 +1,250 @@
+version: "v1"
+project: "skillpointe-match"
+platform:
+  database: "supabase_postgres"
+  auth: "supabase_auth"
+  storage: "supabase_storage"
+  queue: "redis"
+  backend: "fastapi"
+  frontend: "nextjs"
+
+description: >
+  Canonical scoring and policy configuration for SkillPointe Match MVP.
+  This config governs deterministic fit estimation, policy reranking,
+  null handling, eligibility caps, confidence defaults, and UI surfacing rules.
+  MVP is continuous ranking and explanation only; no batch matching.
+
+mvp_scope:
+  batch_matching_enabled: false
+  deferred_acceptance_enabled: false
+  centralized_clearing_enabled: false
+  autonomous_agents_enabled: false
+  full_training_marketplace_enabled: false
+
+roles:
+  - admin
+  - applicant
+  - employer
+
+ranking_outputs:
+  - eligibility_status
+  - base_fit_score
+  - policy_adjusted_score
+  - match_label
+  - top_strengths
+  - top_gaps
+  - required_missing_items
+  - recommended_next_step
+  - confidence_level
+
+eligibility:
+  labels:
+    eligible:
+      description: "No critical hard failures"
+      hard_gate_cap: 1.0
+    near_fit:
+      description: "Important gaps exist, but role is still plausibly worth surfacing"
+      hard_gate_cap: 0.75
+    ineligible:
+      description: "Critical mismatch; do not recommend prominently"
+      hard_gate_cap: 0.35
+
+  rules:
+    job_family_compatibility:
+      enabled: true
+      scoring:
+        direct_match: pass
+        adjacent_match: near_fit
+        unrelated: fail
+
+    required_credential_compatibility:
+      enabled: true
+      scoring:
+        credential_present: pass
+        missing_but_plausibly_acquirable: near_fit
+        mandatory_absent_no_path: fail
+
+    readiness_timing_compatibility:
+      enabled: true
+      scoring:
+        ready_now_or_allowed_window: pass
+        close_to_completion: near_fit
+        materially_incompatible: fail
+
+    geography_feasibility:
+      enabled: true
+      scoring:
+        local_or_remote_or_willing: pass
+        feasible_with_relocation_or_travel_assumptions: near_fit
+        clearly_infeasible: fail
+
+    explicit_minimum_requirement_compatibility:
+      enabled: true
+      scoring:
+        meets_requirement: pass
+        partial_or_ambiguous: near_fit
+        clearly_missing: fail
+
+  critical_rule: >
+    No applicant-job pair may be labeled high fit if a critical hard gate fails.
+
+base_fit:
+  formula: "hard_gate_cap * (weighted_structured_score * 0.75 + semantic_score * 0.25)"
+  bounds:
+    min: 0
+    max: 100
+
+structured_score:
+  total_weight: 100
+  weights:
+    trade_program_alignment: 25
+    geography_alignment: 20
+    credential_readiness: 15
+    timing_readiness: 10
+    experience_internship_alignment: 10
+    industry_alignment: 5
+    compensation_alignment: 5
+    work_style_signal_alignment: 5
+    employer_soft_pref_alignment: 5
+
+semantic_score:
+  enabled: true
+  total_weight: 100
+  formula: "0.4*skills_overlap + 0.3*job_family_similarity + 0.2*experience_text_relevance + 0.1*intent_alignment"
+
+policy_reranking:
+  enabled: true
+  formula: "policy_adjusted_score = clamp(base_fit_score + sum(policy_modifiers), 0, 100)"
+  policies:
+    partner_employer_preference:
+      enabled: true
+      modifiers:
+        partner_employer: 5
+        non_partner: 0
+      constraints:
+        max_override_gap: 12
+
+    funded_training_pathway_alignment:
+      enabled: true
+      modifiers:
+        direct_alignment: 6
+        adjacent_alignment: 3
+        unrelated: 0
+
+    geography_preference:
+      enabled: true
+      modifiers:
+        local_feasible: 6
+        same_state_or_regional: 4
+        relocation_required_and_willing: 1
+        travel_heavy_and_willing: 1
+        uncertain: 0
+        infeasible: 0
+
+    readiness_preference:
+      enabled: true
+      modifiers:
+        ready_now_or_timing_aligned: 5
+        near_completion: 3
+        significant_wait: 0
+
+    opportunity_upside:
+      enabled: true
+      modifiers:
+        meaningful_upside_and_near_fit_or_better: 2
+        otherwise: 0
+
+    missing_critical_requirement_penalty:
+      enabled: true
+      modifiers:
+        missing_mandatory_credential: -12
+        missing_important_nonmandatory_skill_cluster: -6
+        missing_minor_requirements_only: -2
+
+ui_visibility_rules:
+  applicant_side:
+    sections:
+      best_immediate_opportunities:
+        include_statuses:
+          - eligible
+      promising_near_fit_opportunities:
+        include_statuses:
+          - near_fit
+      ineligible:
+        hidden_by_default: true
+        show_only_if_admin_or_debug: true
+
+  employer_side:
+    per_job_sorting:
+      primary_order:
+        - eligible
+        - near_fit
+        - ineligible
+
+null_handling:
+  defaults:
+    compensation_alignment_unknown: 70
+    employer_soft_pref_alignment_unknown: 50
+    work_style_signal_alignment_unknown: 50
+    geography_partially_known: 50
+    geography_fully_unknown: 35
+    credentials_unknown_nonrequired: 50
+    experience_unknown: 50
+
+  required_credential_behavior:
+    if_job_requires_credential_and_applicant_data_missing:
+      eligibility_status: near_fit
+      auto_fail: false
+      requires_review_if_low_confidence: true
+
+confidence:
+  extraction_levels:
+    - high
+    - medium
+    - low
+
+  admin_review_thresholds:
+    review_low_extraction_confidence: true
+    review_low_match_confidence: true
+    review_conflicting_signals: true
+    review_credential_ambiguity: true
+    review_taxonomy_mismatch: true
+    review_geography_ambiguity: true
+
+geography:
+  first_class: true
+  fields:
+    applicant:
+      - city
+      - state
+      - region
+      - willing_to_relocate
+      - willing_to_travel
+      - commute_radius_miles
+    job:
+      - city
+      - state
+      - region
+      - work_setting
+      - travel_requirement
+
+llm_usage:
+  enabled: true
+  rule: "LLMs are supporting components only; never the sole ranking engine."
+
+admin_review:
+  enabled: true
+  audit:
+    required: true
+    log_overrides: true
+    log_policy_changes: true
+    log_recomputations: true
+
+feature_flags:
+  applicant_self_signup: true
+  employer_invite_only_default: true
+  employer_global_candidate_search_default: false
+  direct_messaging_default: false
+  applicant_chat_enabled: true
+  admin_policy_editor_enabled: true
+  admin_override_enabled: true
