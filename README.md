@@ -224,7 +224,179 @@ packages/
   matching/            # gates, scoring, reranking, explanation helpers
   etl/                 # imports, normalization, parsing helpers
 
+supabase/
+  config.toml          # Supabase CLI local config
+  migrations/          # SQL migrations (added from Phase 3)
+
 docs/                  # project docs
 scripts/               # import, normalize, recompute, inspect scripts
 infra/                 # infra and deployment-related config
+  docker-compose.local.yml   # local Redis
 ```
+
+---
+
+# Local development
+
+## Prerequisites
+
+| Tool | Version | Install |
+|------|---------|---------|
+| Node.js | 20+ | https://nodejs.org |
+| pnpm | 9+ | `npm i -g pnpm` |
+| Python | 3.11+ | https://python.org |
+| Docker Desktop | latest | https://docker.com |
+| Supabase CLI | latest | `brew install supabase/tap/supabase` |
+
+## 1. Clone and install
+
+```bash
+git clone <repo-url>
+cd skillpointe
+
+# Install JS dependencies
+pnpm install
+```
+
+## 2. Configure environment variables
+
+```bash
+# Frontend
+cp apps/web/.env.local.example apps/web/.env.local
+
+# Backend
+cp apps/api/.env.example apps/api/.env
+```
+
+Edit `apps/api/.env` and `apps/web/.env.local` and fill in your values.
+For local development the defaults work once Supabase and Redis are running (see below).
+
+## 3. Start local Supabase
+
+```bash
+# From repo root
+supabase start
+```
+
+After startup, `supabase status` will print your local URL, anon key, and service role key.
+Copy these into `apps/api/.env` and `apps/web/.env.local`:
+
+```
+SUPABASE_URL=http://localhost:54321
+SUPABASE_ANON_KEY=<from supabase status>
+SUPABASE_SERVICE_ROLE_KEY=<from supabase status>
+SUPABASE_JWT_SECRET=<from supabase status>
+```
+
+Local Supabase services:
+- Studio: http://localhost:54323
+- REST API: http://localhost:54321/rest/v1/
+- Auth: http://localhost:54321/auth/v1/
+- Storage: http://localhost:54321/storage/v1/
+- Inbucket (email): http://localhost:54324
+
+## 4. Start Redis
+
+```bash
+docker compose -f infra/docker-compose.local.yml up -d
+```
+
+## 5. Verify connections
+
+```bash
+pip install redis httpx python-dotenv   # if not already installed
+python scripts/check_connections.py
+```
+
+Expected output:
+```
+[Redis]
+  OK   — connected to redis://localhost:6379
+[Supabase]
+  OK   — REST API reachable at http://localhost:54321
+  OK   — Auth endpoint healthy
+All connections OK. Local dev environment is ready.
+```
+
+## 6. Start the FastAPI backend
+
+```bash
+cd apps/api
+python -m venv .venv
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn main:app --reload --port 8000
+```
+
+API available at: http://localhost:8000
+Health check: http://localhost:8000/health
+API docs (local only): http://localhost:8000/docs
+
+## 7. Start the Next.js frontend
+
+```bash
+# In a separate terminal, from repo root
+pnpm dev:web
+```
+
+Frontend available at: http://localhost:3000
+
+## 8. Run database migrations (Phase 3+)
+
+```bash
+supabase db reset        # resets local DB and runs all migrations
+# or
+supabase migration up    # applies pending migrations
+```
+
+## Normal local dev sequence
+
+```bash
+supabase start                                          # 1. Supabase
+docker compose -f infra/docker-compose.local.yml up -d # 2. Redis
+python scripts/check_connections.py                     # 3. Verify
+cd apps/api && uvicorn main:app --reload --port 8000    # 4. API
+pnpm dev:web                                            # 5. Frontend (new terminal)
+```
+
+## Stop everything
+
+```bash
+supabase stop
+docker compose -f infra/docker-compose.local.yml down
+```
+
+---
+
+# Environment variables reference
+
+All variables are documented in `.env.example` at the repo root.
+Per-app examples are in `apps/web/.env.local.example` and `apps/api/.env.example`.
+
+| Variable | Used by | Description |
+|----------|---------|-------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | web | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | web | Supabase public anon key |
+| `SUPABASE_URL` | api | Supabase project URL |
+| `SUPABASE_ANON_KEY` | api | Supabase anon key |
+| `SUPABASE_SERVICE_ROLE_KEY` | api | Supabase service role key (backend only) |
+| `SUPABASE_JWT_SECRET` | api | Supabase JWT secret for token validation |
+| `REDIS_URL` | api | Redis connection URL |
+| `OPENAI_API_KEY` | api | LLM API key (extraction, chat) |
+| `SENTRY_DSN` | api/web | Sentry error monitoring DSN |
+| `CORS_ORIGINS` | api | Comma-separated allowed CORS origins |
+| `APP_ENV` | api | `local` \| `test` \| `staging` \| `production` |
+
+---
+
+# Source of truth files
+
+These files govern all implementation decisions:
+
+| File | Purpose |
+|------|---------|
+| `CLAUDE.md` | Platform identity, guardrails, architecture rules |
+| `DECISIONS.md` | Product/policy decision register (decided / defaulted / unresolved) |
+| `SCORING_CONFIG.yaml` | Canonical scoring weights, eligibility rules, policy config |
+| `BUILD_PLAN.md` | Phase-by-phase build plan and completion criteria |
+| `PROMPTS.md` | LLM prompt definitions for extraction, verification, explanation, chat |
