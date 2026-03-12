@@ -31,13 +31,13 @@ Ranking is deterministic + policy-reranked + LLM-assisted (in that order of prio
 | 6.1 | Applicant dashboard + ranked job matches + explanation detail | ✅ Complete |
 | 6.2 | Employer dashboard + job management + ranked applicants per job | ✅ Complete |
 | 6.3 | Match explanation surfaces (dimension breakdown, strengths, gaps, next steps) | ✅ Complete |
-| 7 | LLM extraction + verification | ⬜ Not started |
+| 7 | LLM extraction + verification | ✅ Complete |
 | 8 | Applicant planning chat | ⬜ Not started |
 | 9 | Admin review + config + analytics | ⬜ Not started |
 | 10 | QA + end-to-end testing | ⬜ Not started |
 | 11 | Deployment + production readiness | ⬜ Not started |
 
-**Where we are:** All backend + all product-facing surfaces (Phases 1–6) are complete. The app is testable end-to-end with seeded test users. The next major milestone is Phase 7 — LLM extraction, which upgrades the currently-placeholder credential/requirement gates and semantic score with real extraction.
+**Where we are:** Phases 1–7 are complete. The LLM extraction pipeline powers real credential gates, min-requirement gates, and embedding-based semantic scoring. The next milestone is Phase 8 — Applicant Planning Chat.
 
 ---
 
@@ -309,65 +309,57 @@ The DB enum uses: `strong_fit`, `good_fit`, `moderate_fit`, `low_fit`. The migra
 
 ---
 
-## What to build next — Phase 7
+## Phase 7 — LLM Extraction + Verification (Complete)
 
-### Phase 7 — LLM Extraction + Verification
+### What was built
 
-This is what makes the matching engine precise. Currently these are placeholders:
+**`packages/extraction/`** — LLM extraction pipeline (pure Python, no DB I/O):
+- `client.py` — OpenAI client wrapper with retry logic
+- `prompts.py` — Structured prompt templates for applicant and job extraction (v1.0)
+- `applicant_extractor.py` — Extracts skills, certifications, desired job families, work style, experience, readiness, and intent signals from applicant profile text
+- `job_extractor.py` — Extracts required/preferred skills, credentials, job family signals, experience level, physical requirements, and work style from job postings
+- `verifier.py` — Heuristic + optional LLM verification; flags low-confidence items for `review_queue_items`
+- `embeddings.py` — Text combination helpers and cosine similarity for semantic scoring
 
-| Component | Current state | Phase 7 replacement |
-|---|---|---|
-| Credential gate | Always returns `near_fit` | Real extraction: detect credentials/licenses from applicant text |
-| Min-requirements gate | Always returns `near_fit` | Real extraction: detect explicit requirements from job text |
-| Semantic score | Always `50.0` | Real embeddings: pgvector similarity (extension already enabled) |
-| Experience score | Based on text length only | LLM-extracted experience signals |
+**`scripts/run_extraction.py`** — CLI extraction pipeline:
+- Processes all applicants and/or jobs through LLM extraction
+- Generates `text-embedding-3-small` embeddings (1536-dim, matching pgvector schema)
+- Stores results in `extracted_applicant_signals` and `extracted_job_signals` tables
+- Flags low-confidence extractions into `review_queue_items`
+- Supports `--skip-existing`, `--force`, `--verify`, `--dry-run`, `--limit`
 
-### Step 7.1 — Applicant extraction
+**Matching engine upgrades:**
+- **Credential gate** (Gate 2): compares extracted applicant certifications against job required credentials → PASS/NEAR_FIT/FAIL based on match ratio (was always NEAR_FIT)
+- **Min-requirement gate** (Gate 5): compares extracted applicant skills against job critical/required skills → PASS/NEAR_FIT/FAIL (was always NEAR_FIT)
+- **Credential readiness scorer**: uses extracted cert match ratio for precise scoring (was null default)
+- **Experience scorer**: uses extracted experience quality signal (strong/moderate/weak) instead of text-length heuristic
+- **Employer soft pref scorer**: compares extracted work style signals between applicant and job
+- **Semantic score**: cosine similarity between applicant and job embeddings × 100 (was hardcoded 50.0)
+- **`recompute_matches.py`**: fetches extracted signals + embeddings from DB and passes them to the engine
 
-Build an LLM extraction pipeline that reads applicant essay/resume text and returns structured JSON:
+All changes are backward-compatible: without extraction data, the engine falls back to the same placeholder behavior as before.
 
+### How to run extraction
+
+```bash
+cd apps/api && source .venv/bin/activate && cd ../..
+
+# Add OPENAI_API_KEY to apps/api/.env first
+pip install openai
+
+# Run extraction (335 applicants + 300 jobs)
+python scripts/run_extraction.py --verbose
+
+# Then recompute matches with real signals
+python scripts/recompute_matches.py
+
+# Compare results
+python scripts/inspect_matches.py --stats
 ```
-extracted skills, certifications, desired job families, work-style signals,
-experience signals, readiness signals, confidence, evidence snippets
-```
-
-Store output in `extracted_applicant_signals` table with:
-- `raw_llm_output` (text)
-- `parsed_output` (JSONB)
-- `confidence` (high/medium/low enum)
-- `prompt_version`
-- `review_status` (pending/reviewed/overridden)
-
-Use prompts from `PROMPTS.md` as the base prompt library.
-Flag low-confidence outputs for admin review queue.
-
-### Step 7.2 — Job extraction
-
-Same pattern, applied to job descriptions:
-
-```
-required/preferred skills, required credentials, experience level, physical
-requirements, travel requirements, work setting, confidence
-```
-
-Store in `extracted_job_signals`.
-
-### Step 7.3 — Verifier / judge layer
-
-For ambiguous extractions, borderline classifications, and taxonomy mismatches:
-- LLM verifier returns structured verdict (not just a score)
-- Human review recommendations are stored in `review_queue_items`
-- Verifier never overrides auditability
-
-### After Phase 7 is done
-
-- Rerun `scripts/recompute_matches.py` — this time with real extraction powering the credential/requirements gates and semantic score
-- Use `scripts/inspect_matches.py` to verify ranking quality improved
-- Compare top matches before/after to validate the extraction is helping
 
 ---
 
-## What to build after Phase 7 — Phase 8
+## What to build next — Phase 8
 
 **Applicant planning chat** — grounded chat using applicant profile + ranked matches + gaps.
 - Tables already exist: `chat_sessions`, `chat_messages`, `chat_prompt_configs`
@@ -430,18 +422,27 @@ skillpointe/
 │   │   ├── applicant_mapper.py, job_mapper.py
 │   │   └── db.py, reporting.py
 │   │
-│   └── matching/                   ← Matching engine (pure Python, no DB)
-│       ├── config.py               ← ScoringConfig loader
-│       ├── normalizer.py           ← Normalization + JOB_FAMILY_ADJACENCY
-│       ├── gates.py                ← 5 hard eligibility gates
-│       ├── scorer.py               ← 9 structured scoring dimensions
-│       └── engine.py               ← compute_match orchestrator
+│   ├── matching/                   ← Matching engine (pure Python, no DB)
+│   │   ├── config.py               ← ScoringConfig loader
+│   │   ├── normalizer.py           ← Normalization + JOB_FAMILY_ADJACENCY
+│   │   ├── gates.py                ← 5 hard eligibility gates (uses extracted signals)
+│   │   ├── scorer.py               ← 9 structured scoring dimensions (uses extracted signals)
+│   │   └── engine.py               ← compute_match orchestrator (real semantic scoring)
+│   │
+│   └── extraction/                 ← LLM extraction pipeline (Phase 7, pure Python)
+│       ├── client.py               ← OpenAI client wrapper with retry
+│       ├── prompts.py              ← Prompt templates v1.0
+│       ├── applicant_extractor.py  ← Applicant signal extraction
+│       ├── job_extractor.py        ← Job signal extraction
+│       ├── verifier.py             ← Heuristic + LLM verification
+│       └── embeddings.py           ← Text builders + cosine similarity
 │
 ├── scripts/
 │   ├── import_applicants.py        ← Import applicants from XLSX
 │   ├── import_jobs.py              ← Import jobs from XLSX
 │   ├── normalize_data.py           ← Normalization pipeline
-│   ├── recompute_matches.py        ← Full match recompute (run after Phase 7 extraction)
+│   ├── run_extraction.py           ← Phase 7: LLM extraction + embeddings
+│   ├── recompute_matches.py        ← Full match recompute (uses extracted signals)
 │   ├── inspect_matches.py          ← CLI match inspection + CSV export
 │   ├── seed_admin.py               ← Create first admin user
 │   ├── seed_test_users.py          ← Create all 3 test users for local dev
@@ -462,15 +463,17 @@ skillpointe/
 
 2. **Hard gate failures cap the score — they never get overridden.** `ineligible` pairs get a 0.35 cap regardless of structured score. `DECISIONS.md 1.12`.
 
-3. **The semantic score (50.0) is a placeholder.** Every pair receives the same semantic score until Phase 7 builds real embeddings. Within-eligibility-group ranking is driven entirely by structured score for now. See `engine.py:_PLACEHOLDER_SEMANTIC_SCORE`.
+3. **Semantic score uses embedding cosine similarity when extraction has been run.** Without extraction, it falls back to the neutral default (50.0). Run `scripts/run_extraction.py` to generate embeddings.
 
-4. **The credential and minimum-requirement gates are also placeholders.** They both default to `near_fit` until Phase 7 LLM extraction runs. See comments in `gates.py`.
+4. **Credential and min-requirement gates use extracted signals when available.** Without extraction, they fall back to `near_fit` (null handling). The gates automatically use LLM-extracted certifications and skills from `extracted_applicant_signals` / `extracted_job_signals`.
 
-5. **`packages/matching/` has zero DB I/O.** All DB reads/writes happen in `scripts/`. The matching package is pure functions only.
+5. **`packages/matching/` has zero DB I/O.** All DB reads/writes happen in `scripts/`. The matching package is pure functions only. Extracted signals and embeddings are passed in as optional parameters.
 
-6. **Null handling is neutral, not punitive.** If data is missing, the default score is neutral (not 0). See `SCORING_CONFIG.yaml §null_handling`.
+6. **`packages/extraction/` also has zero DB I/O.** It returns dataclasses; the calling script handles storage.
 
-7. **Geography is first-class.** It affects hard gates, the structured score, AND policy reranking. Don't skip it when adding features.
+7. **Null handling is neutral, not punitive.** If data is missing, the default score is neutral (not 0). See `SCORING_CONFIG.yaml §null_handling`.
+
+8. **Geography is first-class.** It affects hard gates, the structured score, AND policy reranking. Don't skip it when adding features.
 
 ---
 

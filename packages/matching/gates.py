@@ -127,13 +127,14 @@ def evaluate_job_family_gate(
 def evaluate_credential_gate(
     required_credentials: list[str] | None,
     applicant: dict[str, Any],
+    applicant_certs: list[str] | None = None,
 ) -> GateDetail:
     """
     Gate 2: Does the applicant meet the job's required credentials/licenses?
 
     No required credentials on job → PASS.
-    Required credentials present but applicant extraction not yet complete → NEAR_FIT + review.
-    Phase 7 (LLM extraction) will make this gate more precise.
+    When applicant_certs is provided (from LLM extraction), compare against
+    job requirements. Otherwise fall back to null-handling behavior.
 
     Per SCORING_CONFIG.yaml null_handling.required_credential_behavior:
       if job requires credential and applicant data missing →
@@ -145,12 +146,42 @@ def evaluate_credential_gate(
             "no explicit credential requirements on job",
         )
 
-    # Pre-Phase-7: required credentials exist but we haven't extracted applicant creds yet
+    cred_list = ", ".join(required_credentials[:3])
+
+    # Phase 7 path: extracted applicant certifications available
+    if applicant_certs is not None:
+        app_certs_lower = {c.lower().strip() for c in applicant_certs}
+        matched = []
+        unmatched = []
+        for req in required_credentials:
+            req_lower = req.lower().strip()
+            if any(req_lower in ac or ac in req_lower for ac in app_certs_lower):
+                matched.append(req)
+            else:
+                unmatched.append(req)
+
+        if not unmatched:
+            return GateDetail(
+                "required_credential_compatibility", PASS,
+                f"all required credentials matched: {', '.join(matched)}",
+            )
+        if matched:
+            return GateDetail(
+                "required_credential_compatibility", NEAR_FIT,
+                f"partial credential match — has [{', '.join(matched)}], "
+                f"missing [{', '.join(unmatched)}]",
+            )
+        return GateDetail(
+            "required_credential_compatibility", FAIL,
+            f"required credentials [{cred_list}] not found in applicant profile",
+            severity="critical",
+        )
+
+    # Fallback: no extraction data available
     has_program = bool(
         applicant.get("program_name_raw") or applicant.get("canonical_job_family_code")
     )
 
-    cred_list = ", ".join(required_credentials[:3])
     if not has_program:
         return GateDetail(
             "required_credential_compatibility", NEAR_FIT,
@@ -160,8 +191,8 @@ def evaluate_credential_gate(
 
     return GateDetail(
         "required_credential_compatibility", NEAR_FIT,
-        f"requires [{cred_list}] — credential extraction pending (Phase 7)",
-        needs_review=False,  # don't flood queue before extraction runs
+        f"requires [{cred_list}] — credential extraction not yet run",
+        needs_review=False,
     )
 
 
@@ -294,14 +325,14 @@ def evaluate_geography_gate(
 def evaluate_min_req_gate(
     applicant: dict[str, Any],
     job_description_raw: str | None,
+    applicant_skills: list[str] | None = None,
+    job_critical_skills: list[str] | None = None,
 ) -> GateDetail:
     """
     Gate 5: Does the applicant meet explicit minimum requirements?
 
-    Pre-Phase-7: we cannot reliably evaluate without LLM extraction.
-    This gate defaults to NEAR_FIT when description text exists, to avoid
-    incorrectly marking pairs ineligible before extraction runs.
-    Phase 7 will make this gate precise.
+    When extracted signals are available, compares applicant skills against
+    job critical/required skills. Otherwise falls back to null-handling.
     """
     if not job_description_raw:
         return GateDetail(
@@ -309,10 +340,47 @@ def evaluate_min_req_gate(
             "no job description to evaluate against",
         )
 
+    # Phase 7 path: extracted skills available for both sides
+    if applicant_skills is not None and job_critical_skills is not None:
+        if not job_critical_skills:
+            return GateDetail(
+                "explicit_minimum_requirement_compatibility", PASS,
+                "no critical skill requirements extracted from job",
+            )
+
+        app_skills_lower = {s.lower().strip() for s in applicant_skills}
+        matched = []
+        unmatched = []
+        for req in job_critical_skills:
+            req_lower = req.lower().strip()
+            if any(req_lower in ask or ask in req_lower for ask in app_skills_lower):
+                matched.append(req)
+            else:
+                unmatched.append(req)
+
+        if not unmatched:
+            return GateDetail(
+                "explicit_minimum_requirement_compatibility", PASS,
+                f"all critical skills matched: {', '.join(matched[:3])}",
+            )
+        ratio = len(matched) / (len(matched) + len(unmatched))
+        if ratio >= 0.5:
+            return GateDetail(
+                "explicit_minimum_requirement_compatibility", NEAR_FIT,
+                f"partial skill match ({len(matched)}/{len(matched)+len(unmatched)}) — "
+                f"missing: {', '.join(unmatched[:3])}",
+            )
+        return GateDetail(
+            "explicit_minimum_requirement_compatibility", FAIL,
+            f"missing critical skills: {', '.join(unmatched[:3])}",
+            severity="critical",
+        )
+
+    # Fallback: no extraction data
     return GateDetail(
         "explicit_minimum_requirement_compatibility", NEAR_FIT,
-        "minimum requirements exist in job description but not yet extracted (Phase 7 pending)",
-        needs_review=False,  # don't flood review queue pre-extraction
+        "minimum requirements not yet extracted — using null default",
+        needs_review=False,
     )
 
 

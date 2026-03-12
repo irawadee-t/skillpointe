@@ -134,21 +134,48 @@ def score_credential_readiness(
     required_credentials: list[str] | None,
     weight: float,
     null_default: float,
+    applicant_certs: list[str] | None = None,
 ) -> DimensionScore:
     """
     Credential readiness (weight 15).
     No required credentials → 80 (neutral-good: job is accessible).
-    Required + extraction pending → null default (50).
-    Phase 7 will make this dimension precise.
+    With extracted certs: score based on match ratio.
+    Without extraction: null default (50).
     """
     dim = "credential_readiness"
     if not required_credentials:
         s, r = 80.0, "no explicit credential requirements on job"
         return DimensionScore(dim, weight, s, weight * s / 100, r)
 
+    # Phase 7 path: extracted applicant certifications available
+    if applicant_certs is not None:
+        app_certs_lower = {c.lower().strip() for c in applicant_certs}
+        matched = 0
+        for req in required_credentials:
+            req_lower = req.lower().strip()
+            if any(req_lower in ac or ac in req_lower for ac in app_certs_lower):
+                matched += 1
+
+        total = len(required_credentials)
+        ratio = matched / total if total > 0 else 1.0
+
+        if ratio >= 1.0:
+            s, r = 95.0, f"all {total} required credentials matched"
+        elif ratio >= 0.5:
+            s = 60.0 + ratio * 30.0
+            r = f"{matched}/{total} required credentials matched"
+        elif matched > 0:
+            s = 40.0 + ratio * 20.0
+            r = f"only {matched}/{total} required credentials matched"
+        else:
+            s, r = 25.0, f"none of {total} required credentials matched"
+
+        return DimensionScore(dim, weight, s, weight * s / 100, r)
+
+    # Fallback: no extraction data
     s = null_default
     cred_list = ", ".join(required_credentials[:2])
-    r = f"required credentials [{cred_list}] not yet verified — Phase 7 pending"
+    r = f"required credentials [{cred_list}] not yet verified"
     return DimensionScore(dim, weight, s, weight * s / 100, r, True, s)
 
 
@@ -188,13 +215,33 @@ def score_experience_alignment(
     internship_completed: bool | None,
     weight: float,
     null_default: float,
+    experience_quality: str | None = None,
 ) -> DimensionScore:
     """
     Experience + internship alignment (weight 10).
-    experience text + internship → 85, experience only → 65,
-    bio/essay only → 55, nothing → null default.
+
+    When experience_quality is provided (from LLM extraction):
+      'strong' → 90, 'moderate' → 70, 'weak' → 50, 'none' → null default
+
+    Fallback (no extraction): text-length heuristic.
     """
     dim = "experience_internship_alignment"
+
+    # Phase 7 path: extracted experience quality available
+    if experience_quality is not None:
+        if experience_quality == "strong":
+            s, r = 90.0, "strong experience signals (extracted)"
+        elif experience_quality == "moderate":
+            s, r = 70.0, "moderate experience signals (extracted)"
+        elif experience_quality == "weak":
+            s, r = 50.0, "weak experience signals (extracted)"
+        else:
+            s = null_default
+            r = "no experience signals extracted"
+            return DimensionScore(dim, weight, s, weight * s / 100, r, True, s)
+        return DimensionScore(dim, weight, s, weight * s / 100, r)
+
+    # Fallback: text-length heuristic
     has_exp = bool(experience_raw and len(experience_raw.strip()) > 20)
     has_bio = bool(bio_raw and len(bio_raw.strip()) > 20)
     has_internship = internship_completed is True
@@ -318,15 +365,41 @@ def score_work_style_alignment(
 def score_employer_soft_pref(
     weight: float,
     null_default: float,
+    app_work_style: list[dict] | None = None,
+    job_work_style: list[dict] | None = None,
 ) -> DimensionScore:
     """
     Employer soft preference alignment (weight 5).
-    Pre-Phase-7: no explicit soft preferences extracted → null default (50).
+    With extraction: compare work style signals between applicant and job.
+    Without extraction: null default (50).
     """
     dim = "employer_soft_pref_alignment"
+
+    if app_work_style is not None and job_work_style is not None:
+        if not job_work_style:
+            s, r = 65.0, "no work style requirements from employer"
+            return DimensionScore(dim, weight, s, weight * s / 100, r)
+
+        app_signals = {s.get("signal", "").lower() for s in app_work_style if s.get("signal")}
+        job_signals = {s.get("signal", "").lower() for s in job_work_style if s.get("signal")}
+
+        if not job_signals:
+            s, r = 65.0, "no specific work style signals from employer"
+            return DimensionScore(dim, weight, s, weight * s / 100, r)
+
+        overlap = app_signals & job_signals
+        if overlap:
+            ratio = len(overlap) / len(job_signals)
+            s = 60.0 + ratio * 35.0
+            r = f"work style match: {', '.join(list(overlap)[:3])}"
+        else:
+            s, r = 40.0, "no work style signal overlap"
+
+        return DimensionScore(dim, weight, s, weight * s / 100, r)
+
     return DimensionScore(
         dim, weight, null_default, weight * null_default / 100,
-        "employer soft preferences not yet extracted — Phase 7 pending",
+        "employer soft preferences not yet extracted",
         True, null_default,
     )
 
@@ -340,6 +413,8 @@ def compute_structured_score(
     job: dict[str, Any],
     timing: TimingResult,
     config: ScoringConfig,
+    applicant_signals: dict[str, Any] | None = None,
+    job_signals: dict[str, Any] | None = None,
 ) -> tuple[float, list[DimensionScore]]:
     """
     Compute the full weighted structured score (0–100) and per-dimension breakdown.
@@ -347,17 +422,27 @@ def compute_structured_score(
     applicant / job dicts must have the canonical_job_family_code field set
     (populated by normalize_data.py — joined from canonical_job_families table).
 
+    applicant_signals / job_signals: optional extracted signal dicts from Phase 7.
+    When provided, credential, experience, and employer_soft_pref dimensions
+    use extracted data instead of heuristics.
+
     Returns:
         (weighted_structured_score, dimension_scores)
     """
     w = config.structured_weights
     nh = config.null_handling
+    a_sig = applicant_signals or {}
+    j_sig = job_signals or {}
 
     app_family = applicant.get("canonical_job_family_code")
     job_family = job.get("canonical_job_family_code")
 
-    # internship_completed may be in raw_data / extra — use experience_raw as proxy
-    internship_completed: bool | None = None  # Phase 7 will extract this
+    # Extract certs/skills/experience quality from signals if available
+    applicant_certs = _extract_cert_names(a_sig) if a_sig else None
+    experience_quality = _extract_experience_quality(a_sig) if a_sig else None
+    app_work_style = a_sig.get("work_style_signals") if a_sig else None
+    job_work_style = j_sig.get("work_style_signals") if j_sig else None
+    internship_completed = _has_internship(a_sig) if a_sig else None
 
     dimensions: list[DimensionScore] = [
         score_trade_program_alignment(
@@ -375,6 +460,7 @@ def compute_structured_score(
         score_credential_readiness(
             job.get("required_credentials") or [],
             w.credential_readiness, nh.credentials_unknown_nonrequired,
+            applicant_certs=applicant_certs,
         ),
         score_timing_readiness(timing, w.timing_readiness, nh.experience_unknown),
         score_experience_alignment(
@@ -382,6 +468,7 @@ def compute_structured_score(
             applicant.get("bio_raw"),
             internship_completed,
             w.experience_internship_alignment, nh.experience_unknown,
+            experience_quality=experience_quality,
         ),
         score_industry_alignment(
             app_family, job_family,
@@ -398,12 +485,55 @@ def compute_structured_score(
         ),
         score_employer_soft_pref(
             w.employer_soft_pref_alignment, nh.employer_soft_pref_alignment_unknown,
+            app_work_style=app_work_style,
+            job_work_style=job_work_style,
         ),
     ]
 
-    # Each weighted_score = weight * raw / 100
-    # Sum of weights = 100, so max total = sum(w_i * 100 / 100) = 100
     total = sum(d.weighted_score for d in dimensions)
     weighted_structured_score = round(min(100.0, max(0.0, total)), 2)
 
     return weighted_structured_score, dimensions
+
+
+# ---------------------------------------------------------------------------
+# Helpers for extracting signals into scorer-compatible formats
+# ---------------------------------------------------------------------------
+
+def _extract_cert_names(signals: dict) -> list[str] | None:
+    certs = signals.get("certifications_extracted")
+    if certs is None:
+        return None
+    if isinstance(certs, list):
+        return [c.get("name") or c.get("cert_name", "") for c in certs if isinstance(c, dict)]
+    return None
+
+
+def _extract_experience_quality(signals: dict) -> str | None:
+    exp = signals.get("experience_signals")
+    if exp is None:
+        return None
+    if not isinstance(exp, list) or not exp:
+        return "none"
+    high_rel = sum(1 for e in exp if isinstance(e, dict) and e.get("relevance") == "high")
+    has_intern = any(
+        "internship" in (e.get("description") or "").lower()
+        for e in exp if isinstance(e, dict)
+    )
+    if high_rel >= 2 or (high_rel >= 1 and has_intern):
+        return "strong"
+    if exp:
+        return "moderate"
+    return "weak"
+
+
+def _has_internship(signals: dict) -> bool | None:
+    exp = signals.get("experience_signals")
+    if exp is None:
+        return None
+    if isinstance(exp, list):
+        return any(
+            "internship" in (e.get("description") or "").lower()
+            for e in exp if isinstance(e, dict)
+        )
+    return None

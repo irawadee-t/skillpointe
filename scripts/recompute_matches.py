@@ -83,13 +83,24 @@ def main() -> int:
     print(f"Loaded policy config version: {config.version}")
 
     # ----------------------------------------------------------------
-    # Fetch applicants + jobs
+    # Fetch applicants + jobs + extracted signals
     # ----------------------------------------------------------------
     applicants = _fetch_applicants(conn, applicant_id=args.applicant_id, limit=args.limit)
     jobs = _fetch_jobs(conn, job_id=args.job_id, limit=args.limit)
     employers = _fetch_employers(conn)
 
     employer_map = {str(e["id"]): e for e in employers}
+
+    # Phase 7: load extracted signals and embeddings
+    app_signals_map = _fetch_applicant_signals(conn)
+    job_signals_map = _fetch_job_signals(conn)
+    app_embedding_map = _fetch_applicant_embeddings(conn)
+    job_embedding_map = _fetch_job_embeddings(conn)
+
+    has_signals = bool(app_signals_map or job_signals_map)
+    has_embeddings = bool(app_embedding_map or job_embedding_map)
+    print(f"Extracted signals: {len(app_signals_map)} applicants, {len(job_signals_map)} jobs")
+    print(f"Embeddings: {len(app_embedding_map)} applicants, {len(job_embedding_map)} jobs")
 
     total_pairs = len(applicants) * len(jobs)
     print(f"Applicants: {len(applicants)}, Jobs: {len(jobs)}, Pairs: {total_pairs}")
@@ -112,12 +123,26 @@ def main() -> int:
     BATCH = 500  # commit every N rows
 
     for app in applicants:
+        app_id = str(app["id"])
+        a_sig = app_signals_map.get(app_id)
+        a_emb = app_embedding_map.get(app_id)
+
         for job in jobs:
+            job_id_str = str(job["id"])
             emp = employer_map.get(str(job.get("employer_id")), {})
+            j_sig = job_signals_map.get(job_id_str)
+            j_emb = job_embedding_map.get(job_id_str)
+
             try:
-                result = compute_match(app, job, emp, config,
-                                       today=date.today(),
-                                       scoring_run_id=run_id)
+                result = compute_match(
+                    app, job, emp, config,
+                    today=date.today(),
+                    scoring_run_id=run_id,
+                    applicant_signals=a_sig,
+                    job_signals=j_sig,
+                    applicant_embedding=a_emb,
+                    job_embedding=j_emb,
+                )
                 counters["total"] += 1
                 counters[result.eligibility_status] = counters.get(result.eligibility_status, 0) + 1
                 counters[result.match_label] = counters.get(result.match_label, 0) + 1
@@ -241,6 +266,105 @@ def _fetch_employers(conn) -> list[dict]:
         cur.execute(sql)
         cols = [d[0] for d in cur.description]
         return [dict(zip(cols, r)) for r in cur.fetchall()]
+
+
+def _fetch_applicant_signals(conn) -> dict[str, dict]:
+    """Load latest extracted signals per applicant (keyed by applicant_id)."""
+    sql = """
+        SELECT DISTINCT ON (applicant_id)
+            applicant_id,
+            skills_extracted,
+            certifications_extracted,
+            desired_job_families,
+            work_style_signals,
+            experience_signals,
+            readiness_signals,
+            intent_signals,
+            confidence_level,
+            review_status
+        FROM public.extracted_applicant_signals
+        WHERE review_status != 'overridden'
+        ORDER BY applicant_id, created_at DESC
+    """
+    with conn.cursor() as cur:
+        cur.execute(sql)
+        cols = [d[0] for d in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+    return {str(r["applicant_id"]): r for r in rows}
+
+
+def _fetch_job_signals(conn) -> dict[str, dict]:
+    """Load latest extracted signals per job (keyed by job_id)."""
+    sql = """
+        SELECT DISTINCT ON (job_id)
+            job_id,
+            required_skills,
+            preferred_skills,
+            required_credentials,
+            preferred_credentials,
+            job_family_signals,
+            experience_signals,
+            work_style_signals,
+            physical_requirement_signals,
+            confidence_level,
+            review_status
+        FROM public.extracted_job_signals
+        WHERE review_status != 'overridden'
+        ORDER BY job_id, created_at DESC
+    """
+    with conn.cursor() as cur:
+        cur.execute(sql)
+        cols = [d[0] for d in cur.description]
+        rows = [dict(zip(cols, r)) for r in cur.fetchall()]
+    return {str(r["job_id"]): r for r in rows}
+
+
+def _fetch_applicant_embeddings(conn) -> dict[str, list[float]]:
+    """Load embeddings per applicant (keyed by applicant_id)."""
+    sql = """
+        SELECT DISTINCT ON (applicant_id)
+            applicant_id, embedding::text
+        FROM public.extracted_applicant_signals
+        WHERE embedding IS NOT NULL AND review_status != 'overridden'
+        ORDER BY applicant_id, created_at DESC
+    """
+    with conn.cursor() as cur:
+        cur.execute(sql)
+        result = {}
+        for row in cur.fetchall():
+            app_id = str(row[0])
+            emb_str = row[1]
+            if emb_str:
+                result[app_id] = _parse_vector(emb_str)
+        return result
+
+
+def _fetch_job_embeddings(conn) -> dict[str, list[float]]:
+    """Load embeddings per job (keyed by job_id)."""
+    sql = """
+        SELECT DISTINCT ON (job_id)
+            job_id, embedding::text
+        FROM public.extracted_job_signals
+        WHERE embedding IS NOT NULL AND review_status != 'overridden'
+        ORDER BY job_id, created_at DESC
+    """
+    with conn.cursor() as cur:
+        cur.execute(sql)
+        result = {}
+        for row in cur.fetchall():
+            jid = str(row[0])
+            emb_str = row[1]
+            if emb_str:
+                result[jid] = _parse_vector(emb_str)
+        return result
+
+
+def _parse_vector(vec_str: str) -> list[float]:
+    """Parse a pgvector string '[0.1,0.2,...]' into a list of floats."""
+    clean = vec_str.strip().strip("[]")
+    if not clean:
+        return []
+    return [float(x) for x in clean.split(",")]
 
 
 def _upsert_match(conn, result: MatchResult):

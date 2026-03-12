@@ -5,7 +5,7 @@ Computes a complete MatchResult for one (applicant, job) pair:
 
   Stage 1 — Hard eligibility gates    → eligibility_status, hard_gate_cap
   Stage 2A — Structured scoring       → weighted_structured_score, dimension_scores
-  Stage 2B — Semantic score           → placeholder (Phase 5.3 will replace)
+  Stage 2B — Semantic score           → embedding similarity (or placeholder)
   Stage 2  — Base fit score           → hard_gate_cap * (struct*0.75 + semantic*0.25)
   Stage 3  — Policy reranking         → policy_adjusted_score
   Output   — Labels + explanation     → match_label, strengths, gaps, next_step
@@ -13,12 +13,14 @@ Computes a complete MatchResult for one (applicant, job) pair:
 Guardrails (DECISIONS.md 1.12, SCORING_CONFIG.yaml):
   - No pair labeled high fit if a critical hard gate failed.
   - base_fit_score and policy_adjusted_score are ALWAYS stored separately.
-  - LLM inputs are NOT used here — this module is 100% deterministic.
+  - LLM outputs are INPUTS to this module (via extracted signals), not computed here.
+  - This module remains 100% deterministic.
 
 All inputs are plain Python dicts (DB row format).  No DB I/O here.
 """
 from __future__ import annotations
 
+import math
 import uuid
 from dataclasses import dataclass, field
 from datetime import date
@@ -42,16 +44,29 @@ from .scorer import compute_structured_score, DimensionScore
 
 
 # ---------------------------------------------------------------------------
-# Semantic score placeholder
-# Phase 5.3 will replace this with real embedding-based scoring.
-# All applicants receive the same value so relative ranking within
-# an eligibility group is driven entirely by structured score until Phase 5.3.
+# Semantic score: real embedding-based scoring (Phase 7) with placeholder fallback
 # ---------------------------------------------------------------------------
 _PLACEHOLDER_SEMANTIC_SCORE = 50.0
 _PLACEHOLDER_SEMANTIC_NOTE = (
-    "PLACEHOLDER — Phase 5.3 (embedding-based semantic scoring) not yet implemented; "
-    "all pairs receive 50.0 so relative ranking is driven by structured score"
+    "no embeddings available — using neutral default 50.0; "
+    "run scripts/run_extraction.py to generate embeddings"
 )
+
+
+def _compute_semantic_score(
+    a_emb: list[float], b_emb: list[float],
+) -> tuple[float, str]:
+    """Cosine similarity between two embedding vectors, scaled to 0–100."""
+    if len(a_emb) != len(b_emb) or not a_emb:
+        return 50.0, "embedding dimension mismatch — using default"
+    dot = sum(x * y for x, y in zip(a_emb, b_emb))
+    norm_a = math.sqrt(sum(x * x for x in a_emb))
+    norm_b = math.sqrt(sum(x * x for x in b_emb))
+    if norm_a == 0 or norm_b == 0:
+        return 50.0, "zero-norm embedding — using default"
+    sim = dot / (norm_a * norm_b)
+    score = round(max(0.0, min(100.0, sim * 100.0)), 2)
+    return score, f"embedding cosine similarity: {sim:.4f}"
 
 
 # ---------------------------------------------------------------------------
@@ -112,6 +127,10 @@ def compute_match(
     config: ScoringConfig,
     today: date | None = None,
     scoring_run_id: str | None = None,
+    applicant_signals: dict[str, Any] | None = None,
+    job_signals: dict[str, Any] | None = None,
+    applicant_embedding: list[float] | None = None,
+    job_embedding: list[float] | None = None,
 ) -> MatchResult:
     """
     Compute a full MatchResult for one (applicant, job) pair.
@@ -127,6 +146,10 @@ def compute_match(
     employer  : dict — DB row; must include is_partner
     config    : ScoringConfig — loaded from active policy_configs row
     today     : override date.today() for testing
+    applicant_signals : optional extracted signals from Phase 7 LLM extraction
+    job_signals       : optional extracted signals from Phase 7 LLM extraction
+    applicant_embedding : optional 1536-dim embedding for semantic scoring
+    job_embedding       : optional 1536-dim embedding for semantic scoring
     """
     if today is None:
         today = date.today()
@@ -134,6 +157,8 @@ def compute_match(
     run_id = scoring_run_id or str(uuid.uuid4())
     app_id = str(applicant["id"])
     job_id = str(job["id"])
+    a_sig = applicant_signals or {}
+    j_sig = job_signals or {}
 
     # ------------------------------------------------------------------
     # Stage 1 — Hard eligibility gates
@@ -144,6 +169,11 @@ def compute_match(
         today,
     )
 
+    # Extract cert/skill lists from signals for enhanced gates
+    applicant_certs = _extract_list(a_sig, "certifications_extracted", "name", "cert_name")
+    applicant_skills = _extract_list(a_sig, "skills_extracted", "skill")
+    job_critical_skills = _extract_critical_skills(j_sig)
+
     gate_details: list[GateDetail] = [
         evaluate_job_family_gate(
             applicant.get("canonical_job_family_code"),
@@ -152,6 +182,7 @@ def compute_match(
         evaluate_credential_gate(
             job.get("required_credentials") or [],
             applicant,
+            applicant_certs=applicant_certs,
         ),
         evaluate_timing_gate(timing),
         evaluate_geography_gate(
@@ -163,7 +194,11 @@ def compute_match(
             job.get("region"),
             job.get("work_setting"),
         ),
-        evaluate_min_req_gate(applicant, job.get("description_raw")),
+        evaluate_min_req_gate(
+            applicant, job.get("description_raw"),
+            applicant_skills=applicant_skills,
+            job_critical_skills=job_critical_skills,
+        ),
     ]
 
     elig_result = compute_eligibility(gate_details, config.eligibility_caps)
@@ -173,12 +208,23 @@ def compute_match(
     # ------------------------------------------------------------------
     # Stage 2A — Structured score
     # ------------------------------------------------------------------
-    w_struct_score, dim_scores = compute_structured_score(applicant, job, timing, config)
+    w_struct_score, dim_scores = compute_structured_score(
+        applicant, job, timing, config,
+        applicant_signals=a_sig if a_sig else None,
+        job_signals=j_sig if j_sig else None,
+    )
 
     # ------------------------------------------------------------------
-    # Stage 2B — Semantic score (placeholder)
+    # Stage 2B — Semantic score
+    # Uses embedding cosine similarity when available; placeholder otherwise
     # ------------------------------------------------------------------
-    semantic_score = _PLACEHOLDER_SEMANTIC_SCORE
+    if applicant_embedding and job_embedding:
+        semantic_score, semantic_note = _compute_semantic_score(
+            applicant_embedding, job_embedding
+        )
+    else:
+        semantic_score = _PLACEHOLDER_SEMANTIC_SCORE
+        semantic_note = _PLACEHOLDER_SEMANTIC_NOTE
 
     # ------------------------------------------------------------------
     # Stage 2 — Base fit score
@@ -221,7 +267,7 @@ def compute_match(
         weighted_structured_score=w_struct_score,
         dimension_scores=dim_scores,
         semantic_score=semantic_score,
-        semantic_score_note=_PLACEHOLDER_SEMANTIC_NOTE,
+        semantic_score_note=semantic_note,
         base_fit_score=base_fit,
         policy_modifiers=policy_mods,
         policy_adjusted_score=policy_adj,
@@ -236,6 +282,46 @@ def compute_match(
         scoring_run_at=today.isoformat(),
         policy_version=config.version,
     )
+
+
+# ---------------------------------------------------------------------------
+# Signal extraction helpers (pure, no DB)
+# ---------------------------------------------------------------------------
+
+def _extract_list(
+    signals: dict, key: str, *name_fields: str
+) -> list[str] | None:
+    """Extract a flat list of names from a JSONB array-of-dicts signal."""
+    items = signals.get(key)
+    if items is None:
+        return None
+    if not isinstance(items, list):
+        return None
+    result = []
+    for item in items:
+        if isinstance(item, dict):
+            for nf in name_fields:
+                val = item.get(nf)
+                if val:
+                    result.append(str(val))
+                    break
+    return result
+
+
+def _extract_critical_skills(job_signals: dict) -> list[str] | None:
+    """Extract critical/required skill names from job extraction signals."""
+    req = job_signals.get("required_skills")
+    if req is None:
+        return None
+    if not isinstance(req, list):
+        return None
+    result = []
+    for item in req:
+        if isinstance(item, dict):
+            importance = item.get("importance", "important")
+            if importance in ("critical", "important") and item.get("skill"):
+                result.append(str(item["skill"]))
+    return result
 
 
 # ---------------------------------------------------------------------------

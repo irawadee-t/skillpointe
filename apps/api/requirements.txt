@@ -15,6 +15,9 @@ redis==5.2.1
 # HTTP
 httpx==0.28.1
 
+# LLM extraction (Phase 7)
+openai>=1.0.0
+
 # Database (Phase 3+)
 asyncpg==0.30.0
 
