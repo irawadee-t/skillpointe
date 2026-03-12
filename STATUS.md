@@ -1,6 +1,6 @@
 # STATUS.md — SkillPointe Match Build Handoff
 
-> Last updated: 2026-03-10
+> Last updated: 2026-03-11
 >
 > For: teammates picking up where development left off.
 > Read this alongside `CLAUDE.md` (product rules) and `BUILD_PLAN.md` (execution plan).
@@ -28,14 +28,16 @@ Ranking is deterministic + policy-reranked + LLM-assisted (in that order of prio
 | 3 | Core data model + database schema | ✅ Complete |
 | 4 | Imports + ETL + normalization | ✅ Complete |
 | 5 | Matching engine v1 (hard gates + structured scoring + policy) | ✅ Complete |
-| 6 | Applicant and employer product surfaces (UI) | ⬜ Not started |
+| 6.1 | Applicant dashboard + ranked job matches + explanation detail | ✅ Complete |
+| 6.2 | Employer dashboard + job management + ranked applicants per job | ✅ Complete |
+| 6.3 | Match explanation surfaces (dimension breakdown, strengths, gaps, next steps) | ✅ Complete |
 | 7 | LLM extraction + verification | ⬜ Not started |
 | 8 | Applicant planning chat | ⬜ Not started |
 | 9 | Admin review + config + analytics | ⬜ Not started |
 | 10 | QA + end-to-end testing | ⬜ Not started |
 | 11 | Deployment + production readiness | ⬜ Not started |
 
-**Where we are:** The backend foundation is complete. The database, auth, import pipeline, and full matching engine are all built and tested. The next major milestone is building the product-facing UI surfaces (Phase 6).
+**Where we are:** All backend + all product-facing surfaces (Phases 1–6) are complete. The app is testable end-to-end with seeded test users. The next major milestone is Phase 7 — LLM extraction, which upgrades the currently-placeholder credential/requirement gates and semantic score with real extraction.
 
 ---
 
@@ -103,31 +105,46 @@ Copy the same values into `apps/web/.env.local`:
 ```env
 NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key>
+API_URL=http://localhost:8000
 ```
 
-### 5. Create an admin user
+### 5. Seed test users
+
+```bash
+# From the repo root — installs deps + creates all 3 test users
+cd apps/api && source .venv/bin/activate && cd ../..
+python scripts/seed_test_users.py
+```
+
+This creates three ready-to-use accounts (password `Test1234!` for all):
+
+| Role | Email | Goes to |
+|---|---|---|
+| Applicant | `applicant@skillpointe.test` | `/applicant` |
+| Employer | `employer@skillpointe.test` | `/employer` |
+| Admin | `admin@skillpointe.test` | `/admin` |
+
+The script also creates: an applicant profile (Jane Smith, Welding Technology, Austin TX), an employer company (Acme Industrial, partner), 2 sample jobs, and 2 pre-computed matches so the ranked views are populated immediately.
+
+### 6. Start the app
+
+```bash
+# Terminal 1 — API
+cd apps/api && source .venv/bin/activate
+uvicorn main:app --reload --port 8000
+
+# Terminal 2 — Frontend (from repo root)
+pnpm dev:web
+```
+
+Open `http://localhost:3000`. Log in as any test user.
+
+### 7. Run the test suite
 
 ```bash
 cd apps/api
 source .venv/bin/activate
-python scripts/seed_admin.py --email admin@example.com --password yourpassword
-```
-
-### 6. Verify everything works
-
-```bash
-# Check DB + Redis connections
-python scripts/check_connections.py
-
-# Run all tests (201 tests — should all pass)
-cd apps/api
-.venv/bin/python -m pytest tests/ -v
-
-# Start the API
-uvicorn main:app --reload --port 8000
-
-# Start the web frontend (new terminal, from repo root)
-pnpm dev:web
+pytest tests/ -v
 ```
 
 ---
@@ -144,7 +161,7 @@ pnpm dev:web
 ### Phase 2 — Auth + RBAC
 
 **Backend (`apps/api/app/`):**
-- JWT validation using Supabase JWT secret (`app/auth/dependencies.py`)
+- JWT validation supporting both HS256 and ES256 (Supabase CLI v2) via JWKS (`app/auth/dependencies.py`)
 - RBAC dependency functions: `require_admin`, `require_applicant`, `require_employer`, `require_employer_or_admin`
 - Auth router: `GET /auth/me`, `POST /auth/complete-signup`, `POST /auth/invite-employer`
 - Health endpoint: `GET /health`
@@ -153,7 +170,6 @@ pnpm dev:web
 - Supabase client helpers: `lib/supabase/client.ts`, `lib/supabase/server.ts`
 - Route protection middleware: `middleware.ts` (redirects wrong-role routes)
 - Auth pages: login, signup, forgot-password, reset-password (`app/(auth)/`)
-- Dashboard layout placeholders: `app/(dashboard)/applicant/`, `app/(dashboard)/employer/`, `app/(dashboard)/admin/`
 
 **Auth flow:**
 - Applicants: self-signup → `POST /auth/complete-signup` → `/applicant`
@@ -161,6 +177,9 @@ pnpm dev:web
 - Admins: created via `scripts/seed_admin.py`
 
 **Tests:** `apps/api/tests/test_auth.py` (13 tests)
+
+**Important — Supabase CLI v2 note:**
+Supabase CLI v2 signs JWTs with ES256 (ECDSA), not HS256. The `decode_supabase_jwt` function detects the algorithm from the JWT header and validates ES256 tokens via `GET /auth/v1/.well-known/jwks.json`. The JWKS response is cached in-process. This is already handled — do not revert to HS256-only.
 
 ### Phase 3 — Core Data Model
 
@@ -191,8 +210,8 @@ Schema reference: `docs/schema.md`
 - `reporting.py` — formatted import output
 
 **Import scripts:**
-- `scripts/import_applicants.py` — imports applicants from XLSX/CSV (335 rows in real data, 0 errors)
-- `scripts/import_jobs.py` — imports jobs from XLSX/CSV (300 rows in real data, 0 errors)
+- `scripts/import_applicants.py` — imports applicants from XLSX/CSV
+- `scripts/import_jobs.py` — imports jobs from XLSX/CSV
 
 **Normalization script:**
 - `scripts/normalize_data.py` — maps program names/job titles → canonical job families, parses pay ranges, resolves geography regions
@@ -205,7 +224,7 @@ Schema reference: `docs/schema.md`
 
 | File | What it does |
 |------|-------------|
-| `config.py` | Loads `SCORING_CONFIG.yaml` → `ScoringConfig` dataclass. Falls back to built-in defaults if YAML missing (safe for unit tests). |
+| `config.py` | Loads `SCORING_CONFIG.yaml` → `ScoringConfig` dataclass. Falls back to built-in defaults if YAML missing. |
 | `normalizer.py` | Pure normalization functions: program→job family, pay range parsing, location→region, timing→readiness label. Defines `JOB_FAMILY_ADJACENCY` map. |
 | `gates.py` | 5 hard eligibility gates (job family, credentials, timing, geography, min requirements) + `compute_eligibility` aggregator. |
 | `scorer.py` | 9 structured scoring dimensions + `compute_structured_score`. Null handling defaults are neutral, not punitive. |
@@ -216,77 +235,144 @@ Schema reference: `docs/schema.md`
 2. **Base fit** → `gate_cap × (structured_score × 0.75 + semantic_score × 0.25)`
 3. **Policy reranking** → adds partner/geography/readiness modifiers → `policy_adjusted_score`
 
-**Recompute + inspect scripts:**
-- `scripts/recompute_matches.py` — computes all pairs, upserts to `matches` + `match_dimension_scores`
-- `scripts/inspect_matches.py` — CLI for querying top results, score breakdowns, CSV export
-
-**Run guide:** `docs/MATCHING_SCRIPTS.md`
-
 **Tests:** `apps/api/tests/test_matching.py` (122 tests)
+
+### Phase 6 — Product Surfaces (Applicant + Employer)
+
+#### 6.1 — Applicant dashboard + ranked jobs
+
+**Backend:**
+- `GET /applicant/me/profile` — returns applicant profile summary
+- `GET /applicant/me/matches` — returns ranked job list (policy_adjusted_score DESC)
+- `GET /applicant/me/matches/{match_id}` — returns full match detail with dimension scores, gate results, policy modifiers
+
+**Frontend:**
+- `apps/web/src/app/(dashboard)/applicant/page.tsx` — profile summary dashboard
+- `apps/web/src/app/(dashboard)/applicant/matches/page.tsx` — ranked jobs list (eligible + near-fit sections)
+- `apps/web/src/app/(dashboard)/applicant/matches/[matchId]/page.tsx` — full match detail view
+- `apps/web/src/components/matches/JobMatchCard.tsx` — job match summary card
+- `apps/web/src/components/matches/MatchLabel.tsx` — match quality badge
+- `apps/web/src/components/matches/DimensionBreakdown.tsx` — 9-dimension score breakdown visualization
+- `apps/web/src/lib/api/applicant.ts` — typed API client functions
+- `apps/api/app/schemas/applicant.py` — Pydantic response schemas
+
+#### 6.2 — Employer dashboard + job management + ranked applicants
+
+**Backend:**
+- `GET /employer/me/company` — returns company summary
+- `GET /employer/me/jobs` — returns job list with per-job match stats
+- `POST /employer/me/jobs` — creates new job
+- `PATCH /employer/me/jobs/{job_id}` — updates job fields
+- `GET /employer/me/jobs/{job_id}/applicants` — returns ranked applicant list with filters
+
+**Critical safety rules enforced in SQL:**
+- Every query resolves `employer_id` via `employer_contacts` — cross-employer access is impossible
+- All match queries require `is_visible_to_employer = TRUE`
+
+**Frontend:**
+- `apps/web/src/app/(dashboard)/employer/page.tsx` — company summary + jobs list
+- `apps/web/src/app/(dashboard)/employer/jobs/new/page.tsx` — create job form (server action)
+- `apps/web/src/app/(dashboard)/employer/jobs/[jobId]/edit/page.tsx` — edit job form (server action)
+- `apps/web/src/app/(dashboard)/employer/jobs/[jobId]/applicants/page.tsx` — ranked applicants (URL-based filters, bookmarkable)
+- `apps/web/src/components/employer/ApplicantMatchCard.tsx` — applicant match card with strengths/gaps/geography
+- `apps/web/src/lib/api/employer.ts` — typed API client functions
+- `apps/api/app/schemas/employer.py` — Pydantic response schemas
+
+**Tests:** `apps/api/tests/test_employer_visibility.py` (8 test classes covering employer scoping, visibility flags, RBAC, safe field exposure, geography notes)
+
+#### 6.3 — Explanation surfaces
+
+Built within 6.1 and 6.2:
+- Full 9-dimension score breakdown with per-dimension score, weight, contribution (DimensionBreakdown component)
+- Hard gate results (pass/near_fit/fail per gate, with reason)
+- Policy modifier breakdown (partner bonus, geography boost, readiness boost, penalties)
+- `top_strengths`, `top_gaps`, `required_missing_items`, `recommended_next_step` on every match
+- Geography note derived from job work_setting + applicant location/preferences
+- Confidence and review status flags
 
 ---
 
-## What to build next
+## Known infrastructure quirks
 
-The entire backend foundation is solid. The next work is the **product-facing surfaces** (Phase 6) and the **LLM extraction layer** (Phase 7). These can mostly proceed in parallel.
+### Supabase CLI v2 uses ES256 JWTs (not HS256)
+Supabase CLI v2 switched from symmetric HS256 to asymmetric ES256 JWT signing. The FastAPI `decode_supabase_jwt` function now handles this automatically by reading the JWT header `alg` field and fetching the JWKS when needed. **Do not change `algorithms=["HS256"]` back** — both are intentionally supported.
 
-### Immediate next: Phase 6 — Product surfaces
+### Running `seed_test_users.py`
+The script uses the API virtualenv dependencies. Activate `.venv` before running it, or install `psycopg2-binary` and `supabase` in whichever Python environment you're using:
+```bash
+cd apps/api && source .venv/bin/activate && cd ../..
+python scripts/seed_test_users.py
+```
 
-This is the first visible part of the product. Build in this order:
+### `match_label_enum` values
+The DB enum uses: `strong_fit`, `good_fit`, `moderate_fit`, `low_fit`. The migration was corrected from an earlier wrong set of values (`strong_match`, `good_match`, etc.) to match SCORING_CONFIG.yaml. If you ever see `invalid input value for enum match_label_enum`, run `supabase db reset`.
 
-#### 6A — Applicant: ranked job list
+---
 
-**Backend:**
-- `GET /applicant/matches` — return top N jobs for the authenticated applicant, ordered by `policy_adjusted_score`
-- Include: `match_label`, `eligibility_status`, `top_strengths`, `top_gaps`, `recommended_next_step`, basic job info
+## What to build next — Phase 7
 
-**Frontend:**
-- Applicant dashboard: ranked job cards
-- Each card shows: job title, employer, location, match label (strong/good/moderate/low), 1-line rationale
-- Detail view: full score breakdown, strengths, gaps, recommended next step
+### Phase 7 — LLM Extraction + Verification
 
-#### 6B — Employer: ranked applicant list per job
+This is what makes the matching engine precise. Currently these are placeholders:
 
-**Backend:**
-- `GET /employer/jobs/{job_id}/matches` — return top N applicants for a specific job, ordered by score
-- Employer can only see their own jobs' matches (RBAC enforced)
+| Component | Current state | Phase 7 replacement |
+|---|---|---|
+| Credential gate | Always returns `near_fit` | Real extraction: detect credentials/licenses from applicant text |
+| Min-requirements gate | Always returns `near_fit` | Real extraction: detect explicit requirements from job text |
+| Semantic score | Always `50.0` | Real embeddings: pgvector similarity (extension already enabled) |
+| Experience score | Based on text length only | LLM-extracted experience signals |
 
-**Frontend:**
-- Employer job dashboard: list of employer's jobs
-- Per-job: ranked applicant list with eligibility, score, top traits
-- Filter by: eligibility status, geography, readiness
+### Step 7.1 — Applicant extraction
 
-#### 6C — Match explanation page
+Build an LLM extraction pipeline that reads applicant essay/resume text and returns structured JSON:
 
-- Shared detail view usable from both applicant and employer side
-- Show: all 9 dimension scores as a visual breakdown, gate results, policy modifiers, strengths/gaps/next steps
+```
+extracted skills, certifications, desired job families, work-style signals,
+experience signals, readiness signals, confidence, evidence snippets
+```
 
-### After Phase 6: Phase 7 — LLM extraction
+Store output in `extracted_applicant_signals` table with:
+- `raw_llm_output` (text)
+- `parsed_output` (JSONB)
+- `confidence` (high/medium/low enum)
+- `prompt_version`
+- `review_status` (pending/reviewed/overridden)
 
-This is what makes the matching engine precise. Currently:
-- credentials gate → always NEAR_FIT (pre-Phase 7 placeholder)
-- minimum requirements gate → always NEAR_FIT (pre-Phase 7 placeholder)
-- semantic score → always 50.0 (placeholder)
-- experience score → based on text length only
+Use prompts from `PROMPTS.md` as the base prompt library.
+Flag low-confidence outputs for admin review queue.
 
-Phase 7 replaces these with real extraction:
-1. Extract structured skills, credentials, certifications from applicant essays/resume
-2. Extract required credentials + explicit requirements from job descriptions
-3. Real semantic similarity scoring using embeddings (pgvector already enabled)
-4. Store all LLM outputs with confidence, prompt version, raw output, review status
+### Step 7.2 — Job extraction
 
-### Phase 8 — Applicant planning chat
+Same pattern, applied to job descriptions:
 
-Grounded chat interface using applicant profile + ranked matches + gaps.
-- Uses `PROMPTS.md` as the base prompt library
-- Chat sessions + messages already in schema (`chat_sessions`, `chat_messages` tables)
+```
+required/preferred skills, required credentials, experience level, physical
+requirements, travel requirements, work setting, confidence
+```
 
-### Phase 9 — Admin tools
+Store in `extracted_job_signals`.
 
-- Review queue for low-confidence extractions and taxonomy mismatches
-- Policy/scoring config management UI (edit weights, toggle policies)
-- Import management (trigger re-imports, view import run history)
-- Audit log viewer
+### Step 7.3 — Verifier / judge layer
+
+For ambiguous extractions, borderline classifications, and taxonomy mismatches:
+- LLM verifier returns structured verdict (not just a score)
+- Human review recommendations are stored in `review_queue_items`
+- Verifier never overrides auditability
+
+### After Phase 7 is done
+
+- Rerun `scripts/recompute_matches.py` — this time with real extraction powering the credential/requirements gates and semantic score
+- Use `scripts/inspect_matches.py` to verify ranking quality improved
+- Compare top matches before/after to validate the extraction is helping
+
+---
+
+## What to build after Phase 7 — Phase 8
+
+**Applicant planning chat** — grounded chat using applicant profile + ranked matches + gaps.
+- Tables already exist: `chat_sessions`, `chat_messages`, `chat_prompt_configs`
+- Base prompts are in `PROMPTS.md`
+- Build retrieval context from ranked matches + gaps + geography first, then add the UI
 
 ---
 
@@ -308,31 +394,41 @@ skillpointe/
 ├── apps/
 │   ├── api/                        ← FastAPI backend
 │   │   ├── app/
-│   │   │   ├── auth/               ← JWT validation, RBAC deps, schemas
-│   │   │   ├── routers/            ← auth.py, health.py (more needed in Phase 6)
+│   │   │   ├── auth/               ← JWT validation (HS256+ES256), RBAC deps, schemas
+│   │   │   ├── routers/            ← auth.py, health.py, applicants.py, employers.py
+│   │   │   ├── schemas/            ← applicant.py, employer.py (Pydantic response models)
 │   │   │   ├── config.py           ← Pydantic settings
 │   │   │   └── main.py
 │   │   ├── tests/
 │   │   │   ├── conftest.py
-│   │   │   ├── test_auth.py        ← 13 auth tests
-│   │   │   ├── test_etl_import.py  ← 79 ETL tests
-│   │   │   └── test_matching.py    ← 122 matching engine tests
+│   │   │   ├── test_auth.py                  ← 13 tests
+│   │   │   ├── test_etl_import.py            ← 79 tests
+│   │   │   ├── test_matching.py              ← 122 tests
+│   │   │   └── test_employer_visibility.py   ← 8 test classes (employer scoping + visibility)
 │   │   ├── requirements.txt
 │   │   └── pyproject.toml
 │   │
 │   └── web/                        ← Next.js 15 frontend
 │       └── src/
-│           ├── lib/supabase/       ← client.ts + server.ts helpers
+│           ├── lib/
+│           │   ├── supabase/       ← client.ts + server.ts helpers
+│           │   └── api/            ← client.ts, applicant.ts, employer.ts
 │           ├── middleware.ts        ← route protection
+│           ├── components/
+│           │   ├── matches/        ← JobMatchCard, MatchLabel, DimensionBreakdown
+│           │   └── employer/       ← ApplicantMatchCard
 │           └── app/
 │               ├── (auth)/         ← login, signup, forgot/reset password
-│               └── (dashboard)/    ← applicant/, employer/, admin/ placeholders
+│               └── (dashboard)/
+│                   ├── applicant/  ← page.tsx, matches/page.tsx, matches/[matchId]/page.tsx
+│                   ├── employer/   ← page.tsx, jobs/new, jobs/[id]/edit, jobs/[id]/applicants
+│                   └── admin/      ← page.tsx (placeholder — Phase 9)
 │
 ├── packages/
 │   ├── etl/                        ← Import + normalization logic (pure Python)
 │   │   ├── loader.py, coerce.py, models.py
 │   │   ├── applicant_mapper.py, job_mapper.py
-│   │   ├── db.py, reporting.py
+│   │   └── db.py, reporting.py
 │   │
 │   └── matching/                   ← Matching engine (pure Python, no DB)
 │       ├── config.py               ← ScoringConfig loader
@@ -344,10 +440,11 @@ skillpointe/
 ├── scripts/
 │   ├── import_applicants.py        ← Import applicants from XLSX
 │   ├── import_jobs.py              ← Import jobs from XLSX
-│   ├── normalize_data.py           ← Phase 4.3 normalization pipeline
-│   ├── recompute_matches.py        ← Phase 5 full match recompute
+│   ├── normalize_data.py           ← Normalization pipeline
+│   ├── recompute_matches.py        ← Full match recompute (run after Phase 7 extraction)
 │   ├── inspect_matches.py          ← CLI match inspection + CSV export
 │   ├── seed_admin.py               ← Create first admin user
+│   ├── seed_test_users.py          ← Create all 3 test users for local dev
 │   ├── verify_schema.py            ← Check DB schema is correct
 │   └── check_connections.py        ← Verify DB + Redis connections
 │
@@ -365,13 +462,13 @@ skillpointe/
 
 2. **Hard gate failures cap the score — they never get overridden.** `ineligible` pairs get a 0.35 cap regardless of structured score. `DECISIONS.md 1.12`.
 
-3. **The semantic score (50.0) is a placeholder.** Every pair receives the same semantic score until Phase 7 builds real embeddings. This means within-eligibility-group ranking is driven entirely by structured score for now. See `engine.py:_PLACEHOLDER_SEMANTIC_SCORE`.
+3. **The semantic score (50.0) is a placeholder.** Every pair receives the same semantic score until Phase 7 builds real embeddings. Within-eligibility-group ranking is driven entirely by structured score for now. See `engine.py:_PLACEHOLDER_SEMANTIC_SCORE`.
 
-4. **The credential and minimum-requirement gates are also placeholders.** They both default to NEAR_FIT until Phase 7 LLM extraction runs. See comments in `gates.py`.
+4. **The credential and minimum-requirement gates are also placeholders.** They both default to `near_fit` until Phase 7 LLM extraction runs. See comments in `gates.py`.
 
-5. **`packages/matching/` has zero DB I/O.** All DB reads/writes happen in `scripts/`. The matching package is pure functions only — keeps it testable and portable.
+5. **`packages/matching/` has zero DB I/O.** All DB reads/writes happen in `scripts/`. The matching package is pure functions only.
 
-6. **Null handling is neutral, not punitive.** If data is missing, the default score is set to a neutral value (not 0). See `SCORING_CONFIG.yaml §null_handling` and `packages/matching/config.py:NullHandlingConfig`.
+6. **Null handling is neutral, not punitive.** If data is missing, the default score is neutral (not 0). See `SCORING_CONFIG.yaml §null_handling`.
 
 7. **Geography is first-class.** It affects hard gates, the structured score, AND policy reranking. Don't skip it when adding features.
 
@@ -381,13 +478,14 @@ skillpointe/
 
 ```bash
 cd apps/api
-.venv/bin/python -m pytest tests/ -v
+source .venv/bin/activate
+pytest tests/ -v
 ```
 
-**201 tests, all passing:**
 - `test_auth.py` — 13 tests (JWT, RBAC, signup flows)
 - `test_etl_import.py` — 79 tests (ETL mapping, coercions, real SkillPointe columns)
 - `test_matching.py` — 122 tests (normalizer, gates, scorer, engine — no DB required)
+- `test_employer_visibility.py` — 8 test classes (employer scoping, visibility flags, RBAC, safe field exposure)
 
 All matching engine tests run without Supabase or a database connection.
 
@@ -399,12 +497,6 @@ Real SkillPointe data files are stored locally (not committed to git):
 - **Applicants:** 335 rows across 40 columns
 - **Jobs:** 300 rows across 20 columns
 
-After importing, running normalization gives approximately:
-- ~285/335 applicants matched to a canonical job family
-- ~278/300 jobs matched to a canonical job family
-
-Unmatched programs indicate missing aliases in `supabase/seed.sql`. Fix by adding aliases there, re-running `supabase db reset`, re-importing, and re-normalizing.
-
 Full pipeline (first-time setup with real data):
 ```bash
 supabase db reset
@@ -414,3 +506,5 @@ python scripts/normalize_data.py
 python scripts/recompute_matches.py
 python scripts/inspect_matches.py --stats
 ```
+
+After Phase 7 extraction is added, re-run `recompute_matches.py` to refresh scores with real LLM-extracted signals.

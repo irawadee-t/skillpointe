@@ -15,7 +15,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import auth, health
+from app.routers import applicants, auth, employers, health
 
 logger = logging.getLogger(__name__)
 
@@ -53,14 +53,13 @@ def create_app() -> FastAPI:
 
     # Routers
     app.include_router(health.router)
-    app.include_router(auth.router)       # /auth/me, /auth/complete-signup, /auth/invite-employer
+    app.include_router(auth.router)         # /auth/me, /auth/complete-signup, /auth/invite-employer
+    app.include_router(applicants.router)   # /applicant/me/profile, /applicant/me/matches
 
-    # Placeholder routers — added in Phase 3+
-    # app.include_router(applicants.router, prefix="/applicants")
-    # app.include_router(employers.router, prefix="/employers")
-    # app.include_router(jobs.router, prefix="/jobs")
-    # app.include_router(matches.router, prefix="/matches")
-    # app.include_router(admin.router, prefix="/admin")
+    app.include_router(employers.router)  # /employer/me/company, /employer/me/jobs, /employer/me/jobs/{id}/applicants
+
+    # Phase 9+
+    # app.include_router(admin.router)
 
     return app
 

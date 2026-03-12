@@ -21,6 +21,7 @@ import logging
 from functools import lru_cache
 from typing import Annotated
 
+import httpx
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import ExpiredSignatureError, JWTError, jwt
@@ -49,21 +50,59 @@ def _get_admin_client() -> Client:
 # JWT validation
 # ---------------------------------------------------------------------------
 
+@lru_cache(maxsize=1)
+def _fetch_jwks() -> dict:
+    """
+    Fetch and cache the JWKS from Supabase Auth.
+    Used when Supabase signs JWTs with ES256 (Supabase CLI v2+).
+    Cached for the process lifetime — restart API to rotate keys.
+    """
+    settings = get_settings()
+    url = f"{settings.supabase_url}/auth/v1/.well-known/jwks.json"
+    try:
+        resp = httpx.get(url, timeout=5.0)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception as exc:
+        logger.error("Failed to fetch JWKS from %s: %s", url, exc)
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Could not fetch JWT signing keys",
+        )
+
+
 def decode_supabase_jwt(token: str) -> TokenPayload:
     """
     Validate and decode a Supabase-issued JWT.
 
+    Supports both HS256 (Supabase CLI v1 / cloud) and ES256 (Supabase CLI v2+).
+    Algorithm is detected from the JWT header — ES256 tokens are validated
+    against the JWKS endpoint; HS256 tokens against the configured JWT secret.
+
     Raises HTTP 401 on any validation failure.
-    Algorithm: HS256 (both local and cloud Supabase use HS256 with the JWT secret).
     """
     settings = get_settings()
     try:
-        payload = jwt.decode(
-            token,
-            settings.supabase_jwt_secret,
-            algorithms=["HS256"],
-            audience="authenticated",
-        )
+        header = jwt.get_unverified_header(token)
+        alg = header.get("alg", "HS256")
+
+        if alg == "HS256":
+            payload = jwt.decode(
+                token,
+                settings.supabase_jwt_secret,
+                algorithms=["HS256"],
+                audience="authenticated",
+            )
+        else:
+            # ES256 / RS256 — validate via JWKS
+            jwks = _fetch_jwks()
+            payload = jwt.decode(
+                token,
+                jwks,
+                algorithms=["ES256", "RS256"],
+                audience="authenticated",
+            )
+
         return TokenPayload(**payload)
     except ExpiredSignatureError:
         raise HTTPException(

@@ -1,0 +1,417 @@
+/**
+ * Match detail view — Phase 6.1
+ *
+ * Shows for a single applicant-job match:
+ *   - Job header (title, employer, location, pay, badges)
+ *   - Why this matched (top strengths)
+ *   - What's missing (required_missing_items split into mandatory vs. improvable)
+ *   - Hard gate results (pass / near_fit / fail per gate)
+ *   - Recommended next step
+ *   - Scoring breakdown (dimension bars via DimensionBreakdown)
+ *   - Score transparency (base, structured, semantic, policy adjustments)
+ *   - Policy modifiers
+ *
+ * Server component.
+ */
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+
+import { fetchMatchDetail } from "@/lib/api/applicant";
+import { ApiError } from "@/lib/api/client";
+import { createClient } from "@/lib/supabase/server";
+import {
+  formatWorkSetting,
+  formatPay,
+  formatMatchLabel,
+} from "@/lib/api/applicant";
+import type { GateResultItem, PolicyModifierItem } from "@/lib/api/applicant";
+import { EligibilityBadge, MatchLabel } from "@/components/matches/MatchLabel";
+import { DimensionBreakdown } from "@/components/matches/DimensionBreakdown";
+
+export default async function MatchDetailPage({
+  params,
+}: {
+  params: Promise<{ matchId: string }>;
+}) {
+  const { matchId } = await params;
+
+  const supabase = await createClient();
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
+  if (!session) redirect("/login");
+  if (session.user.app_metadata?.role !== "applicant") redirect("/login");
+
+  let match;
+  try {
+    match = await fetchMatchDetail(matchId, session.access_token);
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) notFound();
+    throw e;
+  }
+
+  const locationStr = [match.job_city, match.job_state].filter(Boolean).join(", ");
+  const payStr = formatPay(match.pay_min, match.pay_max, match.pay_type);
+
+  return (
+    <main className="min-h-screen bg-gray-50 p-6 md:p-8">
+      <div className="max-w-3xl mx-auto space-y-6">
+        {/* Breadcrumb */}
+        <Link
+          href="/applicant/matches"
+          className="text-sm text-gray-500 hover:text-gray-700 inline-flex items-center gap-1"
+        >
+          ← Back to matches
+        </Link>
+
+        {/* Job header */}
+        <section className="bg-white border border-gray-200 rounded-lg p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-gray-900 leading-snug">
+                {match.job_title}
+              </h1>
+              <p className="text-gray-600 mt-0.5">
+                {match.employer_name}
+                {match.is_partner_employer && (
+                  <span
+                    className="ml-1.5 text-amber-500"
+                    title="SkillPointe partner employer"
+                  >
+                    ★ Partner
+                  </span>
+                )}
+              </p>
+            </div>
+
+            {/* Display score */}
+            {match.policy_adjusted_score !== null && (
+              <div className="shrink-0 text-right">
+                <div className="text-4xl font-bold text-gray-900 leading-none">
+                  {Math.round(match.policy_adjusted_score)}
+                </div>
+                <div className="text-xs text-gray-400 mt-0.5">/ 100</div>
+              </div>
+            )}
+          </div>
+
+          {/* Badges */}
+          <div className="flex flex-wrap gap-2 mt-4">
+            <EligibilityBadge status={match.eligibility_status} size="md" />
+            {match.match_label && (
+              <MatchLabel label={match.match_label} size="md" />
+            )}
+            {match.confidence_level === "low" && (
+              <span className="inline-flex items-center text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
+                ⚠ Low confidence
+              </span>
+            )}
+            {match.requires_review && (
+              <span className="inline-flex items-center text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
+                ⚠ Needs review
+              </span>
+            )}
+          </div>
+
+          {/* Location + pay */}
+          <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-4 text-sm text-gray-600">
+            {locationStr && (
+              <span>
+                📍 {locationStr}
+                {match.work_setting &&
+                  ` · ${formatWorkSetting(match.work_setting)}`}
+              </span>
+            )}
+            {!locationStr && match.work_setting && (
+              <span>📍 {formatWorkSetting(match.work_setting)}</span>
+            )}
+            {match.pay_min !== null && <span>💰 {payStr}</span>}
+          </div>
+
+          {/* Geography note */}
+          {match.geography_note && (
+            <p className="mt-2 text-sm text-blue-600">{match.geography_note}</p>
+          )}
+        </section>
+
+        {/* Strengths */}
+        {match.top_strengths.length > 0 && (
+          <Section title="Why this matched">
+            <ul className="space-y-2">
+              {match.top_strengths.map((s, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                  <span className="text-green-600 mt-0.5 shrink-0">✓</span>
+                  {s}
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
+
+        {/* Recommended next step */}
+        {match.recommended_next_step && (
+          <Section title="Recommended next step">
+            <p className="text-sm text-gray-700">{match.recommended_next_step}</p>
+          </Section>
+        )}
+
+        {/* Missing requirements */}
+        {match.required_missing_items.length > 0 && (
+          <Section title="What's missing">
+            <MissingItems items={match.required_missing_items} />
+          </Section>
+        )}
+
+        {/* Gaps */}
+        {match.top_gaps.length > 0 && (
+          <Section title="Areas to strengthen">
+            <ul className="space-y-2">
+              {match.top_gaps.map((g, i) => (
+                <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
+                  <span className="text-orange-500 mt-0.5 shrink-0">△</span>
+                  {g}
+                </li>
+              ))}
+            </ul>
+          </Section>
+        )}
+
+        {/* Hard gate results */}
+        {match.hard_gate_rationale.length > 0 && (
+          <Section title="Eligibility checks">
+            <GateResultsTable gates={match.hard_gate_rationale} />
+          </Section>
+        )}
+
+        {/* Scoring breakdown */}
+        {match.dimension_scores.length > 0 && (
+          <Section title="Scoring breakdown">
+            <DimensionBreakdown dimensions={match.dimension_scores} />
+            <ScoreTransparency
+              base={match.base_fit_score}
+              structured={match.weighted_structured_score}
+              semantic={match.semantic_score}
+              adjusted={match.policy_adjusted_score}
+            />
+          </Section>
+        )}
+
+        {/* Policy modifiers */}
+        {match.policy_modifiers.length > 0 && (
+          <Section title="Policy adjustments">
+            <PolicyModifierList modifiers={match.policy_modifiers} />
+          </Section>
+        )}
+      </div>
+    </main>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Sub-components
+// ---------------------------------------------------------------------------
+
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="bg-white border border-gray-200 rounded-lg p-5">
+      <h2 className="font-semibold text-gray-900 mb-3">{title}</h2>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * Split missing items into mandatory (contain keywords like "required", "must",
+ * "license", "certificate", "degree") vs. improvable, then display separately.
+ * Falls back to showing all in a single list if no keywords match.
+ */
+function MissingItems({ items }: { items: string[] }) {
+  const mandatoryKeywords = [
+    "required",
+    "must",
+    "license",
+    "certificate",
+    "certification",
+    "degree",
+    "credential",
+    "mandatory",
+  ];
+  const isMandatory = (s: string) =>
+    mandatoryKeywords.some((kw) => s.toLowerCase().includes(kw));
+
+  const mandatory = items.filter(isMandatory);
+  const improvable = items.filter((s) => !isMandatory(s));
+
+  if (mandatory.length === 0) {
+    return (
+      <ul className="space-y-2">
+        {items.map((item, i) => (
+          <MissingItem key={i} text={item} type="improvable" />
+        ))}
+      </ul>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {mandatory.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-red-600 mb-2">
+            Required — must address
+          </p>
+          <ul className="space-y-2">
+            {mandatory.map((item, i) => (
+              <MissingItem key={i} text={item} type="mandatory" />
+            ))}
+          </ul>
+        </div>
+      )}
+      {improvable.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 mb-2">
+            Improvable — would strengthen fit
+          </p>
+          <ul className="space-y-2">
+            {improvable.map((item, i) => (
+              <MissingItem key={i} text={item} type="improvable" />
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MissingItem({
+  text,
+  type,
+}: {
+  text: string;
+  type: "mandatory" | "improvable";
+}) {
+  const icon = type === "mandatory" ? "✗" : "○";
+  const color =
+    type === "mandatory" ? "text-red-500" : "text-amber-500";
+  return (
+    <li className="flex items-start gap-2 text-sm text-gray-700">
+      <span className={`${color} mt-0.5 shrink-0 font-bold`}>{icon}</span>
+      {text}
+    </li>
+  );
+}
+
+function GateResultsTable({ gates }: { gates: GateResultItem[] }) {
+  return (
+    <div className="space-y-2">
+      {gates.map((gate, i) => (
+        <div
+          key={i}
+          className="flex items-start gap-3 text-sm"
+        >
+          <GateIcon result={gate.result} />
+          <div className="min-w-0">
+            <span className="font-medium text-gray-800 capitalize">
+              {gate.gate_name.replace(/_/g, " ")}
+            </span>
+            <p className="text-gray-500 mt-0.5">{gate.reason}</p>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function GateIcon({ result }: { result: "pass" | "near_fit" | "fail" }) {
+  if (result === "pass")
+    return (
+      <span className="text-green-600 font-bold shrink-0 mt-0.5">✓</span>
+    );
+  if (result === "near_fit")
+    return (
+      <span className="text-amber-500 font-bold shrink-0 mt-0.5">~</span>
+    );
+  return (
+    <span className="text-red-500 font-bold shrink-0 mt-0.5">✗</span>
+  );
+}
+
+function ScoreTransparency({
+  base,
+  structured,
+  semantic,
+  adjusted,
+}: {
+  base: number | null;
+  structured: number | null;
+  semantic: number | null;
+  adjusted: number | null;
+}) {
+  if (base === null) return null;
+  return (
+    <div className="mt-5 pt-4 border-t border-gray-100">
+      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
+        Score components
+      </p>
+      <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <ScoreKV label="Structured" value={structured} />
+        <ScoreKV label="Semantic" value={semantic} />
+        <ScoreKV label="Base fit" value={base} />
+        <ScoreKV label="Display score" value={adjusted} highlight />
+      </dl>
+    </div>
+  );
+}
+
+function ScoreKV({
+  label,
+  value,
+  highlight = false,
+}: {
+  label: string;
+  value: number | null;
+  highlight?: boolean;
+}) {
+  return (
+    <div>
+      <dt className="text-xs text-gray-400">{label}</dt>
+      <dd
+        className={`text-lg font-bold mt-0.5 ${
+          highlight ? "text-gray-900" : "text-gray-600"
+        }`}
+      >
+        {value !== null ? Math.round(value) : "—"}
+      </dd>
+    </div>
+  );
+}
+
+function PolicyModifierList({ modifiers }: { modifiers: PolicyModifierItem[] }) {
+  return (
+    <div className="space-y-2">
+      {modifiers.map((mod, i) => (
+        <div key={i} className="flex items-start justify-between gap-4 text-sm">
+          <div>
+            <span className="font-medium text-gray-800 capitalize">
+              {mod.policy.replace(/_/g, " ")}
+            </span>
+            <p className="text-gray-500 mt-0.5">{mod.reason}</p>
+          </div>
+          <span
+            className={`shrink-0 font-semibold ${
+              mod.value > 0 ? "text-green-600" : "text-red-600"
+            }`}
+          >
+            {mod.value > 0 ? `+${mod.value}` : mod.value}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}

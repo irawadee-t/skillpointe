@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     supabase_service_role_key: str
     supabase_jwt_secret: str
 
+    # Database (direct Postgres — used by applicant/employer API routes)
+    database_url: str = "postgresql://postgres:postgres@localhost:54322/postgres"
+
     # Redis
     redis_url: str = "redis://localhost:6379"
 

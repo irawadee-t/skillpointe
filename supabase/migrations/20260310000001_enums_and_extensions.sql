@@ -44,13 +44,14 @@ CREATE TYPE public.review_status_enum AS ENUM (
 
 -- ---------------------------------------------------------------
 -- Match label (UI-facing label derived from eligibility + score)
+-- Values match SCORING_CONFIG.yaml §match_label and application code.
+-- Note: 'near_fit' / 'ineligible' are eligibility_status values, not labels.
 -- ---------------------------------------------------------------
 CREATE TYPE public.match_label_enum AS ENUM (
-  'strong_match',
-  'good_match',
-  'near_fit',
-  'low_fit',
-  'ineligible'
+  'strong_fit',
+  'good_fit',
+  'moderate_fit',
+  'low_fit'
 );
 
 
