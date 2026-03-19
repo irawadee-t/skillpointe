@@ -141,7 +141,7 @@ async def get_current_user(
             client.table("user_profiles")
             .select("role, onboarding_complete")
             .eq("user_id", user_id)
-            .maybe_single()
+            .limit(1)
             .execute()
         )
     except Exception as exc:
@@ -160,8 +160,8 @@ async def get_current_user(
     return CurrentUser(
         user_id=user_id,
         email=token_data.email or "",
-        role=result.data["role"],
-        onboarding_complete=result.data["onboarding_complete"],
+        role=result.data[0]["role"],
+        onboarding_complete=result.data[0]["onboarding_complete"],
     )
 
 

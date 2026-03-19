@@ -45,6 +45,12 @@ export interface JobMatchSummary {
   top_strengths: string[];
   top_gaps: string[];
   recommended_next_step: string | null;
+  source_url: string | null;
+  canonical_job_family_code: string | null;
+  description_raw: string | null;
+  requirements_raw: string | null;
+  preferred_qualifications_raw: string | null;
+  experience_level: string | null;
   confidence_level: "high" | "medium" | "low" | null;
   requires_review: boolean;
 }

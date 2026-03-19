@@ -1,28 +1,37 @@
+import Image from "next/image";
+import Link from "next/link";
+
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-24">
-      <h1 className="text-4xl font-bold">SkillPointe Match</h1>
-      <p className="mt-4 text-lg text-gray-600">
-        Ranked job recommendations and planning platform.
+    <main className="flex min-h-screen flex-col items-center justify-center bg-white px-6">
+      <Image
+        src="/spf-logo.png"
+        alt="SkillPointe Foundation"
+        width={320}
+        height={87}
+        priority
+        className="mb-8"
+      />
+      <h1 className="text-3xl font-bold text-spf-navy text-center">
+        SkillPointe Match
+      </h1>
+      <p className="mt-3 text-base text-gray-500 text-center max-w-md">
+        Find your best-fit skilled trades career. Get ranked recommendations,
+        understand what makes you a strong candidate, and plan your next step.
       </p>
       <div className="mt-8 flex gap-4">
-        <a
+        <Link
           href="/login"
-          className="rounded-md bg-blue-600 px-4 py-2 text-white hover:bg-blue-700"
+          className="rounded-lg bg-spf-navy px-6 py-2.5 text-sm font-medium text-white hover:bg-spf-navy-light transition-colors"
         >
           Sign in
-        </a>
-      </div>
-      <div className="mt-8 text-sm text-gray-400">
-        API status:{" "}
-        <a
-          href="http://localhost:8000/health"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="underline"
+        </Link>
+        <Link
+          href="/signup"
+          className="rounded-lg border-2 border-spf-orange px-6 py-2.5 text-sm font-medium text-spf-orange hover:bg-spf-orange hover:text-white transition-colors"
         >
-          localhost:8000/health
-        </a>
+          Create account
+        </Link>
       </div>
     </main>
   );

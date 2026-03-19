@@ -70,7 +70,7 @@ export default async function JobApplicantsPage({
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) {
       return (
-        <main className="min-h-screen bg-gray-50 p-6 md:p-8">
+        <main className="p-6 md:p-8">
           <div className="max-w-3xl mx-auto">
             <BackLink />
             <div className="mt-6 bg-red-50 border border-red-200 rounded-lg p-5 text-sm text-red-800">
@@ -87,7 +87,7 @@ export default async function JobApplicantsPage({
     eligibilityFilter !== "all" || minScore > 0 || stateFilter || relocateFilter !== undefined;
 
   return (
-    <main className="min-h-screen bg-gray-50 p-6 md:p-8">
+    <main className="p-6 md:p-8">
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Header */}
         <div>

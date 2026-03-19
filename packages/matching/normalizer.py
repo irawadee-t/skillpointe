@@ -30,22 +30,52 @@ from typing import Any
 # Based on the SPF trade families seeded in supabase/seed.sql.
 # Admins can refine this via admin policy in a later phase.
 # ---------------------------------------------------------------------------
+_INDUSTRIAL_TRADES = {
+    "electrical", "hvac", "plumbing", "construction", "welding",
+    "manufacturing", "automotive", "logistics", "aviation",
+    "auto_body", "robotics", "heavy_equipment", "construction_mgmt",
+    "drafting", "energy_lineman", "solar_energy", "wind_energy",
+}
+
+def _adj(family: str, core: set[str], extra: set[str] | None = None) -> set[str]:
+    """Build adjacency: core families + all industrial trades at NEAR_FIT."""
+    result = set(core)
+    if extra:
+        result |= extra
+    result |= _INDUSTRIAL_TRADES
+    result.discard(family)
+    return result
+
 JOB_FAMILY_ADJACENCY: dict[str, set[str]] = {
-    "electrical":           {"construction", "hvac", "manufacturing"},
-    "plumbing":             {"construction", "hvac"},
-    "hvac":                 {"electrical", "plumbing", "construction"},
-    "construction":         {"electrical", "plumbing", "hvac", "welding"},
-    "welding":              {"construction", "manufacturing", "automotive"},
-    "automotive":           {"welding", "manufacturing", "logistics"},
-    "manufacturing":        {"welding", "automotive", "logistics"},
-    "logistics":            {"automotive", "manufacturing"},
-    "healthcare_support":   {"administrative"},
+    "electrical":           _adj("electrical", {"hvac", "manufacturing", "energy_lineman", "solar_energy", "construction"}),
+    "plumbing":             _adj("plumbing", {"construction", "hvac"}),
+    "hvac":                 _adj("hvac", {"electrical", "plumbing", "construction", "manufacturing"}),
+    "construction":         _adj("construction", {"electrical", "plumbing", "hvac", "welding", "construction_mgmt", "drafting", "heavy_equipment", "manufacturing"}),
+    "welding":              _adj("welding", {"construction", "manufacturing", "automotive"}),
+    "automotive":           _adj("automotive", {"welding", "manufacturing", "logistics", "auto_body"}),
+    "manufacturing":        _adj("manufacturing", {"welding", "automotive", "logistics", "robotics", "electrical", "hvac", "construction"}),
+    "logistics":            _adj("logistics", {"automotive", "manufacturing"}),
+    "healthcare_support":   {"administrative", "dental", "nursing", "respiratory", "physical_therapy", "radiology"},
     "administrative":       {"healthcare_support", "it_support"},
-    "it_support":           {"administrative"},
+    "it_support":           {"administrative", "robotics", "manufacturing"},
     "culinary":             set(),
     "childcare_education":  {"administrative"},
     "cosmetology":          set(),
     "security":             {"administrative"},
+    "energy_lineman":       _adj("energy_lineman", {"electrical", "solar_energy", "wind_energy"}),
+    "solar_energy":         _adj("solar_energy", {"electrical", "energy_lineman", "wind_energy"}),
+    "wind_energy":          _adj("wind_energy", {"energy_lineman", "solar_energy", "electrical"}),
+    "dental":               {"healthcare_support", "nursing"},
+    "nursing":              {"healthcare_support", "respiratory", "physical_therapy"},
+    "radiology":            {"healthcare_support"},
+    "respiratory":          {"healthcare_support", "nursing"},
+    "physical_therapy":     {"healthcare_support", "nursing"},
+    "aviation":             _adj("aviation", {"automotive", "manufacturing"}),
+    "auto_body":            _adj("auto_body", {"automotive", "welding"}),
+    "robotics":             _adj("robotics", {"manufacturing", "it_support"}),
+    "construction_mgmt":    _adj("construction_mgmt", {"construction", "drafting"}),
+    "drafting":             _adj("drafting", {"construction", "construction_mgmt"}),
+    "heavy_equipment":      _adj("heavy_equipment", {"construction"}),
 }
 
 
@@ -100,26 +130,39 @@ def normalize_program_to_job_family(
             return NormResult(fam["code"], "high", f"exact match: {fam['name']}")
 
     # 2. Alias match — check if any alias is contained in or contains the name
-    matches: list[tuple[str, str]] = []
+    #    Only allow substring matching for aliases >= 4 chars to prevent
+    #    false positives like "ma" (medical assistant) matching "maintenance"
+    matches: list[tuple[str, str, int]] = []
     for fam in job_families:
         aliases = fam.get("aliases") or []
         for alias in aliases:
             alias_lower = alias.lower()
-            if alias_lower in name_lower or name_lower in alias_lower:
-                matches.append((fam["code"], alias))
+            if len(alias_lower) < 4:
+                if _word_boundary_match(alias_lower, name_lower):
+                    matches.append((fam["code"], alias, len(alias_lower)))
+            else:
+                if alias_lower in name_lower or name_lower in alias_lower:
+                    matches.append((fam["code"], alias, len(alias_lower)))
+            if matches and matches[-1][0] == fam["code"]:
                 break  # one alias per family
 
+    if matches:
+        matches.sort(key=lambda m: m[2], reverse=True)
+
     if len(matches) == 1:
-        code, alias = matches[0]
+        code, alias, _ = matches[0]
         return NormResult(code, "high", f"alias match: '{alias}'")
 
     if len(matches) > 1:
         codes = [m[0] for m in matches]
+        unique_codes = list(dict.fromkeys(codes))
+        if len(unique_codes) == 1:
+            return NormResult(unique_codes[0], "high", f"alias match: '{matches[0][1]}'")
         return NormResult(
-            codes[0], "medium",
-            f"multiple alias matches: {codes[:3]}",
+            unique_codes[0], "medium",
+            f"multiple alias matches: {unique_codes[:3]}",
             needs_review=True,
-            alternative_families=codes[1:],
+            alternative_families=unique_codes[1:],
         )
 
     # 3. Keyword overlap scoring
@@ -172,6 +215,12 @@ def normalize_job_title_to_family(
     return NormResult(None, "low", f"no match for title={title!r}, pathway={career_pathway!r}", needs_review=True)
 
 
+def _word_boundary_match(short_alias: str, text: str) -> bool:
+    """Check if a short alias appears as a whole word in text."""
+    pattern = r'\b' + re.escape(short_alias) + r'\b'
+    return bool(re.search(pattern, text))
+
+
 def _keyword_overlap(name_lower: str, job_families: list[dict[str, Any]]) -> tuple[str | None, int, str]:
     """Return (best_family_code, best_score, best_reason) for keyword overlap."""
     best_code: str | None = None
@@ -179,14 +228,15 @@ def _keyword_overlap(name_lower: str, job_families: list[dict[str, Any]]) -> tup
     best_reason = ""
 
     for fam in job_families:
-        score = 0
+        seen_kws: set[str] = set()
         matched_kws: list[str] = []
         sources = [fam["code"], fam["name"]] + (fam.get("aliases") or [])
         for src in sources:
-            for word in re.split(r"[\s/,\-]+", src.lower()):
-                if len(word) >= 4 and word in name_lower:
-                    score += 1
+            for word in re.split(r"[\s/,&\-]+", src.lower()):
+                if len(word) >= 4 and word not in seen_kws and word in name_lower:
+                    seen_kws.add(word)
                     matched_kws.append(word)
+        score = len(seen_kws)
         if score > best_score:
             best_score = score
             best_code = fam["code"]
@@ -294,8 +344,8 @@ def normalize_timing(
     Readiness labels:
       'available_now'   — date is in the past or today
       'near_completion' — < 4 months out
-      'in_progress'     — 4–12 months out
-      'future'          — > 12 months out
+      'in_progress'     — 4–24 months out
+      'future'          — > 24 months out
       'unknown'         — no dates provided
     """
     if today is None:
@@ -314,7 +364,7 @@ def normalize_timing(
 
     if months < 4:
         label = "near_completion"
-    elif months <= 12:
+    elif months <= 24:
         label = "in_progress"
     else:
         label = "future"

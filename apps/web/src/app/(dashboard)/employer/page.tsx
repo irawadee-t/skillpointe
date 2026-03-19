@@ -11,6 +11,14 @@
  */
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import {
+  Star,
+  Plus,
+  ChevronRight,
+  Briefcase,
+  Users,
+  Edit3,
+} from "lucide-react";
 
 import { fetchMyCompany, fetchMyJobs, formatWorkSetting } from "@/lib/api/employer";
 import type { EmployerJobSummary } from "@/lib/api/employer";
@@ -38,37 +46,19 @@ export default async function EmployerDashboard() {
     fetchMyJobs(token).catch(() => null),
   ]);
 
-  async function signOut() {
-    "use server";
-    const supabase = await createClient();
-    await supabase.auth.signOut();
-    redirect("/login");
-  }
-
   return (
-    <main className="min-h-screen bg-gray-50 p-6 md:p-8">
+    <main className="p-6 md:p-8">
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              {company ? company.name : "Employer Dashboard"}
-            </h1>
-            <p className="text-sm text-gray-500 mt-0.5">{session.user.email}</p>
-          </div>
-          <form action={signOut}>
-            <button
-              type="submit"
-              className="text-sm text-gray-500 hover:text-red-600 underline"
-            >
-              Sign out
-            </button>
-          </form>
+        <div>
+          <h1 className="text-2xl font-bold text-spf-navy">
+            {company ? company.name : "Employer Dashboard"}
+          </h1>
         </div>
 
         {/* No employer linked warning */}
         {!company && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-800">
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800">
             <strong>Employer account not linked.</strong> Contact a SkillPointe
             admin to connect your account to a company.
           </div>
@@ -76,12 +66,12 @@ export default async function EmployerDashboard() {
 
         {/* Company summary */}
         {company && (
-          <section className="bg-white border border-gray-200 rounded-lg p-5">
+          <section className="bg-white border border-gray-200 rounded-xl p-5">
             <div className="flex items-center gap-3 mb-4">
               <h2 className="font-semibold text-gray-900">Company</h2>
               {company.is_partner && (
-                <span className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-1">
-                  ★ SkillPointe Partner
+                <span className="inline-flex items-center gap-1 text-xs font-medium text-spf-orange bg-orange-50 border border-orange-200 rounded-md px-2.5 py-1">
+                  <Star className="w-3 h-3 fill-spf-orange" /> Partner
                 </span>
               )}
             </div>
@@ -119,23 +109,23 @@ export default async function EmployerDashboard() {
               <h2 className="font-semibold text-gray-900">Your jobs</h2>
               <Link
                 href="/employer/jobs/new"
-                className="inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-800 border border-blue-200 rounded-md px-3 py-1.5"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-spf-navy hover:text-spf-navy-light border border-spf-navy/20 rounded-md px-3 py-1.5 transition-colors"
               >
-                + New job
+                <Plus className="w-3.5 h-3.5" /> New job
               </Link>
             </div>
 
             {!jobsList || jobsList.jobs.length === 0 ? (
-              <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
+              <div className="bg-white border border-gray-200 rounded-xl p-8 text-center">
                 <p className="text-gray-600 font-medium">No jobs yet</p>
                 <p className="text-sm text-gray-500 mt-2">
                   Create your first job posting to start receiving ranked applicant matches.
                 </p>
                 <Link
                   href="/employer/jobs/new"
-                  className="mt-4 inline-flex items-center text-sm font-medium text-blue-600 hover:text-blue-800"
+                  className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-spf-navy hover:underline"
                 >
-                  Create a job →
+                  Create a job <ChevronRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
             ) : (
@@ -160,7 +150,7 @@ function JobCard({ job }: { job: EmployerJobSummary }) {
   const locationStr = [job.city, job.state].filter(Boolean).join(", ");
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-5 hover:border-gray-300 transition-colors">
+    <div className="bg-white border border-gray-200 rounded-xl p-5 hover:border-gray-300 hover:shadow-sm transition-all">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -194,15 +184,15 @@ function JobCard({ job }: { job: EmployerJobSummary }) {
       <div className="flex items-center gap-4 mt-4 pt-3 border-t border-gray-100">
         <Link
           href={`/employer/jobs/${job.job_id}/applicants`}
-          className="text-sm font-medium text-blue-600 hover:text-blue-800"
+          className="inline-flex items-center gap-1 text-sm font-medium text-spf-navy hover:underline"
         >
-          View applicants ({job.total_visible}) →
+          <Users className="w-3.5 h-3.5" /> View applicants ({job.total_visible})
         </Link>
         <Link
           href={`/employer/jobs/${job.job_id}/edit`}
-          className="text-sm text-gray-500 hover:text-gray-700"
+          className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700"
         >
-          Edit job
+          <Edit3 className="w-3.5 h-3.5" /> Edit
         </Link>
       </div>
     </div>

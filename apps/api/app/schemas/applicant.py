@@ -9,6 +9,7 @@ Key design rules (DECISIONS.md / SCORING_CONFIG.yaml):
   - Geography is first-class in every response
 """
 from __future__ import annotations
+from __future__ import annotations
 
 from typing import Any
 
@@ -33,6 +34,31 @@ class ApplicantProfileSummary(BaseModel):
     expected_completion_date: str | None
     available_from_date: str | None
     profile_completeness: int   # 0–100 rough percentage
+
+    # Expanded fields
+    enrollment_status: str | None
+    degree_type: str | None
+    school_name: str | None
+    school_city: str | None
+    school_state: str | None
+    career_path: str | None
+    program_field: str | None
+    specific_career: str | None
+    program_start_date: str | None
+    gpa: float | None
+
+    travel_preference: str | None
+    relocation_preference: str | None
+    relocation_states: list[str]
+
+    age_range: str | None
+    gender: str | None
+    military_status: bool
+    military_dependent: bool
+    current_wages: str | None
+    has_internship: bool
+    activities: str | None
+    honor_societies: list[str]
 
 
 # ---------------------------------------------------------------------------
@@ -68,6 +94,16 @@ class JobMatchSummary(BaseModel):
     top_strengths: list[str]
     top_gaps: list[str]
     recommended_next_step: str | None
+
+    # Application
+    source_url: str | None
+    canonical_job_family_code: str | None
+
+    # Job detail (for expandable card)
+    description_raw: str | None
+    requirements_raw: str | None
+    preferred_qualifications_raw: str | None
+    experience_level: str | None
 
     # Confidence
     confidence_level: str | None

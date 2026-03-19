@@ -34,6 +34,7 @@ from .gates import (
     evaluate_timing_gate,
     evaluate_geography_gate,
     evaluate_min_req_gate,
+    evaluate_seniority_gate,
     compute_eligibility,
     GateDetail,
     ELIGIBLE,
@@ -41,6 +42,11 @@ from .gates import (
     INELIGIBLE,
 )
 from .scorer import compute_structured_score, DimensionScore
+from .text_scorer import (
+    compute_text_semantic_score,
+    _parse_education_required,
+    _estimate_applicant_education,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -174,6 +180,27 @@ def compute_match(
     applicant_skills = _extract_list(a_sig, "skills_extracted", "skill")
     job_critical_skills = _extract_critical_skills(j_sig)
 
+    # Infer applicant years_experience if not explicitly set
+    if applicant.get("years_experience") is None:
+        from .text_scorer import _estimate_applicant_experience_years
+        inferred_years = _estimate_applicant_experience_years(applicant)
+        if inferred_years is None:
+            # Default: students and recent grads have ~0 years field experience
+            inferred_years = 0
+        applicant = dict(applicant)  # don't mutate original
+        applicant["years_experience"] = inferred_years
+
+    # Derive education levels for credential gate
+    job_text = " ".join(filter(None, [
+        job.get("description_raw"),
+        job.get("requirements_raw"),
+        job.get("preferred_qualifications_raw"),
+    ]))
+    job_edu_parsed = _parse_education_required(job_text) if job_text else None
+    job_min_education = job_edu_parsed["level"] if job_edu_parsed else None
+    edu_or_equivalent = job_edu_parsed.get("or_equivalent", False) if job_edu_parsed else False
+    applicant_education = _estimate_applicant_education(applicant)
+
     gate_details: list[GateDetail] = [
         evaluate_job_family_gate(
             applicant.get("canonical_job_family_code"),
@@ -183,6 +210,10 @@ def compute_match(
             job.get("required_credentials") or [],
             applicant,
             applicant_certs=applicant_certs,
+            job_min_education=job_min_education,
+            applicant_education=applicant_education,
+            job_required_experience_years=job.get("required_experience_years"),
+            education_or_equivalent=edu_or_equivalent,
         ),
         evaluate_timing_gate(timing),
         evaluate_geography_gate(
@@ -193,11 +224,19 @@ def compute_match(
             job.get("state"),
             job.get("region"),
             job.get("work_setting"),
+            relocation_preference=applicant.get("relocation_preference"),
+            relocation_states=applicant.get("relocation_states"),
+            travel_preference=applicant.get("travel_preference"),
         ),
         evaluate_min_req_gate(
             applicant, job.get("description_raw"),
             applicant_skills=applicant_skills,
             job_critical_skills=job_critical_skills,
+        ),
+        evaluate_seniority_gate(
+            job.get("experience_level"),
+            applicant.get("years_experience"),
+            is_trade_school=bool(applicant.get("program_name_raw")),
         ),
     ]
 
@@ -216,15 +255,20 @@ def compute_match(
 
     # ------------------------------------------------------------------
     # Stage 2B — Semantic score
-    # Uses embedding cosine similarity when available; placeholder otherwise
+    # Priority: 1) embedding cosine, 2) text-based semantic, 3) placeholder
     # ------------------------------------------------------------------
     if applicant_embedding and job_embedding:
         semantic_score, semantic_note = _compute_semantic_score(
             applicant_embedding, job_embedding
         )
     else:
-        semantic_score = _PLACEHOLDER_SEMANTIC_SCORE
-        semantic_note = _PLACEHOLDER_SEMANTIC_NOTE
+        text_score, text_note = compute_text_semantic_score(applicant, job)
+        if text_score != 50.0 or job.get("description_raw"):
+            semantic_score = text_score
+            semantic_note = text_note
+        else:
+            semantic_score = _PLACEHOLDER_SEMANTIC_SCORE
+            semantic_note = _PLACEHOLDER_SEMANTIC_NOTE
 
     # ------------------------------------------------------------------
     # Stage 2 — Base fit score
@@ -393,19 +437,29 @@ def _compute_policy_adjustments(
 def _geo_policy_modifier(applicant: dict, job: dict, pm) -> float:
     ws = (job.get("work_setting") or "").lower()
     if ws == "remote":
-        return pm.geo_local  # remote = always local equivalent
+        return pm.geo_local
 
     app_state = applicant.get("state")
     job_state = job.get("state")
     app_region = applicant.get("region")
     job_region = job.get("region")
-    reloc = bool(applicant.get("willing_to_relocate", False))
+    reloc_states = applicant.get("relocation_states") or []
+    r_pref = applicant.get("relocation_preference") or (
+        "anywhere" if applicant.get("willing_to_relocate") else "stay_current"
+    )
+    t_pref = applicant.get("travel_preference") or (
+        "regional" if applicant.get("willing_to_travel") else "no_travel"
+    )
 
     if app_state and job_state and app_state.upper() == job_state.upper():
         return pm.geo_local
-    if app_region and job_region and app_region == job_region:
-        return pm.geo_same_state
-    if reloc:
+    if reloc_states and job_state and job_state.upper() in {s.upper() for s in reloc_states}:
+        return pm.geo_local
+    if app_region and job_region and app_region.lower() == job_region.lower():
+        if r_pref in ("anywhere", "within_region") or t_pref in ("regional", "within_region", "nationwide", "anywhere"):
+            return pm.geo_same_state
+        return 0.0  # same region but not willing — no bonus
+    if r_pref == "anywhere":
         return pm.geo_relocation_willing
     return 0.0
 
@@ -434,6 +488,102 @@ def _compute_match_label(score: float, elig_status: str) -> str:
     return "low_fit"
 
 
+_DIMENSION_LABELS = {
+    "trade_program_alignment": "Your trade matches this role",
+    "geography_alignment": "Location works for you",
+    "credential_readiness": "You have the credentials",
+    "timing_readiness": "Timing is right",
+    "experience_internship_alignment": "Relevant experience",
+    "industry_alignment": "Industry fit",
+    "compensation_alignment": "Pay matches expectations",
+    "work_style_signal_alignment": "Work style fits",
+    "employer_soft_pref_alignment": "Matches employer preferences",
+}
+
+_DIMENSION_GAP_LABELS = {
+    "trade_program_alignment": "Different trade background",
+    "geography_alignment": "Location may be a challenge",
+    "credential_readiness": "Credentials gap",
+    "timing_readiness": "Timing mismatch",
+    "experience_internship_alignment": "More experience needed",
+    "industry_alignment": "Different industry",
+    "compensation_alignment": "Pay may not align",
+    "work_style_signal_alignment": "Work style differs",
+    "employer_soft_pref_alignment": "Employer preference gap",
+}
+
+_GATE_LABELS = {
+    "job_family_compatibility": "Trade alignment",
+    "required_credential_compatibility": "Required credentials",
+    "readiness_timing_compatibility": "Availability timing",
+    "geography_feasibility": "Location",
+    "explicit_minimum_requirement_compatibility": "Job requirements",
+    "seniority_compatibility": "Experience level",
+}
+
+
+_EDU_FRIENDLY = {
+    "high_school": "high school diploma",
+    "trade_cert": "trade certificate",
+    "associates": "associate's degree",
+    "bachelors": "bachelor's degree",
+    "military": "military training",
+}
+
+
+def _humanize_gate_reason(gate_name: str, reason: str) -> str:
+    """Convert technical gate reason to technician-friendly language."""
+    import re
+
+    if gate_name == "required_credential_compatibility":
+        parts = []
+        for segment in reason.split(";"):
+            segment = segment.strip()
+            m = re.match(r"education mismatch: job requires (\w+), applicant has (\w+)", segment)
+            if m:
+                job_edu = _EDU_FRIENDLY.get(m.group(1), m.group(1))
+                app_edu = _EDU_FRIENDLY.get(m.group(2), m.group(2))
+                parts.append(f"this job needs a {job_edu} (you have a {app_edu})")
+                continue
+            m = re.match(r"education.*?close to (\w+)", segment)
+            if m:
+                job_edu = _EDU_FRIENDLY.get(m.group(1), m.group(1))
+                parts.append(f"job prefers a {job_edu}")
+                continue
+            m = re.match(r"requires \[(.+?)\].*not yet verified", segment)
+            if m:
+                parts.append(f"requires {m.group(1)}")
+                continue
+            m = re.match(r"job (?:requires|needs) (\d+)\+? ?y(?:ea)?rs? experience.*(?:significant|substantial|field)", segment)
+            if m:
+                parts.append(f"needs {m.group(1)}+ years experience")
+                continue
+            m = re.match(r"job needs (\d+).*new grad", segment)
+            if m:
+                parts.append(f"prefers {m.group(1)}+ years experience")
+                continue
+            m = re.match(r"job prefers (\d+).*trade", segment)
+            if m:
+                continue  # 1 year + trade training = fine, don't show as gap
+            if segment:
+                parts.append(segment[:80])
+        return "; ".join(parts) if parts else reason[:120]
+
+    if gate_name == "seniority_compatibility":
+        if "senior" in reason.lower():
+            return "senior-level role — needs significant experience"
+        if "management" in reason.lower():
+            return "management role — needs leadership experience"
+        return reason[:80]
+
+    if gate_name == "geography_feasibility":
+        if "mismatch" in reason:
+            return "location doesn't match your preferences"
+        return reason[:80]
+
+    return reason[:120]
+
+
 def _build_explanation(
     dim_scores: list[DimensionScore],
     gate_details: list[GateDetail],
@@ -443,46 +593,51 @@ def _build_explanation(
     """
     Build human-readable explanation lists from scoring outputs.
     Returns (top_strengths, top_gaps, required_missing_items, recommended_next_step).
+
+    Language is written for trade school students — clear, encouraging, actionable.
     """
     strengths: list[str] = []
     gaps: list[str] = []
     missing: list[str] = []
 
-    # Strengths: top-scoring non-null dimensions
     sorted_dims = sorted(dim_scores, key=lambda d: d.raw_score, reverse=True)
     for d in sorted_dims:
         if d.raw_score >= 70 and not d.null_handling_applied and len(strengths) < 4:
-            label = d.dimension.replace("_", " ").title()
-            strengths.append(f"{label}: {d.rationale}")
+            label = _DIMENSION_LABELS.get(d.dimension, d.dimension.replace("_", " "))
+            strengths.append(label)
 
-    # Gate failures → gaps + missing
     for g in gate_details:
+        label = _GATE_LABELS.get(g.gate_name, g.gate_name.replace("_", " "))
         if g.result == "fail":
-            gaps.append(f"{g.gate_name.replace('_', ' ').title()}: {g.reason}")
+            friendly = _humanize_gate_reason(g.gate_name, g.reason)
+            gaps.append(f"{label}: {friendly}")
             if g.severity == "critical":
-                missing.append(g.reason)
+                missing.append(friendly)
+        elif g.result == "near_fit" and g.gate_name == "required_credential_compatibility":
+            if "education" in g.reason or "credential" in g.reason or "experience" in g.reason:
+                friendly = _humanize_gate_reason(g.gate_name, g.reason)
+                gaps.append(f"{label}: {friendly}")
 
-    # Low-scoring non-null dimensions → gaps
     for d in sorted_dims:
         if d.raw_score < 50 and not d.null_handling_applied and len(gaps) < 5:
-            label = d.dimension.replace("_", " ").title()
-            gaps.append(f"{label}: {d.rationale}")
+            label = _DIMENSION_GAP_LABELS.get(d.dimension, d.dimension.replace("_", " "))
+            gaps.append(label)
 
-    # Recommended next step
-    job_title = job.get("title_raw") or job.get("title_normalized") or "this role"
     if elig_status == ELIGIBLE and not gaps:
-        next_step = f"Strong match for '{job_title}' — consider applying or requesting an introduction"
+        next_step = "You're a strong match — apply now"
+    elif elig_status == ELIGIBLE:
+        next_step = "Good fit — review the description and apply"
     elif elig_status == NEAR_FIT_LABEL:
         if gaps:
-            gap_summary = gaps[0].split(":")[0] if ":" in gaps[0] else gaps[0]
-            next_step = f"Near-fit for '{job_title}' — address: {gap_summary}"
+            first_gap = gaps[0].split(":")[0] if ":" in gaps[0] else gaps[0]
+            next_step = f"Worth a look — {first_gap.lower().strip()}"
         else:
-            next_step = f"Near-fit for '{job_title}' — verify requirements alignment"
-    else:  # ineligible
+            next_step = "Close match — check the requirements"
+    else:
         if missing:
-            next_step = f"Significant gap for '{job_title}': {missing[0]}"
+            next_step = f"Look into: {missing[0].lower()}"
         else:
-            next_step = f"Not yet aligned with '{job_title}' — focus on trade-matched opportunities first"
+            next_step = "Different trade background — keep building your skills"
 
     return strengths[:5], gaps[:5], missing[:5], next_step
 

@@ -4,6 +4,8 @@ Auth-related Pydantic schemas.
 TokenPayload  — decoded Supabase JWT claims
 CurrentUser   — the authenticated user injected into route handlers
 """
+from __future__ import annotations
+
 from typing import Any
 
 from pydantic import BaseModel

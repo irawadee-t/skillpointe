@@ -64,6 +64,15 @@ async def get_my_profile(
                 a.willing_to_relocate, a.willing_to_travel,
                 a.expected_completion_date::text,
                 a.available_from_date::text,
+                a.enrollment_status::text, a.degree_type::text,
+                a.school_name, a.school_city, a.school_state,
+                a.career_path, a.program_field, a.specific_career,
+                a.program_start_date::text, a.gpa,
+                a.travel_preference::text, a.relocation_preference::text,
+                a.relocation_states,
+                a.age_range, a.gender, a.military_status, a.military_dependent,
+                a.current_wages, a.has_internship, a.activities,
+                a.honor_societies,
                 jf.code AS canonical_job_family_code
             FROM public.applicants a
             LEFT JOIN public.canonical_job_families jf
@@ -95,7 +104,159 @@ async def get_my_profile(
         expected_completion_date=row["expected_completion_date"],
         available_from_date=row["available_from_date"],
         profile_completeness=completeness,
+        enrollment_status=row["enrollment_status"],
+        degree_type=row["degree_type"],
+        school_name=row["school_name"],
+        school_city=row["school_city"],
+        school_state=row["school_state"],
+        career_path=row["career_path"],
+        program_field=row["program_field"],
+        specific_career=row["specific_career"],
+        program_start_date=row["program_start_date"],
+        gpa=float(row["gpa"]) if row["gpa"] is not None else None,
+        travel_preference=row["travel_preference"],
+        relocation_preference=row["relocation_preference"],
+        relocation_states=row["relocation_states"] or [],
+        age_range=row["age_range"],
+        gender=row["gender"],
+        military_status=bool(row["military_status"]),
+        military_dependent=bool(row["military_dependent"]),
+        current_wages=row["current_wages"],
+        has_internship=bool(row["has_internship"]),
+        activities=row["activities"],
+        honor_societies=row["honor_societies"] or [],
     )
+
+
+# ---------------------------------------------------------------------------
+# PATCH /applicant/me/profile  — onboarding / profile update
+# ---------------------------------------------------------------------------
+
+from pydantic import BaseModel as _BaseModel
+
+class ProfileUpdateRequest(_BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+    program_name_raw: str | None = None
+    city: str | None = None
+    state: str | None = None
+    willing_to_relocate: bool | None = None
+    willing_to_travel: bool | None = None
+    expected_completion_date: str | None = None
+    available_from_date: str | None = None
+    onboarding_complete: bool | None = None
+    # Expanded fields
+    enrollment_status: str | None = None
+    degree_type: str | None = None
+    school_name: str | None = None
+    school_campus: str | None = None
+    school_city: str | None = None
+    school_state: str | None = None
+    career_path: str | None = None
+    program_field: str | None = None
+    specific_career: str | None = None
+    program_start_date: str | None = None
+    gpa: float | None = None
+    travel_preference: str | None = None
+    relocation_preference: str | None = None
+    relocation_states: list[str] | None = None
+    age_range: str | None = None
+    gender: str | None = None
+    military_status: bool | None = None
+    military_dependent: bool | None = None
+    current_wages: str | None = None
+    has_internship: bool | None = None
+    internship_details: str | None = None
+    essay_background: str | None = None
+    essay_impact: str | None = None
+    activities: str | None = None
+    honor_societies: list[str] | None = None
+
+
+@router.patch("/me/profile", status_code=status.HTTP_200_OK)
+async def update_my_profile(
+    body: ProfileUpdateRequest,
+    current_user: Annotated[CurrentUser, Depends(require_applicant)],
+) -> dict:
+    """
+    Update the authenticated applicant's profile.
+    Called during onboarding and from the profile edit page.
+    Only non-None fields are updated (partial update).
+
+    Side-effects:
+      - Auto-normalizes program_name_raw → canonical_job_family_id
+      - Auto-normalizes state → region
+      - Syncs onboarding_complete to user_profiles table
+    """
+    updates: dict[str, Any] = {k: v for k, v in body.model_dump().items() if v is not None}
+    if not updates:
+        return {"updated": False}
+
+    # Convert date strings to date objects for asyncpg
+    from datetime import date as _date
+    for date_field in ("expected_completion_date", "available_from_date", "program_start_date"):
+        if date_field in updates and isinstance(updates[date_field], str):
+            try:
+                updates[date_field] = _date.fromisoformat(updates[date_field])
+            except ValueError:
+                updates.pop(date_field)
+
+    async with get_db() as conn:
+        # Auto-normalize program → canonical job family
+        # Try multiple fields in priority order: program_field > specific_career > program_name_raw
+        import uuid as _uuid
+        program_name = (
+            updates.get("program_field")
+            or updates.get("specific_career")
+            or updates.get("program_name_raw")
+        )
+        if program_name:
+            family_id = await _resolve_job_family(conn, program_name)
+            if family_id:
+                updates["canonical_job_family_id"] = _uuid.UUID(family_id)
+
+        # Auto-normalize state → region
+        state_val = updates.get("state")
+        if state_val:
+            region = await _resolve_region(conn, state_val)
+            if region:
+                updates["region"] = region
+
+        # Remove onboarding_complete from applicants update; handle separately
+        onboarding_val = updates.pop("onboarding_complete", None)
+
+        if updates:
+            set_clauses = [f"{col} = ${i+2}" for i, col in enumerate(updates)]
+            values = list(updates.values())
+
+            row = await conn.fetchrow(
+                f"""
+                UPDATE public.applicants
+                SET {", ".join(set_clauses)}, updated_at = NOW(), profile_last_updated_at = NOW()
+                WHERE user_id = $1
+                RETURNING id
+                """,
+                current_user.user_id,
+                *values,
+            )
+            if not row:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Applicant profile not found.",
+                )
+
+        # Sync onboarding_complete to BOTH tables
+        if onboarding_val is not None:
+            await conn.execute(
+                "UPDATE public.applicants SET onboarding_complete = $2, updated_at = NOW() WHERE user_id = $1",
+                current_user.user_id, onboarding_val,
+            )
+            await conn.execute(
+                "UPDATE public.user_profiles SET onboarding_complete = $2, updated_at = NOW() WHERE user_id = $1",
+                current_user.user_id, onboarding_val,
+            )
+
+    return {"updated": True, "auto_normalized": bool(program_name and updates.get("canonical_job_family_id"))}
 
 
 # ---------------------------------------------------------------------------
@@ -168,12 +329,19 @@ async def get_my_matches(
                 j.pay_type::text,
                 e.name         AS employer_name,
                 e.is_partner   AS is_partner_employer,
+                j.source_url,
+                jf.code        AS canonical_job_family_code,
+                j.description_raw,
+                j.requirements_raw,
+                j.preferred_qualifications_raw,
+                j.experience_level,
                 $2::text       AS app_state,
                 $3::text       AS app_region
             FROM public.matches m
             JOIN public.applicants a ON a.id = m.applicant_id
             JOIN public.jobs j        ON j.id = m.job_id
             JOIN public.employers e   ON e.id = j.employer_id
+            LEFT JOIN public.canonical_job_families jf ON jf.id = j.canonical_job_family_id
             WHERE a.user_id = $1
               AND m.is_visible_to_applicant = TRUE
               AND m.eligibility_status IN ('eligible', 'near_fit')
@@ -254,12 +422,19 @@ async def get_match_detail(
                 j.pay_type::text,
                 e.name         AS employer_name,
                 e.is_partner   AS is_partner_employer,
+                j.source_url,
+                jf.code        AS canonical_job_family_code,
+                j.description_raw,
+                j.requirements_raw,
+                j.preferred_qualifications_raw,
+                j.experience_level,
                 a.state        AS app_state,
                 a.region       AS app_region
             FROM public.matches m
             JOIN public.applicants a ON a.id = m.applicant_id
             JOIN public.jobs j        ON j.id = m.job_id
             JOIN public.employers e   ON e.id = j.employer_id
+            LEFT JOIN public.canonical_job_families jf ON jf.id = j.canonical_job_family_id
             WHERE m.id = $1::uuid
               AND a.user_id = $2
               AND m.is_visible_to_applicant = TRUE
@@ -367,6 +542,12 @@ def _row_to_summary(row: dict[str, Any]) -> JobMatchSummary:
         top_strengths=_safe_list(row.get("top_strengths")),
         top_gaps=_safe_list(row.get("top_gaps")),
         recommended_next_step=row.get("recommended_next_step"),
+        source_url=row.get("source_url"),
+        canonical_job_family_code=row.get("canonical_job_family_code"),
+        description_raw=row.get("description_raw"),
+        requirements_raw=row.get("requirements_raw"),
+        preferred_qualifications_raw=row.get("preferred_qualifications_raw"),
+        experience_level=row.get("experience_level"),
         confidence_level=row.get("confidence_level"),
         requires_review=bool(row.get("requires_review", False)),
     )
@@ -398,20 +579,42 @@ def _derive_geography_note(row: dict[str, Any]) -> str | None:
 
 
 def _compute_completeness(row: dict[str, Any]) -> int:
-    """Rough profile completeness score (0–100)."""
+    """Profile completeness score (0–100). Weighted by matching importance."""
     score = 0
-    if row.get("program_name_raw") or row.get("canonical_job_family_code"):
-        score += 25
+    # Core identity (20)
+    if row.get("first_name") and row.get("last_name"):
+        score += 10
+    if row.get("program_name_raw") or row.get("program_field"):
+        score += 10
+    # Job family normalization (15) — critical for matching
+    if row.get("canonical_job_family_code"):
+        score += 15
+    # Location (15)
     if row.get("state"):
-        score += 20
-    if row.get("expected_completion_date") or row.get("available_from_date"):
-        score += 20
+        score += 10
     if row.get("city"):
-        score += 10
-    # willing_to_relocate / willing_to_travel are booleans — always "set"
-    score += 15
-    if row.get("program_name_raw") and len(row["program_name_raw"]) > 10:
-        score += 10
+        score += 5
+    # Availability (15)
+    if row.get("expected_completion_date") or row.get("available_from_date"):
+        score += 15
+    # Education details (10)
+    if row.get("school_name"):
+        score += 5
+    if row.get("enrollment_status") or row.get("degree_type"):
+        score += 5
+    # Travel/relocation preferences (10)
+    if row.get("travel_preference") or row.get("willing_to_relocate") is not None:
+        score += 5
+    if row.get("relocation_preference") or row.get("willing_to_travel") is not None:
+        score += 5
+    # Experience signals (10)
+    if row.get("has_internship"):
+        score += 5
+    if row.get("gpa"):
+        score += 5
+    # Demographics (5)
+    if row.get("age_range") or row.get("gender"):
+        score += 5
     return min(score, 100)
 
 
@@ -428,3 +631,124 @@ def _safe_list(val: Any) -> list[str]:
     if isinstance(val, list):
         return [str(v) for v in val]
     return []
+
+
+# ---------------------------------------------------------------------------
+# Auto-normalization helpers (run on profile save)
+# ---------------------------------------------------------------------------
+
+import re as _re
+
+async def _resolve_job_family(conn: Any, program_name: str) -> str | None:
+    """
+    Fuzzy-match program_name_raw against canonical_job_families.
+    Returns the UUID of the best-matching family, or None.
+    Uses the same strategy as packages/matching/normalizer.py but inline
+    to avoid cross-package import issues.
+    """
+    rows = await conn.fetch(
+        "SELECT id, code, name, aliases FROM public.canonical_job_families WHERE is_active = TRUE"
+    )
+    if not rows:
+        return None
+
+    name_lower = program_name.strip().lower()
+
+    # 1. Exact match on code or name
+    for r in rows:
+        if name_lower == r["code"].lower() or name_lower == r["name"].lower():
+            return str(r["id"])
+
+    # 2. Alias substring match
+    matches = []
+    for r in rows:
+        aliases = r["aliases"] or []
+        for alias in aliases:
+            al = alias.lower()
+            if al in name_lower or name_lower in al:
+                matches.append(r)
+                break
+
+    if len(matches) == 1:
+        return str(matches[0]["id"])
+    if len(matches) > 1:
+        return str(matches[0]["id"])
+
+    # 3. Keyword overlap
+    best_id = None
+    best_score = 0
+    for r in rows:
+        score = 0
+        sources = [r["code"], r["name"]] + (r["aliases"] or [])
+        for src in sources:
+            for word in _re.split(r"[\s/,\-]+", src.lower()):
+                if len(word) >= 4 and word in name_lower:
+                    score += 1
+        if score > best_score:
+            best_score = score
+            best_id = str(r["id"])
+
+    if best_id and best_score >= 1:
+        return best_id
+
+    # 4. LLM fallback: ask an LLM to classify when deterministic matching fails
+    return await _llm_resolve_job_family(program_name, rows)
+
+
+async def _llm_resolve_job_family(program_name: str, families: list) -> str | None:
+    """
+    Last-resort LLM classification of program name → canonical job family.
+    Returns the family UUID or None if the LLM call fails or is unavailable.
+    """
+    import os
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return None
+
+    family_list = "\n".join(
+        f"- {r['code']}: {r['name']} (aliases: {', '.join(r['aliases'] or [])})"
+        for r in families
+    )
+    prompt = (
+        f"Given this list of canonical skilled-trades job families:\n{family_list}\n\n"
+        f"Which SINGLE job family code best matches this applicant program: \"{program_name}\"?\n"
+        f"Respond with ONLY the code (e.g. 'electrical') or 'none' if no match."
+    )
+
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={
+                    "model": "gpt-4o-mini",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0,
+                    "max_tokens": 30,
+                },
+            )
+        if resp.status_code != 200:
+            return None
+        answer = resp.json()["choices"][0]["message"]["content"].strip().lower()
+        if answer == "none" or not answer:
+            return None
+        for r in families:
+            if r["code"].lower() == answer:
+                return str(r["id"])
+        return None
+    except Exception:
+        return None
+
+
+async def _resolve_region(conn: Any, state: str) -> str | None:
+    """Map a US state code to a region code using geography_regions."""
+    rows = await conn.fetch(
+        "SELECT code, states FROM public.geography_regions WHERE is_active = TRUE"
+    )
+    state_upper = state.strip().upper()
+    for r in rows:
+        states = r["states"] or []
+        if state_upper in [s.upper() for s in states]:
+            return r["code"]
+    return None

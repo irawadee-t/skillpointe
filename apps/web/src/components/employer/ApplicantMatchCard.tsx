@@ -11,6 +11,14 @@
  *   - Recommended next step
  *   - Confidence / review flags
  */
+import {
+  MapPin,
+  Calendar,
+  CheckCircle2,
+  AlertTriangle,
+  Info,
+} from "lucide-react";
+
 import type { ApplicantMatchSummary } from "@/lib/api/employer";
 import {
   formatApplicantName,
@@ -85,8 +93,16 @@ export function ApplicantMatchCard({ match }: ApplicantMatchCardProps) {
 
       {/* Location + availability */}
       <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm text-gray-600">
-        {locationStr && <span>📍 {locationStr}</span>}
-        {availability !== "Not set" && <span>📅 Available {availability}</span>}
+        {locationStr && (
+          <span className="flex items-center gap-1">
+            <MapPin className="w-3.5 h-3.5 text-gray-400" /> {locationStr}
+          </span>
+        )}
+        {availability !== "Not set" && (
+          <span className="flex items-center gap-1">
+            <Calendar className="w-3.5 h-3.5 text-gray-400" /> Available {availability}
+          </span>
+        )}
       </div>
 
       {/* Geography note */}
@@ -116,9 +132,9 @@ export function ApplicantMatchCard({ match }: ApplicantMatchCardProps) {
           {top_strengths.slice(0, 2).map((s, i) => (
             <span
               key={i}
-              className="text-xs bg-green-50 text-green-700 border border-green-200 rounded px-2 py-0.5"
+              className="inline-flex items-center gap-1 text-xs bg-green-50 text-green-700 border border-green-200 rounded-md px-2 py-0.5"
             >
-              ✓ {_short(s)}
+              <CheckCircle2 className="w-3 h-3" /> {_short(s)}
             </span>
           ))}
         </div>
@@ -130,9 +146,9 @@ export function ApplicantMatchCard({ match }: ApplicantMatchCardProps) {
           {top_gaps.slice(0, 2).map((g, i) => (
             <span
               key={i}
-              className="text-xs bg-orange-50 text-orange-700 border border-orange-200 rounded px-2 py-0.5"
+              className="inline-flex items-center gap-1 text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded-md px-2 py-0.5"
             >
-              △ {_short(g)}
+              <AlertTriangle className="w-3 h-3" /> {_short(g)}
             </span>
           ))}
         </div>
@@ -148,8 +164,16 @@ export function ApplicantMatchCard({ match }: ApplicantMatchCardProps) {
       {/* Flags */}
       {(confidence_level === "low" || requires_review) && (
         <div className="mt-3 flex gap-3 text-xs text-amber-600">
-          {confidence_level === "low" && <span>⚠ Low confidence data</span>}
-          {requires_review && <span>⚠ Needs review</span>}
+          {confidence_level === "low" && (
+            <span className="flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3" /> Low confidence
+            </span>
+          )}
+          {requires_review && (
+            <span className="flex items-center gap-1">
+              <Info className="w-3 h-3" /> Pending review
+            </span>
+          )}
         </div>
       )}
     </div>

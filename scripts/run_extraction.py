@@ -159,7 +159,7 @@ def main() -> int:
                             counters["review_items"] += 1
                     elif signals.requires_review:
                         _insert_review_queue_item(conn, {
-                            "item_type": "low_confidence_extraction",
+                            "item_type": "extraction_confidence",
                             "entity_type": "extracted_applicant_signals",
                             "description": "low-confidence applicant extraction",
                             "confidence_level": signals.confidence_enum,
@@ -219,7 +219,7 @@ def main() -> int:
                             counters["review_items"] += 1
                     elif signals.requires_review:
                         _insert_review_queue_item(conn, {
-                            "item_type": "low_confidence_extraction",
+                            "item_type": "extraction_confidence",
                             "entity_type": "extracted_job_signals",
                             "description": "low-confidence job extraction",
                             "confidence_level": signals.confidence_enum,
@@ -419,7 +419,7 @@ def _insert_review_queue_item(conn, item: dict, entity_id: str):
                  flags, confidence_level, priority)
             VALUES (%s, %s, %s, %s, %s::jsonb, %s, %s)
         """, (
-            item.get("item_type", "low_confidence_extraction"),
+            item.get("item_type", "extraction_confidence"),
             item.get("entity_type", "extracted_applicant_signals"),
             entity_id,
             item.get("description", "flagged for review"),

@@ -60,7 +60,7 @@ export default async function NewJobPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-6 md:p-8">
+    <main className="p-6 md:p-8">
       <div className="max-w-2xl mx-auto">
         <div className="mb-6">
           <a

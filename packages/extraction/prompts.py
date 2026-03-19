@@ -12,8 +12,10 @@ PROMPT_VERSION = "v1.0"
 # -----------------------------------------------------------------------
 _FAMILY_CODES = (
     "electrical, plumbing, hvac, construction, welding, automotive, "
-    "manufacturing, logistics, healthcare_support, it_support, culinary, "
-    "childcare_education, cosmetology, security, administrative"
+    "manufacturing, logistics, aviation, wind_energy, energy_lineman, "
+    "solar_energy, robotics, heavy_equipment, healthcare_support, "
+    "it_support, culinary, childcare_education, cosmetology, security, "
+    "administrative"
 )
 
 
@@ -43,6 +45,8 @@ APPLICANT_USER = """Extract structured signals from this applicant profile.
 **Personal Statement / Bio**: {bio}
 **Experience / Internship**: {experience}
 **Career Goals**: {career_goals}
+**Background Essay**: {essay_background}
+**Activities / Extracurriculars**: {activities}
 
 Return JSON with this exact structure:
 {{
@@ -165,12 +169,15 @@ Return JSON:
 
 def format_applicant_prompt(
     program_name: str, bio: str, experience: str, career_goals: str,
+    essay_background: str = "", activities: str = "",
 ) -> str:
     return APPLICANT_USER.format(
         program_name=program_name or "(not provided)",
         bio=bio or "(not provided)",
         experience=experience or "(not provided)",
         career_goals=career_goals or "(not provided)",
+        essay_background=essay_background or "(not provided)",
+        activities=activities or "(not provided)",
         family_codes=_FAMILY_CODES,
     )
 

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from __future__ import annotations
 """
 normalize_data.py — Phase 4.3: Deterministic normalization layer.
 
@@ -218,7 +219,7 @@ def _normalize_jobs(conn, job_families, geo_regions, args, verbose=False):
         SELECT id, title_raw, pay_raw, state, city, work_setting,
                (SELECT raw_data->>'career_pathway_raw'
                 FROM public.import_rows ir
-                WHERE ir.entity_id = jobs.id::text
+                WHERE ir.entity_id = jobs.id::text::uuid
                   AND ir.entity_type = 'job'
                 ORDER BY ir.created_at DESC LIMIT 1) AS career_pathway_raw
         FROM public.jobs {where} {limit}
@@ -300,7 +301,7 @@ def _load_job_families(conn) -> list[dict]:
 
 def _load_geo_regions(conn) -> list[dict]:
     with conn.cursor() as cur:
-        cur.execute("SELECT id, code, name, states FROM public.geography_regions WHERE is_active = TRUE")
+        cur.execute("SELECT id, code, name, states FROM public.geography_regions WHERE is_active = TRUE ORDER BY code")
         cols = [d[0] for d in cur.description]
         return [dict(zip(cols, r)) for r in cur.fetchall()]
 

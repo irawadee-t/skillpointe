@@ -83,6 +83,19 @@ def main() -> int:
     print(f"Loaded policy config version: {config.version}")
 
     # ----------------------------------------------------------------
+    # Clean up stale matches for deactivated jobs
+    # ----------------------------------------------------------------
+    cur = conn.cursor()
+    cur.execute("""
+        DELETE FROM public.matches
+        WHERE job_id IN (SELECT id FROM public.jobs WHERE is_active = FALSE)
+    """)
+    stale_count = cur.rowcount
+    if stale_count:
+        conn.commit()
+        print(f"Cleaned up {stale_count} stale matches for deactivated jobs")
+
+    # ----------------------------------------------------------------
     # Fetch applicants + jobs + extracted signals
     # ----------------------------------------------------------------
     applicants = _fetch_applicants(conn, applicant_id=args.applicant_id, limit=args.limit)
@@ -218,7 +231,13 @@ def _fetch_applicants(conn, applicant_id=None, limit=None) -> list[dict]:
             a.willing_to_relocate, a.willing_to_travel, a.commute_radius_miles,
             a.experience_raw, a.bio_raw, a.career_goals_raw,
             a.expected_completion_date, a.available_from_date,
-            jf.code AS canonical_job_family_code
+            a.travel_preference::text, a.relocation_preference::text,
+            a.relocation_states,
+            a.has_internship, a.internship_details,
+            a.essay_background, a.essay_impact,
+            a.enrollment_status::text, a.career_path, a.program_field,
+            jf.code AS canonical_job_family_code,
+            a.degree_type::text, a.school_name, a.specific_career
         FROM public.applicants a
         LEFT JOIN public.canonical_job_families jf ON jf.id = a.canonical_job_family_id
         {where}
@@ -247,7 +266,9 @@ def _fetch_jobs(conn, job_id=None, limit=None) -> list[dict]:
             j.work_setting, j.travel_requirement,
             j.pay_min, j.pay_max, j.pay_type, j.pay_raw,
             j.required_credentials,
-            jf.code AS canonical_job_family_code
+            j.experience_level,
+            jf.code AS canonical_job_family_code,
+            j.required_experience_years
         FROM public.jobs j
         LEFT JOIN public.canonical_job_families jf ON jf.id = j.canonical_job_family_id
         {where}

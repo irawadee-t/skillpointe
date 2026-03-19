@@ -30,6 +30,7 @@ from typing import Any
 
 from .config import ScoringConfig
 from .normalizer import TimingResult, JOB_FAMILY_ADJACENCY
+from .text_scorer import _parse_education_required, _estimate_applicant_education
 
 
 # ---------------------------------------------------------------------------
@@ -91,6 +92,9 @@ def score_geography_alignment(
     job_work_setting: str | None,
     weight: float,
     null_handling,   # NullHandlingConfig
+    travel_preference: str | None = None,
+    relocation_preference: str | None = None,
+    relocation_states: list[str] | None = None,
 ) -> DimensionScore:
     """
     Geography alignment (weight 20).
@@ -109,17 +113,28 @@ def score_geography_alignment(
         r = "no location data for either party — fully unknown"
         return DimensionScore(dim, weight, s, weight * s / 100, r, True, s)
 
+    # Derive effective preferences from enums, falling back to booleans
+    r_pref = relocation_preference or ("anywhere" if willing_to_relocate else "stay_current")
+    t_pref = travel_preference or ("regional" if willing_to_travel else "no_travel")
+
     if applicant_state and job_state and applicant_state.upper() == job_state.upper():
         s, r = 100.0, f"same state: {applicant_state}"
-    elif applicant_region and job_region and applicant_region == job_region:
-        if willing_to_relocate or willing_to_travel:
-            s, r = 80.0, f"same region ({applicant_region}), willing to relocate/travel"
+    elif relocation_states and job_state and job_state.upper() in [rs.upper() for rs in relocation_states]:
+        s, r = 90.0, f"job in explicitly chosen relocation state: {job_state}"
+    elif applicant_region and job_region and applicant_region.lower() == job_region.lower():
+        # Same region, different state — score depends on willingness
+        if r_pref in ("anywhere", "within_region"):
+            s, r = 85.0, f"same region ({applicant_region}), willing to relocate within region"
+        elif t_pref in ("regional", "within_region", "nationwide", "anywhere"):
+            s, r = 80.0, f"same region ({applicant_region}), willing to travel regionally"
+        elif t_pref == "within_state" or r_pref == "within_state":
+            s, r = 35.0, f"same region ({applicant_region}) but different state — prefers in-state"
         else:
-            s = null_handling.geography_partially_known
-            r = f"same region ({applicant_region}), relocation willingness unknown"
-            return DimensionScore(dim, weight, s, weight * s / 100, r, True, s)
-    elif willing_to_relocate:
-        s, r = 55.0, f"different region but willing to relocate (applicant={applicant_state}, job={job_state})"
+            s, r = 20.0, f"same region ({applicant_region}) but different state — not willing to move"
+    elif r_pref == "anywhere":
+        s, r = 70.0, f"open to relocating anywhere (applicant={applicant_state}, job={job_state})"
+    elif t_pref in ("nationwide", "anywhere"):
+        s, r = 55.0, f"different region, willing to travel nationwide (applicant={applicant_state}, job={job_state})"
     elif not applicant_state or not job_state:
         s = null_handling.geography_partially_known
         r = "partial location data"
@@ -135,48 +150,81 @@ def score_credential_readiness(
     weight: float,
     null_default: float,
     applicant_certs: list[str] | None = None,
+    job_min_education: str | None = None,
+    applicant_education: str | None = None,
+    job_required_experience_years: int | None = None,
+    applicant_experience_years: int | None = None,
 ) -> DimensionScore:
     """
     Credential readiness (weight 15).
-    No required credentials → 80 (neutral-good: job is accessible).
-    With extracted certs: score based on match ratio.
-    Without extraction: null default (50).
+
+    Evaluates three sub-scores:
+      A) Education level compatibility
+      B) Specific credential/license match ratio
+      C) Experience year fit
+
+    The final score is a weighted average of available sub-scores.
     """
     dim = "credential_readiness"
-    if not required_credentials:
-        s, r = 80.0, "no explicit credential requirements on job"
-        return DimensionScore(dim, weight, s, weight * s / 100, r)
+    sub_scores: list[tuple[float, str, float]] = []  # (score, label, weight)
 
-    # Phase 7 path: extracted applicant certifications available
-    if applicant_certs is not None:
-        app_certs_lower = {c.lower().strip() for c in applicant_certs}
-        matched = 0
-        for req in required_credentials:
-            req_lower = req.lower().strip()
-            if any(req_lower in ac or ac in req_lower for ac in app_certs_lower):
-                matched += 1
+    _EDU_RANK = {"high_school": 1, "military": 2, "trade_cert": 3, "associates": 4, "bachelors": 5}
 
-        total = len(required_credentials)
-        ratio = matched / total if total > 0 else 1.0
-
-        if ratio >= 1.0:
-            s, r = 95.0, f"all {total} required credentials matched"
-        elif ratio >= 0.5:
-            s = 60.0 + ratio * 30.0
-            r = f"{matched}/{total} required credentials matched"
-        elif matched > 0:
-            s = 40.0 + ratio * 20.0
-            r = f"only {matched}/{total} required credentials matched"
+    # A) Education level
+    if job_min_education and applicant_education:
+        job_r = _EDU_RANK.get(job_min_education, 2)
+        app_r = _EDU_RANK.get(applicant_education, 2)
+        if app_r >= job_r:
+            sub_scores.append((95.0, f"education: {applicant_education} meets {job_min_education}", 2.0))
+        elif app_r >= job_r - 1:
+            sub_scores.append((60.0, f"education: {applicant_education} close to {job_min_education}", 2.0))
         else:
-            s, r = 25.0, f"none of {total} required credentials matched"
+            sub_scores.append((20.0, f"education gap: {applicant_education} vs {job_min_education}", 2.0))
+    elif job_min_education:
+        sub_scores.append((45.0, f"job requires {job_min_education} — applicant education unknown", 1.0))
 
+    # B) Specific credentials
+    if required_credentials:
+        if applicant_certs is not None:
+            app_certs_lower = {c.lower().strip() for c in applicant_certs}
+            matched = sum(
+                1 for req in required_credentials
+                if any(req.lower().strip() in ac or ac in req.lower().strip() for ac in app_certs_lower)
+            )
+            total = len(required_credentials)
+            ratio = matched / total if total > 0 else 1.0
+            if ratio >= 1.0:
+                sub_scores.append((95.0, f"all {total} credentials matched", 1.5))
+            elif ratio >= 0.5:
+                sub_scores.append((60.0 + ratio * 30.0, f"{matched}/{total} credentials matched", 1.5))
+            else:
+                sub_scores.append((25.0 + ratio * 20.0, f"{matched}/{total} credentials matched", 1.5))
+        else:
+            cred_list = ", ".join(required_credentials[:2])
+            sub_scores.append((40.0, f"credentials [{cred_list}] not yet verified", 1.0))
+
+    # C) Experience years
+    if job_required_experience_years is not None and job_required_experience_years > 0:
+        app_exp = applicant_experience_years or 0
+        if app_exp >= job_required_experience_years:
+            sub_scores.append((95.0, f"experience: {app_exp}+ yrs meets {job_required_experience_years} required", 1.0))
+        elif job_required_experience_years <= 1:
+            sub_scores.append((85.0, f"job prefers {job_required_experience_years} yr — trade training qualifies", 1.0))
+        elif job_required_experience_years == 2:
+            sub_scores.append((55.0, f"job needs {job_required_experience_years} yrs — stretch for new grad", 1.0))
+        elif job_required_experience_years <= 4:
+            sub_scores.append((20.0, f"job needs {job_required_experience_years} yrs — requires field time", 1.0))
+        else:
+            sub_scores.append((10.0, f"job needs {job_required_experience_years}+ yrs — significant gap", 1.0))
+
+    if not sub_scores:
+        s, r = 80.0, "no explicit credential, education, or experience requirements on job"
         return DimensionScore(dim, weight, s, weight * s / 100, r)
 
-    # Fallback: no extraction data
-    s = null_default
-    cred_list = ", ".join(required_credentials[:2])
-    r = f"required credentials [{cred_list}] not yet verified"
-    return DimensionScore(dim, weight, s, weight * s / 100, r, True, s)
+    total_w = sum(ss[2] for ss in sub_scores)
+    s = sum(ss[0] * ss[2] for ss in sub_scores) / total_w
+    r = "; ".join(ss[1] for ss in sub_scores)
+    return DimensionScore(dim, weight, round(s, 1), weight * round(s, 1) / 100, r)
 
 
 def score_timing_readiness(
@@ -248,14 +296,17 @@ def score_experience_alignment(
 
     if has_exp and has_internship:
         s, r = 85.0, "experience details + completed internship"
+    elif has_internship:
+        s, r = 75.0, "completed internship (no detailed experience text)"
     elif has_exp:
         s, r = 65.0, "experience/internship details present"
     elif has_bio:
         s, r = 55.0, "personal statement / bio present (limited direct experience signal)"
     else:
-        s = null_default
-        r = "no experience data — null default"
-        return DimensionScore(dim, weight, s, weight * s / 100, r, True, s)
+        # For trade school students: the program IS their experience
+        # Don't penalize them for not having a bio/experience text
+        s, r = 55.0, "trade school training counts as foundational experience"
+        return DimensionScore(dim, weight, s, weight * s / 100, r)
 
     return DimensionScore(dim, weight, s, weight * s / 100, r)
 
@@ -362,16 +413,51 @@ def score_work_style_alignment(
     return DimensionScore(dim, weight, s, weight * s / 100, r)
 
 
+_SOFT_PREF_SIGNALS: dict[str, list[str]] = {
+    "teamwork": ["team", "teamwork", "collaborate", "collaboration", "cooperative"],
+    "self-motivated": ["self-motivated", "independent", "initiative", "self-starter", "proactive"],
+    "communication": ["communication", "communicate", "interpersonal", "written and verbal"],
+    "problem-solving": ["problem-solving", "problem solver", "troubleshoot", "analytical"],
+    "detail-oriented": ["detail-oriented", "attention to detail", "meticulous", "precision"],
+    "safety-conscious": ["safety", "safety-conscious", "osha", "ppe", "safe work"],
+    "physical-fitness": ["physically", "lift", "standing", "climbing", "strenuous"],
+    "flexibility": ["flexible", "adaptable", "shift", "overtime", "weekends"],
+    "customer-service": ["customer", "client-facing", "customer service", "professional demeanor"],
+    "leadership": ["leadership", "mentor", "train others", "lead"],
+    "continuous-learning": ["learning", "continuous improvement", "eager to learn", "training"],
+    "reliability": ["reliable", "dependable", "punctual", "attendance"],
+}
+
+
+def _extract_soft_signals(text: str) -> set[str]:
+    """Extract soft-skill signals from free text using keyword matching."""
+    if not text:
+        return set()
+    text_lower = text.lower()
+    found = set()
+    for signal, keywords in _SOFT_PREF_SIGNALS.items():
+        for kw in keywords:
+            if kw in text_lower:
+                found.add(signal)
+                break
+    return found
+
+
 def score_employer_soft_pref(
     weight: float,
     null_default: float,
     app_work_style: list[dict] | None = None,
     job_work_style: list[dict] | None = None,
+    applicant_text: str | None = None,
+    job_text: str | None = None,
 ) -> DimensionScore:
     """
     Employer soft preference alignment (weight 5).
-    With extraction: compare work style signals between applicant and job.
-    Without extraction: null default (50).
+
+    Priority:
+      1. LLM-extracted work style signals (when available)
+      2. Text-based soft signal extraction from descriptions/profiles
+      3. Null default
     """
     dim = "employer_soft_pref_alignment"
 
@@ -394,6 +480,33 @@ def score_employer_soft_pref(
             r = f"work style match: {', '.join(list(overlap)[:3])}"
         else:
             s, r = 40.0, "no work style signal overlap"
+
+        return DimensionScore(dim, weight, s, weight * s / 100, r)
+
+    # Infer baseline soft skills for trade school students even with sparse text
+    app_text = applicant_text or ""
+    job_text_val = job_text or ""
+
+    if job_text_val:
+        app_signals = _extract_soft_signals(app_text)
+        job_signals = _extract_soft_signals(job_text_val)
+
+        # Trade school students have baseline soft skills from their training
+        if not app_signals and not app_text.strip():
+            app_signals = {"safety-conscious", "teamwork", "problem-solving", "reliability"}
+
+        if not job_signals:
+            s, r = 60.0, "no specific soft preferences detected in job posting"
+            return DimensionScore(dim, weight, s, weight * s / 100, r)
+
+        overlap = app_signals & job_signals
+        if overlap:
+            ratio = len(overlap) / len(job_signals)
+            s = 55.0 + ratio * 40.0
+            matched = sorted(overlap)[:3]
+            r = f"soft skill alignment: {', '.join(matched)}"
+        else:
+            s, r = 45.0, "limited soft-skill overlap with employer preferences"
 
         return DimensionScore(dim, weight, s, weight * s / 100, r)
 
@@ -442,7 +555,10 @@ def compute_structured_score(
     experience_quality = _extract_experience_quality(a_sig) if a_sig else None
     app_work_style = a_sig.get("work_style_signals") if a_sig else None
     job_work_style = j_sig.get("work_style_signals") if j_sig else None
-    internship_completed = _has_internship(a_sig) if a_sig else None
+    # Use profile-level has_internship, falling back to extraction signals
+    internship_completed = applicant.get("has_internship")
+    if internship_completed is None:
+        internship_completed = _has_internship(a_sig) if a_sig else None
 
     dimensions: list[DimensionScore] = [
         score_trade_program_alignment(
@@ -456,16 +572,23 @@ def compute_structured_score(
             job.get("state"), job.get("region"),
             job.get("work_setting"),
             w.geography_alignment, nh,
+            travel_preference=applicant.get("travel_preference"),
+            relocation_preference=applicant.get("relocation_preference"),
+            relocation_states=applicant.get("relocation_states"),
         ),
         score_credential_readiness(
             job.get("required_credentials") or [],
             w.credential_readiness, nh.credentials_unknown_nonrequired,
             applicant_certs=applicant_certs,
+            job_min_education=_get_job_education(job),
+            applicant_education=_estimate_applicant_education(applicant),
+            job_required_experience_years=job.get("required_experience_years"),
+            applicant_experience_years=applicant.get("years_experience") or 0,
         ),
         score_timing_readiness(timing, w.timing_readiness, nh.experience_unknown),
         score_experience_alignment(
-            applicant.get("experience_raw"),
-            applicant.get("bio_raw"),
+            applicant.get("experience_raw") or applicant.get("internship_details") or applicant.get("essay_background"),
+            applicant.get("bio_raw") or applicant.get("essay_impact"),
             internship_completed,
             w.experience_internship_alignment, nh.experience_unknown,
             experience_quality=experience_quality,
@@ -487,6 +610,18 @@ def compute_structured_score(
             w.employer_soft_pref_alignment, nh.employer_soft_pref_alignment_unknown,
             app_work_style=app_work_style,
             job_work_style=job_work_style,
+            applicant_text=" ".join(filter(None, [
+                applicant.get("experience_raw"),
+                applicant.get("bio_raw"),
+                applicant.get("career_goals_raw"),
+                applicant.get("essay_background"),
+                applicant.get("internship_details"),
+            ])),
+            job_text=" ".join(filter(None, [
+                job.get("description_raw"),
+                job.get("requirements_raw"),
+                job.get("preferred_qualifications_raw"),
+            ])),
         ),
     ]
 
@@ -499,6 +634,19 @@ def compute_structured_score(
 # ---------------------------------------------------------------------------
 # Helpers for extracting signals into scorer-compatible formats
 # ---------------------------------------------------------------------------
+
+def _get_job_education(job: dict) -> str | None:
+    """Extract minimum education level from job text fields."""
+    job_text = " ".join(filter(None, [
+        job.get("description_raw"),
+        job.get("requirements_raw"),
+        job.get("preferred_qualifications_raw"),
+    ]))
+    if not job_text:
+        return None
+    edu = _parse_education_required(job_text)
+    return edu["level"] if edu else None
+
 
 def _extract_cert_names(signals: dict) -> list[str] | None:
     certs = signals.get("certifications_extracted")

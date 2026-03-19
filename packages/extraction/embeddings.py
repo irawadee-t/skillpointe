@@ -18,6 +18,10 @@ def build_applicant_text(applicant: dict[str, Any]) -> str:
         parts.append(f"Bio: {applicant['bio_raw']}")
     if applicant.get("experience_raw"):
         parts.append(f"Experience: {applicant['experience_raw']}")
+    if applicant.get("internship_details"):
+        parts.append(f"Internship: {applicant['internship_details']}")
+    if applicant.get("essay_background"):
+        parts.append(f"Background: {applicant['essay_background']}")
     if applicant.get("career_goals_raw"):
         parts.append(f"Career Goals: {applicant['career_goals_raw']}")
     return "\n\n".join(parts)

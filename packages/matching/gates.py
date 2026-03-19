@@ -128,71 +128,116 @@ def evaluate_credential_gate(
     required_credentials: list[str] | None,
     applicant: dict[str, Any],
     applicant_certs: list[str] | None = None,
+    job_min_education: str | None = None,
+    applicant_education: str | None = None,
+    job_required_experience_years: int | None = None,
+    education_or_equivalent: bool = False,
 ) -> GateDetail:
     """
-    Gate 2: Does the applicant meet the job's required credentials/licenses?
+    Gate 2: Does the applicant meet the job's required credentials/licenses/education?
 
-    No required credentials on job → PASS.
-    When applicant_certs is provided (from LLM extraction), compare against
-    job requirements. Otherwise fall back to null-handling behavior.
+    Checks three dimensions:
+      A) Education level compatibility (bachelor's, associate's, trade cert, etc.)
+         — respects "or equivalent experience" clauses common in job descriptions
+      B) Specific credential/license matching (CDL, EPA 608, etc.)
+      C) Experience year requirements (from structured field)
 
-    Per SCORING_CONFIG.yaml null_handling.required_credential_behavior:
-      if job requires credential and applicant data missing →
-        eligibility_status: near_fit, auto_fail: false, requires_review_if_low_confidence: true
+    The worst result across all three determines the gate outcome.
     """
-    if not required_credentials:
+    sub_results: list[tuple[str, str, str]] = []  # (result, reason, severity)
+
+    # --- A) Education level check ---
+    _EDU_RANK = {"high_school": 1, "military": 2, "trade_cert": 3, "associates": 4, "bachelors": 5}
+
+    if job_min_education and applicant_education:
+        job_rank = _EDU_RANK.get(job_min_education, 2)
+        app_rank = _EDU_RANK.get(applicant_education, 2)
+
+        if app_rank >= job_rank:
+            sub_results.append((PASS, f"education: applicant has {applicant_education}, job requires {job_min_education}", "normal"))
+        elif education_or_equivalent and app_rank >= job_rank - 1:
+            # "Associate's degree OR equivalent experience" — trade cert counts
+            sub_results.append((PASS, f"education: {applicant_education} accepted (job says 'or equivalent')", "normal"))
+        elif education_or_equivalent and app_rank >= job_rank - 2:
+            sub_results.append((NEAR_FIT, f"education: job prefers {job_min_education} or equivalent, applicant has {applicant_education}", "normal"))
+        elif app_rank >= job_rank - 1:
+            sub_results.append((NEAR_FIT, f"education close: applicant has {applicant_education}, job prefers {job_min_education}", "normal"))
+        else:
+            sub_results.append((FAIL, f"education mismatch: job requires {job_min_education}, applicant has {applicant_education}", "critical"))
+    elif job_min_education:
+        sub_results.append((NEAR_FIT, f"job requires {job_min_education} — applicant education unknown", "normal"))
+
+    # --- B) Specific credentials check ---
+    if required_credentials:
+        cred_list = ", ".join(required_credentials[:3])
+        cred_count = len(required_credentials)
+
+        if applicant_certs is not None:
+            app_certs_lower = {c.lower().strip() for c in applicant_certs}
+            matched = []
+            unmatched = []
+            for req in required_credentials:
+                req_lower = req.lower().strip()
+                if any(req_lower in ac or ac in req_lower for ac in app_certs_lower):
+                    matched.append(req)
+                else:
+                    unmatched.append(req)
+
+            if not unmatched:
+                sub_results.append((PASS, f"all {cred_count} credentials matched", "normal"))
+            elif matched:
+                sub_results.append((NEAR_FIT, f"partial credential match — has [{', '.join(matched)}], missing [{', '.join(unmatched)}]", "normal"))
+            else:
+                sub_results.append((FAIL, f"required credentials [{cred_list}] not found", "critical"))
+        else:
+            sub_results.append((NEAR_FIT, f"requires [{cred_list}] — applicant credentials not yet verified", "normal"))
+
+    # --- C) Experience years check ---
+    if job_required_experience_years is not None and job_required_experience_years > 0:
+        app_exp = applicant.get("years_experience") or 0
+        if app_exp >= job_required_experience_years:
+            sub_results.append((PASS, f"experience: applicant has {app_exp}+ yrs, job needs {job_required_experience_years}", "normal"))
+        elif job_required_experience_years <= 1:
+            # 1 year: trade school training often accepted as equivalent
+            sub_results.append((PASS, f"job prefers {job_required_experience_years} yr experience — trade school training typically qualifies", "normal"))
+        elif job_required_experience_years == 2:
+            sub_results.append((NEAR_FIT, f"job needs {job_required_experience_years} yrs experience — new graduate may qualify", "normal"))
+        elif job_required_experience_years <= 4:
+            # 3-4 years: significant gap for a new grad (journeyman territory)
+            sub_results.append((FAIL, f"job requires {job_required_experience_years}+ years experience — requires substantial field time", "critical"))
+        else:
+            sub_results.append((FAIL, f"job requires {job_required_experience_years}+ years experience — significant gap for new graduate", "critical"))
+
+    # --- Aggregate: worst sub-result wins ---
+    if not sub_results:
         return GateDetail(
             "required_credential_compatibility", PASS,
-            "no explicit credential requirements on job",
+            "no explicit credential, education, or experience requirements on job",
         )
 
-    cred_list = ", ".join(required_credentials[:3])
+    has_fail = any(r[0] == FAIL for r in sub_results)
+    has_near = any(r[0] == NEAR_FIT for r in sub_results)
 
-    # Phase 7 path: extracted applicant certifications available
-    if applicant_certs is not None:
-        app_certs_lower = {c.lower().strip() for c in applicant_certs}
-        matched = []
-        unmatched = []
-        for req in required_credentials:
-            req_lower = req.lower().strip()
-            if any(req_lower in ac or ac in req_lower for ac in app_certs_lower):
-                matched.append(req)
-            else:
-                unmatched.append(req)
-
-        if not unmatched:
-            return GateDetail(
-                "required_credential_compatibility", PASS,
-                f"all required credentials matched: {', '.join(matched)}",
-            )
-        if matched:
-            return GateDetail(
-                "required_credential_compatibility", NEAR_FIT,
-                f"partial credential match — has [{', '.join(matched)}], "
-                f"missing [{', '.join(unmatched)}]",
-            )
+    if has_fail:
+        fail_reasons = [r[1] for r in sub_results if r[0] == FAIL]
         return GateDetail(
             "required_credential_compatibility", FAIL,
-            f"required credentials [{cred_list}] not found in applicant profile",
+            "; ".join(fail_reasons),
             severity="critical",
         )
-
-    # Fallback: no extraction data available
-    has_program = bool(
-        applicant.get("program_name_raw") or applicant.get("canonical_job_family_code")
-    )
-
-    if not has_program:
+    if has_near:
+        # Only include non-PASS reasons — PASS sub-results are not gaps
+        gap_reasons = [r[1] for r in sub_results if r[0] != PASS]
+        if not gap_reasons:
+            gap_reasons = [r[1] for r in sub_results]
         return GateDetail(
             "required_credential_compatibility", NEAR_FIT,
-            f"requires [{cred_list}] — applicant profile incomplete, review needed",
-            needs_review=True,
+            "; ".join(gap_reasons),
         )
-
+    pass_reasons = [r[1] for r in sub_results]
     return GateDetail(
-        "required_credential_compatibility", NEAR_FIT,
-        f"requires [{cred_list}] — credential extraction not yet run",
-        needs_review=False,
+        "required_credential_compatibility", PASS,
+        "; ".join(pass_reasons),
     )
 
 
@@ -205,16 +250,15 @@ def evaluate_timing_gate(timing: TimingResult) -> GateDetail:
     Gate 3: Is the applicant's timeline compatible with the job?
 
     available_now        → PASS
-    near_completion (<4m)→ NEAR_FIT
-    in_progress (4–12m)  → NEAR_FIT
-    future (>12m)        → FAIL
-    unknown              → NEAR_FIT (null handling)
+    near_completion (<4m)→ PASS (within hiring window)
+    in_progress (4–24m)  → NEAR_FIT
+    future (>24m)        → FAIL
+    unknown              → PASS (null handling)
     """
     if timing.readiness_label == "unknown":
         return GateDetail(
-            "readiness_timing_compatibility", NEAR_FIT,
-            "no completion/availability date — timing cannot be confirmed",
-            needs_review=True,
+            "readiness_timing_compatibility", PASS,
+            "timing not specified — assumed available",
         )
 
     if timing.readiness_label == "available_now":
@@ -225,16 +269,22 @@ def evaluate_timing_gate(timing: TimingResult) -> GateDetail:
 
     if timing.readiness_label in ("near_completion", "in_progress"):
         months = timing.months_to_available or 0
+        # 3 months or less: employers regularly hire ahead — count as available
+        if months <= 3:
+            return GateDetail(
+                "readiness_timing_compatibility", PASS,
+                f"completing program in ~{months} month(s) — within typical hiring window",
+            )
         return GateDetail(
             "readiness_timing_compatibility", NEAR_FIT,
             f"completing program in ~{months} months",
         )
 
-    # future — materially delayed (>12 months)
+    # future — materially delayed (>24 months)
     months = timing.months_to_available or 0
     return GateDetail(
         "readiness_timing_compatibility", FAIL,
-        f"materially delayed: available in ~{months} months (threshold: 12)",
+        f"materially delayed: available in ~{months} months (threshold: 24)",
         severity="critical",
     )
 
@@ -251,17 +301,27 @@ def evaluate_geography_gate(
     job_state: str | None,
     job_region: str | None,
     job_work_setting: str | None,
+    relocation_preference: str | None = None,
+    relocation_states: list[str] | None = None,
+    travel_preference: str | None = None,
 ) -> GateDetail:
     """
     Gate 4: Is the geography feasible?
 
-    Remote job              → PASS (geography irrelevant)
-    Same state              → PASS
-    Same region + willing   → PASS
-    Same region, unwilling  → NEAR_FIT
-    Diff region + willing   → NEAR_FIT
-    Diff region + unwilling → FAIL
-    Unknown locations       → NEAR_FIT (null handling)
+    Uses granular travel_preference and relocation_preference enums:
+      travel_preference:     no_travel | within_state | regional | nationwide
+      relocation_preference: stay_current | within_state | within_region | anywhere
+
+    Decision matrix (after remote/same-state checks):
+                          | Same region, diff state  | Different region
+      ──────────────────────────────────────────────────────────────────
+      relocate=anywhere    | PASS                     | PASS
+      relocate=in_region   | PASS                     | NEAR_FIT
+      travel=nationwide    | PASS                     | NEAR_FIT
+      travel=regional      | PASS                     | FAIL
+      relocate=in_state    | NEAR_FIT                 | FAIL
+      travel=within_state  | NEAR_FIT                 | FAIL
+      stay_current+no_trvl | FAIL                     | FAIL
     """
     ws = (job_work_setting or "").lower()
 
@@ -271,50 +331,92 @@ def evaluate_geography_gate(
             "fully remote job — geography not a constraint",
         )
 
-    if not applicant_state and not job_state:
+    if not job_state:
         return GateDetail(
-            "geography_feasibility", NEAR_FIT,
-            "no location data — geography feasibility unknown",
-            needs_review=True,
+            "geography_feasibility", PASS,
+            "job location not specified — geography not assessed",
         )
 
-    if applicant_state and job_state and applicant_state.upper() == job_state.upper():
+    app_upper = (applicant_state or "").upper()
+    job_upper = (job_state or "").upper()
+    app_region_lower = (applicant_region or "").lower()
+    job_region_lower = (job_region or "").lower()
+
+    # Same state is always fine
+    if app_upper and job_upper and app_upper == job_upper:
         return GateDetail(
             "geography_feasibility", PASS,
             f"same state: {applicant_state}",
         )
 
-    if applicant_region and job_region and applicant_region == job_region:
-        if willing_to_relocate or willing_to_travel:
+    # Job in explicitly chosen relocation states
+    if relocation_states and job_state:
+        reloc_upper = {s.upper() for s in relocation_states}
+        if job_upper in reloc_upper:
             return GateDetail(
                 "geography_feasibility", PASS,
-                f"same region ({applicant_region}), willing to relocate/travel",
+                f"job is in applicant's chosen relocation state: {job_state}",
+            )
+
+    # Derive effective willingness from enums (falling back to booleans)
+    r_pref = relocation_preference or ("anywhere" if willing_to_relocate else "stay_current")
+    t_pref = travel_preference or ("regional" if willing_to_travel else "no_travel")
+
+    same_region = bool(app_region_lower and job_region_lower
+                       and app_region_lower == job_region_lower)
+
+    loc_desc = f"applicant={applicant_state}/{applicant_region}, job={job_state}/{job_region}"
+
+    if same_region:
+        # Same region, different state
+        if r_pref in ("anywhere", "within_region", "specific_states"):
+            return GateDetail(
+                "geography_feasibility", PASS,
+                f"same region ({applicant_region}), open to relocating within region",
+            )
+        if t_pref in ("regional", "within_region", "nationwide", "anywhere"):
+            return GateDetail(
+                "geography_feasibility", PASS,
+                f"same region ({applicant_region}), willing to travel regionally",
+            )
+        if t_pref == "within_state" or r_pref == "within_state":
+            return GateDetail(
+                "geography_feasibility", NEAR_FIT,
+                f"same region but different state — {loc_desc} (prefers in-state)",
             )
         return GateDetail(
-            "geography_feasibility", NEAR_FIT,
-            f"same region ({applicant_region}), relocation willingness not confirmed",
+            "geography_feasibility", FAIL,
+            f"same region but different state — {loc_desc} (not willing to relocate/travel out of state)",
+            severity="critical",
         )
 
-    # Different regions
-    if willing_to_relocate:
+    # Different region
+    if r_pref == "anywhere":
         return GateDetail(
             "geography_feasibility", NEAR_FIT,
-            f"different region but willing to relocate (applicant={applicant_state}/{applicant_region}, "
-            f"job={job_state}/{job_region})",
+            f"different region but open to relocating anywhere — {loc_desc}",
+        )
+    if t_pref in ("nationwide", "anywhere"):
+        return GateDetail(
+            "geography_feasibility", NEAR_FIT,
+            f"different region but willing to travel nationwide — {loc_desc}",
+        )
+    if r_pref in ("within_region", "within_state"):
+        return GateDetail(
+            "geography_feasibility", NEAR_FIT,
+            f"different region — {loc_desc} (would require relocation; prefers {r_pref.replace('_', ' ')})",
         )
 
-    if not applicant_state or not job_state:
+    if not applicant_state:
         return GateDetail(
             "geography_feasibility", NEAR_FIT,
-            "partial location data — feasibility uncertain",
+            "applicant location not set — please update your profile",
             needs_review=True,
         )
 
     return GateDetail(
-        "geography_feasibility", FAIL,
-        f"geography mismatch: applicant={applicant_state}/{applicant_region}, "
-        f"job={job_state}/{job_region} — not willing to relocate",
-        severity="critical",
+        "geography_feasibility", NEAR_FIT,
+        f"different location — {loc_desc} (would require relocation)",
     )
 
 
@@ -376,11 +478,95 @@ def evaluate_min_req_gate(
             severity="critical",
         )
 
-    # Fallback: no extraction data
+    # Fallback: no extraction data — PASS, not NEAR_FIT.
+    # Absence of extraction evidence is not evidence of missing requirements.
+    # Gate 1 (job family) already screens for fundamental mismatch.
+    # Mark needs_review so admin can prioritize running extraction.
     return GateDetail(
-        "explicit_minimum_requirement_compatibility", NEAR_FIT,
-        "minimum requirements not yet extracted — using null default",
-        needs_review=False,
+        "explicit_minimum_requirement_compatibility", PASS,
+        "minimum requirements not yet extracted — defaulting to pass (no evidence of mismatch)",
+        needs_review=True,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Gate 6: Seniority / experience level compatibility
+# ---------------------------------------------------------------------------
+
+def evaluate_seniority_gate(
+    job_experience_level: str | None,
+    applicant_experience_years: int | None,
+    is_trade_school: bool = True,
+) -> GateDetail:
+    """
+    Gate 6: Is the job's seniority level appropriate for this applicant?
+
+    Trade school graduates are typically entry-level. Senior/management
+    roles that need 5+ years are inappropriate matches.
+
+    entry job       → PASS
+    mid job         → NEAR_FIT if trade school, PASS if experienced
+    senior job      → FAIL if trade school with < 3 years
+    management job  → FAIL for trade school applicants
+    """
+    level = (job_experience_level or "entry").lower()
+
+    if level == "entry":
+        return GateDetail(
+            "seniority_compatibility", PASS,
+            "entry-level position — appropriate for trade school graduates",
+        )
+
+    exp_years = applicant_experience_years or 0
+
+    if level == "mid":
+        if exp_years >= 2:
+            return GateDetail(
+                "seniority_compatibility", PASS,
+                f"mid-level position, applicant has {exp_years}+ years experience",
+            )
+        if is_trade_school:
+            return GateDetail(
+                "seniority_compatibility", NEAR_FIT,
+                "mid-level position — may require more experience than a recent graduate has",
+            )
+        return GateDetail(
+            "seniority_compatibility", NEAR_FIT,
+            "mid-level position — experience level uncertain",
+        )
+
+    if level == "senior":
+        if exp_years >= 5:
+            return GateDetail(
+                "seniority_compatibility", PASS,
+                f"senior position, applicant has {exp_years}+ years",
+            )
+        if exp_years >= 3:
+            return GateDetail(
+                "seniority_compatibility", NEAR_FIT,
+                f"senior position — applicant has {exp_years} years (may be stretch)",
+            )
+        return GateDetail(
+            "seniority_compatibility", FAIL,
+            "senior-level position requires significant experience — not suitable for recent graduates",
+            severity="critical",
+        )
+
+    if level == "management":
+        if exp_years >= 5:
+            return GateDetail(
+                "seniority_compatibility", NEAR_FIT,
+                f"management position — applicant has {exp_years} years but management experience unclear",
+            )
+        return GateDetail(
+            "seniority_compatibility", FAIL,
+            "management position requires leadership experience — not suitable for recent graduates",
+            severity="critical",
+        )
+
+    return GateDetail(
+        "seniority_compatibility", PASS,
+        f"unknown experience level '{level}' — defaulting to pass",
     )
 
 

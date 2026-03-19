@@ -1,3 +1,14 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --spf-navy: #28486d;
+    --spf-orange: #f48a20;
+  }
+
+  body {
+    @apply text-gray-900 antialiased;
+  }
+}

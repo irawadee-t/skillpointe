@@ -87,8 +87,8 @@ export default function SignupPage() {
             We sent a confirmation link to <strong>{email}</strong>. Click the
             link to finish creating your account.
           </p>
-          <Link href="/login" className="mt-6 inline-block text-blue-600 hover:underline text-sm">
-            Back to login
+          <Link href="/login" className="mt-6 inline-block text-spf-navy hover:underline text-sm">
+            Back to sign in
           </Link>
         </div>
       </div>
@@ -98,7 +98,7 @@ export default function SignupPage() {
   return (
     <div className="flex items-center justify-center px-4 py-12">
       <div className="w-full max-w-md bg-white rounded-xl shadow p-8">
-        <h1 className="text-2xl font-bold mb-1">Create account</h1>
+        <h1 className="text-2xl font-bold text-spf-navy mb-1">Create account</h1>
         <p className="text-sm text-gray-500 mb-6">
           Applicants only — employers are added by invitation.
         </p>
@@ -114,7 +114,7 @@ export default function SignupPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-spf-navy/40"
             />
           </div>
 
@@ -129,7 +129,7 @@ export default function SignupPage() {
               required
               minLength={8}
               autoComplete="new-password"
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-spf-navy/40"
             />
             <p className="text-xs text-gray-400 mt-1">Minimum 8 characters.</p>
           </div>
@@ -144,7 +144,7 @@ export default function SignupPage() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               autoComplete="new-password"
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-spf-navy/40"
             />
           </div>
 
@@ -155,7 +155,7 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-spf-navy text-white py-2 rounded-md text-sm font-medium hover:bg-spf-navy-light disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? "Creating account…" : "Create account"}
           </button>
@@ -163,7 +163,7 @@ export default function SignupPage() {
 
         <p className="mt-6 text-sm text-gray-600">
           Already have an account?{" "}
-          <Link href="/login" className="text-blue-600 hover:underline font-medium">
+          <Link href="/login" className="text-spf-navy hover:underline font-medium">
             Sign in
           </Link>
         </p>

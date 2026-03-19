@@ -15,6 +15,17 @@
  */
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
+import {
+  MapPin,
+  DollarSign,
+  Star,
+  ChevronLeft,
+  CheckCircle2,
+  AlertTriangle,
+  XCircle,
+  Circle,
+  Info,
+} from "lucide-react";
 
 import { fetchMatchDetail } from "@/lib/api/applicant";
 import { ApiError } from "@/lib/api/client";
@@ -55,14 +66,14 @@ export default async function MatchDetailPage({
   const payStr = formatPay(match.pay_min, match.pay_max, match.pay_type);
 
   return (
-    <main className="min-h-screen bg-gray-50 p-6 md:p-8">
+    <main className="p-6 md:p-8">
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Breadcrumb */}
         <Link
           href="/applicant/matches"
           className="text-sm text-gray-500 hover:text-gray-700 inline-flex items-center gap-1"
         >
-          ← Back to matches
+          <ChevronLeft className="w-4 h-4" /> Back to matches
         </Link>
 
         {/* Job header */}
@@ -76,10 +87,10 @@ export default async function MatchDetailPage({
                 {match.employer_name}
                 {match.is_partner_employer && (
                   <span
-                    className="ml-1.5 text-amber-500"
+                    className="ml-1.5 inline-flex items-center gap-0.5 text-spf-orange"
                     title="SkillPointe partner employer"
                   >
-                    ★ Partner
+                    <Star className="w-4 h-4 inline text-spf-orange fill-spf-orange" /> Partner
                   </span>
                 )}
               </p>
@@ -103,13 +114,13 @@ export default async function MatchDetailPage({
               <MatchLabel label={match.match_label} size="md" />
             )}
             {match.confidence_level === "low" && (
-              <span className="inline-flex items-center text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
-                ⚠ Low confidence
+              <span className="inline-flex items-center gap-1 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-1">
+                <AlertTriangle className="w-3.5 h-3.5" /> Low confidence
               </span>
             )}
             {match.requires_review && (
-              <span className="inline-flex items-center text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-full px-3 py-1">
-                ⚠ Needs review
+              <span className="inline-flex items-center gap-1 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-1">
+                <Info className="w-3.5 h-3.5" /> Pending review
               </span>
             )}
           </div>
@@ -117,16 +128,25 @@ export default async function MatchDetailPage({
           {/* Location + pay */}
           <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-4 text-sm text-gray-600">
             {locationStr && (
-              <span>
-                📍 {locationStr}
+              <span className="flex items-center gap-1">
+                <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                {locationStr}
                 {match.work_setting &&
                   ` · ${formatWorkSetting(match.work_setting)}`}
               </span>
             )}
             {!locationStr && match.work_setting && (
-              <span>📍 {formatWorkSetting(match.work_setting)}</span>
+              <span className="flex items-center gap-1">
+                <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                {formatWorkSetting(match.work_setting)}
+              </span>
             )}
-            {match.pay_min !== null && <span>💰 {payStr}</span>}
+            {match.pay_min !== null && (
+              <span className="flex items-center gap-1">
+                <DollarSign className="w-3.5 h-3.5 text-gray-400" />
+                {payStr}
+              </span>
+            )}
           </div>
 
           {/* Geography note */}
@@ -141,7 +161,7 @@ export default async function MatchDetailPage({
             <ul className="space-y-2">
               {match.top_strengths.map((s, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                  <span className="text-green-600 mt-0.5 shrink-0">✓</span>
+                  <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
                   {s}
                 </li>
               ))}
@@ -169,7 +189,7 @@ export default async function MatchDetailPage({
             <ul className="space-y-2">
               {match.top_gaps.map((g, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                  <span className="text-orange-500 mt-0.5 shrink-0">△</span>
+                  <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
                   {g}
                 </li>
               ))}
@@ -296,12 +316,11 @@ function MissingItem({
   text: string;
   type: "mandatory" | "improvable";
 }) {
-  const icon = type === "mandatory" ? "✗" : "○";
-  const color =
-    type === "mandatory" ? "text-red-500" : "text-amber-500";
   return (
     <li className="flex items-start gap-2 text-sm text-gray-700">
-      <span className={`${color} mt-0.5 shrink-0 font-bold`}>{icon}</span>
+      {type === "mandatory"
+        ? <XCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
+        : <Circle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />}
       {text}
     </li>
   );
@@ -330,16 +349,10 @@ function GateResultsTable({ gates }: { gates: GateResultItem[] }) {
 
 function GateIcon({ result }: { result: "pass" | "near_fit" | "fail" }) {
   if (result === "pass")
-    return (
-      <span className="text-green-600 font-bold shrink-0 mt-0.5">✓</span>
-    );
+    return <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />;
   if (result === "near_fit")
-    return (
-      <span className="text-amber-500 font-bold shrink-0 mt-0.5">~</span>
-    );
-  return (
-    <span className="text-red-500 font-bold shrink-0 mt-0.5">✗</span>
-  );
+    return <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />;
+  return <XCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />;
 }
 
 function ScoreTransparency({

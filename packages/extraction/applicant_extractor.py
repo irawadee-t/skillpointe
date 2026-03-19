@@ -91,8 +91,10 @@ def extract_applicant_signals(
     user_prompt = format_applicant_prompt(
         program_name=applicant.get("program_name_raw") or "",
         bio=applicant.get("bio_raw") or "",
-        experience=applicant.get("experience_raw") or "",
+        experience=applicant.get("experience_raw") or applicant.get("internship_details") or "",
         career_goals=applicant.get("career_goals_raw") or "",
+        essay_background=applicant.get("essay_background") or "",
+        activities=applicant.get("activities") or applicant.get("honor_societies") or "",
     )
 
     raw_output = call_llm_json(client, model, APPLICANT_SYSTEM, user_prompt)

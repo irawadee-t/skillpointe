@@ -15,7 +15,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import applicants, auth, employers, health
+from app.routers import admin, applicants, auth, employers, health, jobs
 
 logger = logging.getLogger(__name__)
 
@@ -57,9 +57,9 @@ def create_app() -> FastAPI:
     app.include_router(applicants.router)   # /applicant/me/profile, /applicant/me/matches
 
     app.include_router(employers.router)  # /employer/me/company, /employer/me/jobs, /employer/me/jobs/{id}/applicants
+    app.include_router(jobs.router)       # /jobs/browse
 
-    # Phase 9+
-    # app.include_router(admin.router)
+    app.include_router(admin.router)  # /admin/analytics/dashboard, /admin/analytics/job-map
 
     return app
 

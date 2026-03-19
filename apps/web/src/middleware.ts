@@ -47,13 +47,13 @@ export async function middleware(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) =>
-            request.cookies.set(name, value, options)
+        setAll(cookiesToSet: { name: string; value: string; options?: Record<string, unknown> }[]) {
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value)
           );
           supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
+            supabaseResponse.cookies.set(name, value, options as never)
           );
         },
       },
@@ -78,11 +78,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // 2. Has session + auth page → dashboard
+  // 2. Has session + auth page → dashboard (only if role is fully set up)
   if (user && isAuthPage) {
     const role = user.app_metadata?.role as string | undefined;
-    const home = role ? (ROLE_HOME[role] ?? "/") : "/";
-    return NextResponse.redirect(new URL(home, request.url));
+    if (role && ROLE_HOME[role]) {
+      return NextResponse.redirect(new URL(ROLE_HOME[role], request.url));
+    }
+    // No role yet (signup incomplete) — let them through to auth pages
   }
 
   // 3. Has session + protected route → enforce role boundaries
@@ -90,8 +92,8 @@ export async function middleware(request: NextRequest) {
     const role = user.app_metadata?.role as string | undefined;
 
     if (!role) {
-      // Profile not yet set up — redirect to complete-signup page
-      return NextResponse.redirect(new URL("/signup/complete", request.url));
+      // Profile not yet set up — send to login where complete-signup will be called
+      return NextResponse.redirect(new URL("/login", request.url));
     }
 
     const allowed = ROLE_ALLOWED_PREFIXES[role] ?? [];

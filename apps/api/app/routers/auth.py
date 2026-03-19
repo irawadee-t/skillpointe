@@ -5,6 +5,8 @@ POST /auth/complete-signup   — finalize applicant self-signup (create user_pro
 GET  /auth/me                — return current user identity + role
 POST /auth/invite-employer   — (admin only) invite an employer via email [Phase 2 scaffold]
 """
+from __future__ import annotations
+
 import logging
 from typing import Annotated
 
@@ -93,17 +95,17 @@ async def complete_signup(
         client.table("user_profiles")
         .select("id, role")
         .eq("user_id", user_id)
-        .maybe_single()
+        .limit(1)
         .execute()
     )
 
     if existing.data:
         return CompleteSignupResponse(
-            role=existing.data["role"],
+            role=existing.data[0]["role"],
             already_existed=True,
         )
 
-    # Create applicant profile
+    # Create user_profiles row (role)
     try:
         client.table("user_profiles").insert(
             {"user_id": user_id, "role": "applicant"}
@@ -115,6 +117,42 @@ async def complete_signup(
             detail="Failed to create user profile",
         )
 
+    # Link or create applicants row.
+    # If this email was already imported via CSV (user_id is NULL), claim that row.
+    # Otherwise create a new stub.
+    try:
+        user_email = token_data.email
+        existing_applicant = (
+            client.table("applicants")
+            .select("id, user_id")
+            .eq("email", user_email)
+            .is_("user_id", "null")
+            .limit(1)
+            .execute()
+        )
+
+        if existing_applicant.data:
+            # Claim the imported row
+            client.table("applicants").update(
+                {"user_id": user_id, "source": "self_signup_linked"}
+            ).eq("id", existing_applicant.data[0]["id"]).execute()
+            logger.info("Linked imported applicant %s to user %s", existing_applicant.data[0]["id"], user_id)
+        else:
+            # No imported row — check if already has a row with this user_id
+            owned = (
+                client.table("applicants")
+                .select("id")
+                .eq("user_id", user_id)
+                .limit(1)
+                .execute()
+            )
+            if not owned.data:
+                client.table("applicants").insert(
+                    {"user_id": user_id, "email": user_email, "source": "self_signup", "onboarding_complete": False}
+                ).execute()
+    except Exception as exc:
+        logger.warning("Failed to create/link applicants row for %s: %s", user_id, exc)
+
     # Embed role in Supabase Auth app_metadata so JWT refresh includes it
     try:
         client.auth.admin.update_user_by_id(
@@ -122,7 +160,6 @@ async def complete_signup(
             {"app_metadata": {"role": "applicant"}},
         )
     except Exception as exc:
-        # Non-fatal — DB profile was created; JWT metadata is a convenience cache
         logger.warning("Could not set app_metadata for %s: %s", user_id, exc)
 
     return CompleteSignupResponse(role="applicant", already_existed=False)

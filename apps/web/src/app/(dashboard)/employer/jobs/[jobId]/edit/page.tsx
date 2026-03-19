@@ -8,7 +8,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { ApiError } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/server";
-import { JobFormFields } from "../new/page";
+import { JobFormFields } from "../../new/page";
 
 interface PageProps {
   params: Promise<{ jobId: string }>;
@@ -108,7 +108,7 @@ export default async function EditJobPage({ params }: PageProps) {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-6 md:p-8">
+    <main className="p-6 md:p-8">
       <div className="max-w-2xl mx-auto">
         <div className="mb-6">
           <a
