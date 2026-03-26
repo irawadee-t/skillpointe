@@ -129,10 +129,6 @@ export function AdminDashboardClient({ data, error }: Props) {
             <h1 className="text-2xl font-semibold tracking-tight text-white">Admin Dashboard</h1>
             <p className="text-sm text-zinc-400 mt-1">SkillPointe Match platform overview</p>
           </div>
-          <div className="flex items-center gap-2 text-xs text-zinc-500">
-            <Activity className="w-3.5 h-3.5" />
-            Live data
-          </div>
         </div>
 
         {/* Top-level stats */}
