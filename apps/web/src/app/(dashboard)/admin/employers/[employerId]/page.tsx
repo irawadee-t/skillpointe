@@ -62,7 +62,7 @@ export default async function AdminEmployerDetailPage({ params }: PageProps) {
         <main className="p-6 md:p-8">
           <div className="max-w-4xl mx-auto">
             <BackLink />
-            <div className="mt-6 bg-red-50 border border-red-200 rounded-lg p-5 text-sm text-red-800">
+            <div className="mt-6 bg-rose-500/10 border border-rose-500/30 rounded-lg p-5 text-sm text-rose-400">
               Employer not found.
             </div>
           </div>
@@ -73,7 +73,7 @@ export default async function AdminEmployerDetailPage({ params }: PageProps) {
       <main className="p-6 md:p-8">
         <div className="max-w-4xl mx-auto">
           <BackLink />
-          <div className="mt-6 bg-red-50 border border-red-200 rounded-lg p-5 text-sm text-red-800">
+          <div className="mt-6 bg-rose-500/10 border border-rose-500/30 rounded-lg p-5 text-sm text-rose-400">
             <strong>Could not reach the API.</strong> The backend may be starting up — please refresh.
           </div>
         </div>
@@ -91,16 +91,16 @@ export default async function AdminEmployerDetailPage({ params }: PageProps) {
         <BackLink />
 
         {/* Company header */}
-        <section className="bg-white border border-neutral-200 rounded-lg p-6">
+        <section className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <div className="flex items-center gap-3 flex-wrap">
-                <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">{emp.name}</h1>
+                <h1 className="text-2xl font-semibold tracking-tight text-white">{emp.name}</h1>
                 {emp.is_partner && (
-                  <span className="inline-flex items-center text-sm font-medium text-neutral-600 bg-neutral-100 border border-neutral-200 rounded-full px-2.5 py-1">
+                  <span className="inline-flex items-center text-sm font-medium text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-full px-2.5 py-1">
                     Partner
                     {emp.partner_since && (
-                      <span className="text-xs text-neutral-400 ml-1">
+                      <span className="text-xs text-amber-400/70 ml-1">
                         since {emp.partner_since.slice(0, 4)}
                       </span>
                     )}
@@ -108,15 +108,15 @@ export default async function AdminEmployerDetailPage({ params }: PageProps) {
                 )}
               </div>
 
-              <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3 text-sm text-neutral-500">
+              <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-3 text-sm text-zinc-400">
                 {location && (
                   <span className="flex items-center gap-1.5">
-                    <MapPin className="w-3.5 h-3.5 text-neutral-400" /> {location}
+                    <MapPin className="w-3.5 h-3.5 text-zinc-500" /> {location}
                   </span>
                 )}
                 {emp.industry && (
                   <span className="flex items-center gap-1.5">
-                    <Building2 className="w-3.5 h-3.5 text-neutral-400" /> {emp.industry}
+                    <Building2 className="w-3.5 h-3.5 text-zinc-500" /> {emp.industry}
                   </span>
                 )}
                 {emp.website && (
@@ -124,7 +124,7 @@ export default async function AdminEmployerDetailPage({ params }: PageProps) {
                     href={emp.website}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center gap-1.5 text-neutral-700 hover:underline"
+                    className="flex items-center gap-1.5 text-cyan-400 hover:text-cyan-300 transition-colors"
                   >
                     <Globe className="w-3.5 h-3.5" /> {emp.website.replace(/^https?:\/\//, "")}
                   </a>
@@ -132,30 +132,30 @@ export default async function AdminEmployerDetailPage({ params }: PageProps) {
               </div>
 
               {emp.description && (
-                <p className="mt-4 text-sm text-neutral-600 leading-relaxed">{emp.description}</p>
+                <p className="mt-4 text-sm text-zinc-400 leading-relaxed">{emp.description}</p>
               )}
             </div>
 
             {/* Job stats */}
             <div className="shrink-0 flex gap-4 text-right">
               <div>
-                <div className="text-3xl font-bold text-neutral-900 leading-none">{emp.active_jobs}</div>
-                <div className="text-xs text-neutral-400 mt-0.5">active jobs</div>
+                <div className="text-3xl font-bold text-cyan-400 leading-none">{emp.active_jobs}</div>
+                <div className="text-xs text-zinc-500 mt-0.5">active jobs</div>
               </div>
               <div>
-                <div className="text-3xl font-bold text-neutral-600 leading-none">{emp.total_jobs}</div>
-                <div className="text-xs text-neutral-400 mt-0.5">total jobs</div>
+                <div className="text-3xl font-bold text-zinc-400 leading-none">{emp.total_jobs}</div>
+                <div className="text-xs text-zinc-500 mt-0.5">total jobs</div>
               </div>
             </div>
           </div>
 
           {/* Contact */}
           {emp.contact_email && (
-            <div className="mt-5 pt-4 border-t border-neutral-100 flex items-center gap-4">
-              <span className="text-sm text-neutral-500 font-mono">{emp.contact_email}</span>
+            <div className="mt-5 pt-4 border-t border-zinc-800 flex items-center gap-4">
+              <span className="text-sm text-zinc-500 font-mono">{emp.contact_email}</span>
               <a
                 href={`mailto:${emp.contact_email}`}
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-neutral-900 hover:underline"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-400 hover:text-cyan-300 transition-colors"
               >
                 <Mail className="w-3.5 h-3.5" /> Send email
               </a>
@@ -166,10 +166,10 @@ export default async function AdminEmployerDetailPage({ params }: PageProps) {
         {/* Active jobs */}
         {activeJobs.length > 0 && (
           <section>
-            <h2 className="font-semibold text-neutral-900 mb-3 flex items-center gap-2">
-              <Briefcase className="w-4 h-4 text-neutral-400" />
+            <h2 className="font-semibold text-white mb-3 flex items-center gap-2">
+              <Briefcase className="w-4 h-4 text-zinc-400" />
               Active jobs
-              <span className="text-sm font-normal text-neutral-400">({activeJobs.length})</span>
+              <span className="text-sm font-normal text-zinc-400">({activeJobs.length})</span>
             </h2>
             <div className="space-y-2">
               {activeJobs.map((job) => (
@@ -182,10 +182,10 @@ export default async function AdminEmployerDetailPage({ params }: PageProps) {
         {/* Inactive jobs (collapsed summary) */}
         {inactiveJobs.length > 0 && (
           <section>
-            <h2 className="font-semibold text-neutral-500 mb-3 flex items-center gap-2 text-sm">
-              <Briefcase className="w-4 h-4 text-neutral-300" />
+            <h2 className="font-semibold text-zinc-500 mb-3 flex items-center gap-2 text-sm">
+              <Briefcase className="w-4 h-4 text-zinc-600" />
               Inactive / archived jobs
-              <span className="font-normal text-neutral-400">({inactiveJobs.length})</span>
+              <span className="font-normal text-zinc-500">({inactiveJobs.length})</span>
             </h2>
             <div className="space-y-2">
               {inactiveJobs.map((job) => (
@@ -196,8 +196,8 @@ export default async function AdminEmployerDetailPage({ params }: PageProps) {
         )}
 
         {emp.jobs.length === 0 && (
-          <div className="bg-white border border-neutral-200 rounded-lg p-8 text-center">
-            <p className="text-neutral-500 text-sm">No jobs posted yet.</p>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-8 text-center">
+            <p className="text-zinc-500 text-sm">No jobs posted yet.</p>
           </div>
         )}
       </div>
@@ -209,7 +209,7 @@ function BackLink() {
   return (
     <Link
       href="/admin/employers"
-      className="text-sm text-neutral-400 hover:text-neutral-600 inline-flex items-center gap-1"
+      className="text-sm text-zinc-400 hover:text-white inline-flex items-center gap-1 transition-colors"
     >
       ← Back to employers
     </Link>
@@ -243,26 +243,26 @@ function JobRow({
   const setting = formatWorkSetting(job.work_setting);
 
   return (
-    <div className={`bg-white border rounded-lg p-4 ${job.is_active ? "border-neutral-200" : "border-neutral-100 opacity-70"}`}>
+    <div className={`bg-zinc-900 border rounded-lg p-4 ${job.is_active ? "border-zinc-800" : "border-zinc-800 opacity-60"}`}>
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-neutral-900">{job.title}</span>
+            <span className="font-medium text-white">{job.title}</span>
             {!job.is_active && (
-              <span className="text-xs bg-neutral-100 text-neutral-500 border border-neutral-200 rounded-full px-1.5 py-0.5">
+              <span className="text-xs bg-zinc-800 text-zinc-500 border border-zinc-700 rounded-full px-1.5 py-0.5">
                 Inactive
               </span>
             )}
             {job.experience_level && (
-              <span className="text-xs bg-neutral-100 text-neutral-600 border border-neutral-200 rounded-full px-1.5 py-0.5 capitalize">
+              <span className="text-xs bg-zinc-800 text-zinc-400 border border-zinc-700 rounded-full px-1.5 py-0.5 capitalize">
                 {job.experience_level}
               </span>
             )}
           </div>
-          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs text-neutral-500">
+          <div className="flex flex-wrap gap-x-3 gap-y-1 mt-1.5 text-xs text-zinc-500">
             {location && <span>{location}</span>}
             {setting && <span>{setting}</span>}
-            {pay && <span className="text-neutral-700 font-medium">{pay}</span>}
+            {pay && <span className="text-zinc-300 font-medium">{pay}</span>}
           </div>
         </div>
 
@@ -270,19 +270,19 @@ function JobRow({
         <div className="shrink-0 flex items-center gap-4">
           <div className="flex gap-3 text-right">
             <div>
-              <div className="text-base font-bold text-neutral-900 leading-none">{job.eligible_count}</div>
-              <div className="text-xs text-neutral-400 mt-0.5">eligible</div>
+              <div className="text-base font-bold text-emerald-400 leading-none">{job.eligible_count}</div>
+              <div className="text-xs text-zinc-500 mt-0.5">eligible</div>
             </div>
             <div>
-              <div className="text-base font-bold text-neutral-600 leading-none">{job.near_fit_count}</div>
-              <div className="text-xs text-neutral-400 mt-0.5">near fit</div>
+              <div className="text-base font-bold text-amber-400 leading-none">{job.near_fit_count}</div>
+              <div className="text-xs text-zinc-500 mt-0.5">near fit</div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 border-l border-neutral-100 pl-4">
+          <div className="flex items-center gap-2 border-l border-zinc-800 pl-4">
             <Link
               href={`/employer/jobs/${job.id}/applicants`}
-              className="inline-flex items-center gap-1 text-xs font-medium text-neutral-900 hover:underline"
+              className="inline-flex items-center gap-1 text-xs font-medium text-cyan-400 hover:text-cyan-300 transition-colors"
             >
               <Users className="w-3.5 h-3.5" /> Matched candidates ({job.total_visible})
             </Link>
@@ -291,7 +291,7 @@ function JobRow({
                 href={job.source_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-neutral-400 hover:text-neutral-600"
+                className="inline-flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
               </a>

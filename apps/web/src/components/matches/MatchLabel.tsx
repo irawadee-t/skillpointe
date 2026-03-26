@@ -4,10 +4,10 @@ interface MatchLabelBadgeProps {
 }
 
 const LABEL_STYLES: Record<string, string> = {
-  strong_fit:   "bg-neutral-900 text-white border-neutral-900",
-  good_fit:     "bg-neutral-100 text-neutral-700 border-neutral-200",
-  moderate_fit: "bg-neutral-50 text-neutral-600 border-neutral-200",
-  low_fit:      "bg-neutral-50 text-neutral-500 border-neutral-200",
+  strong_fit:   "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  good_fit:     "bg-cyan-500/10 text-cyan-400 border-cyan-500/30",
+  moderate_fit: "bg-zinc-800 text-zinc-400 border-zinc-700",
+  low_fit:      "bg-zinc-800/50 text-zinc-500 border-zinc-700",
 };
 
 const LABEL_TEXT: Record<string, string> = {
@@ -18,7 +18,7 @@ const LABEL_TEXT: Record<string, string> = {
 };
 
 export function MatchLabel({ label, size = "sm" }: MatchLabelBadgeProps) {
-  const styles = LABEL_STYLES[label ?? ""] ?? "bg-neutral-50 text-neutral-500 border-neutral-200";
+  const styles = LABEL_STYLES[label ?? ""] ?? "bg-zinc-800 text-zinc-500 border-zinc-700";
   const text = LABEL_TEXT[label ?? ""] ?? label ?? "—";
   const padding = size === "md" ? "px-3 py-1 text-sm" : "px-2 py-0.5 text-xs";
 
@@ -37,8 +37,8 @@ interface EligibilityBadgeProps {
 export function EligibilityBadge({ status, size = "sm" }: EligibilityBadgeProps) {
   const isEligible = status === "eligible";
   const styles = isEligible
-    ? "bg-neutral-900 text-white border-neutral-900"
-    : "bg-neutral-100 text-neutral-600 border-neutral-200";
+    ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30"
+    : "bg-amber-500/10 text-amber-400 border-amber-500/30";
   const text = isEligible ? "Eligible" : "Near fit";
   const padding = size === "md" ? "px-3 py-1 text-sm" : "px-2 py-0.5 text-xs";
 

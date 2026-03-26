@@ -113,25 +113,25 @@ export default async function EditJobPage({ params }: PageProps) {
         <div className="mb-6">
           <a
             href="/employer"
-            className="text-sm text-neutral-400 hover:text-neutral-600 inline-flex items-center gap-1"
+            className="text-sm text-zinc-400 hover:text-white inline-flex items-center gap-1 transition-colors"
           >
             ← Back to dashboard
           </a>
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 mt-1">Edit job</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-white mt-1">Edit job</h1>
         </div>
 
-        <form action={handleUpdate} className="bg-white border border-neutral-200 rounded-lg p-6 space-y-5">
+        <form action={handleUpdate} className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 space-y-5">
           <JobFormFields defaults={defaults as Parameters<typeof JobFormFields>[0]["defaults"]} />
 
           {/* Active toggle */}
           <div>
-            <label className="block text-sm font-medium text-neutral-700 mb-1">
+            <label className="block text-sm font-medium text-zinc-300 mb-1">
               Status
             </label>
             <select
               name="is_active"
               defaultValue={defaults?.is_active === false ? "false" : "true"}
-              className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400"
+              className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-900 text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500"
             >
               <option value="true">Active</option>
               <option value="false">Inactive</option>
@@ -141,13 +141,13 @@ export default async function EditJobPage({ params }: PageProps) {
           <div className="flex gap-3 pt-2">
             <button
               type="submit"
-              className="px-5 py-2 bg-neutral-900 text-white text-sm font-medium rounded-full hover:bg-neutral-700 transition-colors"
+              className="px-5 py-2 bg-cyan-500 text-black text-sm font-medium rounded-full hover:bg-cyan-400 transition-colors"
             >
               Save changes
             </button>
             <a
               href="/employer"
-              className="px-5 py-2 text-sm text-neutral-500 hover:text-neutral-700"
+              className="px-5 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
             >
               Cancel
             </a>

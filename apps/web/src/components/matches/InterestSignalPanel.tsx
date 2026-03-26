@@ -82,19 +82,19 @@ export function InterestSignalPanel({
       value: "interested",
       label: hasUrl ? "Interested" : "Planning to apply",
       icon: ThumbsUp,
-      activeClass: "bg-neutral-900 border-neutral-900 text-white",
+      activeClass: "bg-cyan-500/10 border-cyan-500 text-cyan-400",
     },
     {
       value: "applied",
       label: hasUrl ? "Applied externally" : "I've applied",
       icon: CheckCircle2,
-      activeClass: "bg-neutral-800 border-neutral-800 text-white",
+      activeClass: "bg-emerald-500/10 border-emerald-500 text-emerald-400",
     },
     {
       value: "not_interested",
       label: "Not interested",
       icon: ThumbsDown,
-      activeClass: "bg-neutral-100 border-neutral-300 text-neutral-600",
+      activeClass: "bg-zinc-800 border-zinc-600 text-zinc-400",
     },
   ];
 
@@ -106,7 +106,7 @@ export function InterestSignalPanel({
           href={sourceUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-900 text-white text-sm font-medium rounded-full hover:bg-neutral-700 transition-colors"
+          className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500 text-black text-sm font-medium rounded-full hover:bg-cyan-400 transition-colors"
           onClick={() => {
             if (current !== "applied") handleSelect("applied");
           }}
@@ -119,13 +119,13 @@ export function InterestSignalPanel({
       {/* Self-reported status — always visible; more prominent when no URL */}
       <div>
         {!hasUrl && (
-          <div className="flex items-center gap-1.5 mb-2 text-xs text-neutral-500">
+          <div className="flex items-center gap-1.5 mb-2 text-xs text-zinc-500">
             <ClipboardList className="w-3.5 h-3.5" />
             <span>Update your application status:</span>
           </div>
         )}
         {hasUrl && (
-          <p className="text-xs text-neutral-500 mb-2">Your interest level:</p>
+          <p className="text-xs text-zinc-500 mb-2">Your interest level:</p>
         )}
 
         <div className="flex flex-wrap gap-2">
@@ -137,7 +137,7 @@ export function InterestSignalPanel({
               className={`inline-flex items-center gap-1.5 text-sm border rounded-full px-3 py-1.5 transition-all ${
                 current === value
                   ? activeClass
-                  : "border-neutral-200 text-neutral-600 hover:border-neutral-300 hover:bg-neutral-50"
+                  : "border-zinc-700 text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
               }`}
             >
               {loading && current === value ? (
@@ -151,15 +151,15 @@ export function InterestSignalPanel({
         </div>
 
         {current && (
-          <p className="mt-1.5 text-xs text-neutral-400">
+          <p className="mt-1.5 text-xs text-zinc-500">
             Saved:{" "}
-            <span className="font-medium text-neutral-600">
+            <span className="font-medium text-zinc-300">
               {LEVELS.find((l) => l.value === current)?.label ?? current}
             </span>
           </p>
         )}
 
-        {error && <p className="mt-1.5 text-xs text-red-600">{error}</p>}
+        {error && <p className="mt-1.5 text-xs text-rose-400">{error}</p>}
       </div>
     </div>
   );

@@ -52,7 +52,7 @@ export function MatchesClient({ data, fetchError, token }: Props) {
       <main className="p-6 md:p-8">
         <div className="max-w-4xl mx-auto">
           <BackLink />
-          <div className="mt-6 bg-red-50 border border-red-200 rounded-lg p-5 text-sm text-red-800 flex items-start gap-2">
+          <div className="mt-6 bg-rose-500/10 border border-rose-500/30 rounded-lg p-5 text-sm text-rose-400 flex items-start gap-2">
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
             {fetchError}
           </div>
@@ -71,10 +71,10 @@ export function MatchesClient({ data, fetchError, token }: Props) {
       <div className="max-w-4xl mx-auto space-y-6">
         <div>
           <BackLink />
-          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 mt-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-white mt-2">
             Your job matches
           </h1>
-          <p className="text-sm text-neutral-500 mt-1">
+          <p className="text-sm text-zinc-400 mt-1">
             Ranked by how well each role fits your trade, location, and
             background.
           </p>
@@ -111,14 +111,14 @@ export function MatchesClient({ data, fetchError, token }: Props) {
             <section>
               <div className="flex items-center gap-3 mb-4">
                 <div>
-                  <h2 className="text-base font-semibold text-neutral-900">
+                  <h2 className="text-base font-semibold text-white">
                     Ready to apply
                   </h2>
-                  <p className="text-xs text-neutral-500">
+                  <p className="text-xs text-zinc-500">
                     You meet the key requirements for these roles
                   </p>
                 </div>
-                <span className="ml-auto text-sm font-semibold text-neutral-600 bg-neutral-100 border border-neutral-200 rounded-full px-3 py-0.5">
+                <span className="ml-auto text-sm font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-full px-3 py-0.5">
                   {eligibleCount}
                 </span>
               </div>
@@ -137,14 +137,14 @@ export function MatchesClient({ data, fetchError, token }: Props) {
             <section>
               <div className="flex items-center gap-3 mb-4">
                 <div>
-                  <h2 className="text-base font-semibold text-neutral-900">
+                  <h2 className="text-base font-semibold text-white">
                     Close matches
                   </h2>
-                  <p className="text-xs text-neutral-500">
+                  <p className="text-xs text-zinc-500">
                     Worth exploring — one or two gaps to address
                   </p>
                 </div>
-                <span className="ml-auto text-sm font-semibold text-neutral-500 bg-neutral-50 border border-neutral-200 rounded-full px-3 py-0.5">
+                <span className="ml-auto text-sm font-semibold text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-full px-3 py-0.5">
                   {nearFitCount}
                 </span>
               </div>
@@ -201,22 +201,22 @@ function MatchCard({ match, token }: { match: JobMatchSummary; token: string }) 
   const fitInfo = getFitInfo(score, match.eligibility_status);
 
   return (
-    <div className="bg-white border border-neutral-200 rounded-lg hover:border-neutral-300 transition-all">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-lg hover:border-zinc-700 transition-all">
       <div className="p-5">
         {/* Row 1: Title + actions */}
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2.5">
               {score !== null && (
-                <div className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold bg-neutral-100 text-neutral-900">
+                <div className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold bg-zinc-800 text-cyan-400">
                   {score}
                 </div>
               )}
               <div className="min-w-0">
-                <h3 className="font-semibold text-neutral-900 text-base leading-snug">
+                <h3 className="font-semibold text-white text-base leading-snug">
                   {match.job_title}
                 </h3>
-                <p className="text-sm text-neutral-500 mt-0.5 flex items-center gap-1">
+                <p className="text-sm text-zinc-400 mt-0.5 flex items-center gap-1">
                   <Building2 className="w-3.5 h-3.5 shrink-0" />
                   {match.employer_name}
                 </p>
@@ -229,7 +229,7 @@ function MatchCard({ match, token }: { match: JobMatchSummary; token: string }) 
                 href={match.source_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 px-3 py-1.5 bg-neutral-900 text-white text-xs font-medium rounded-full hover:bg-neutral-700 transition-colors"
+                className="flex items-center gap-1 px-3 py-1.5 bg-cyan-500 text-black text-xs font-medium rounded-full hover:bg-cyan-400 transition-colors"
               >
                 Apply <ExternalLink className="w-3 h-3" />
               </a>
@@ -237,7 +237,7 @@ function MatchCard({ match, token }: { match: JobMatchSummary; token: string }) 
             {hasDetail && (
               <button
                 onClick={() => setExpanded(!expanded)}
-                className="p-1.5 rounded-lg border border-neutral-200 text-neutral-400 hover:text-neutral-600 hover:border-neutral-300 transition-colors"
+                className="p-1.5 rounded-lg border border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-500 transition-colors"
                 aria-label={expanded ? "Collapse" : "Expand"}
               >
                 {expanded ? (
@@ -251,13 +251,13 @@ function MatchCard({ match, token }: { match: JobMatchSummary; token: string }) 
         </div>
 
         {/* Row 2: Location, pay, setting */}
-        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm text-neutral-600">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm text-zinc-400">
           {(location || workLabel) && (
             <span className="flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+              <MapPin className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
               {location || ""}
               {workLabel && (
-                <span className="text-neutral-400">
+                <span className="text-zinc-500">
                   {location ? " · " : ""}
                   {workLabel}
                 </span>
@@ -266,22 +266,22 @@ function MatchCard({ match, token }: { match: JobMatchSummary; token: string }) 
           )}
           {payDisplay && (
             <span className="flex items-center gap-1">
-              <DollarSign className="w-3.5 h-3.5 text-neutral-400 shrink-0" />
+              <DollarSign className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
               {payDisplay}
             </span>
           )}
         </div>
 
         {/* Row 3: Match insight — single clear line */}
-        <div className="mt-3 px-3 py-2 rounded-lg bg-neutral-50">
+        <div className="mt-3 px-3 py-2 rounded-lg bg-zinc-800/50">
           <div className="flex items-start gap-2">
-            <fitInfo.InsightIcon className="w-4 h-4 shrink-0 mt-0.5 text-neutral-400" />
+            <fitInfo.InsightIcon className="w-4 h-4 shrink-0 mt-0.5 text-zinc-400" />
             <div className="text-sm">
-              <span className="font-medium text-neutral-700">
+              <span className="font-medium text-zinc-200">
                 {fitInfo.label}
               </span>
               {match.recommended_next_step && (
-                <span className="text-neutral-500">
+                <span className="text-zinc-500">
                   {" "}
                   — {match.recommended_next_step}
                 </span>
@@ -296,7 +296,7 @@ function MatchCard({ match, token }: { match: JobMatchSummary; token: string }) 
             {match.top_strengths.slice(0, 2).map((s, i) => (
               <span
                 key={`s-${i}`}
-                className="inline-flex items-center gap-1 text-xs bg-neutral-100 text-neutral-700 border border-neutral-200 rounded-md px-2 py-0.5"
+                className="inline-flex items-center gap-1 text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-md px-2 py-0.5"
               >
                 <CheckCircle2 className="w-3 h-3 shrink-0" />
                 {shortLabel(s)}
@@ -305,14 +305,14 @@ function MatchCard({ match, token }: { match: JobMatchSummary; token: string }) 
             {match.top_gaps.slice(0, 2).map((g, i) => (
               <span
                 key={`g-${i}`}
-                className="inline-flex items-center gap-1 text-xs bg-neutral-50 text-neutral-500 border border-neutral-200 rounded-md px-2 py-0.5"
+                className="inline-flex items-center gap-1 text-xs bg-rose-500/10 text-rose-400 border border-rose-500/30 rounded-md px-2 py-0.5"
               >
                 <AlertTriangle className="w-3 h-3 shrink-0" />
                 {shortLabel(g)}
               </span>
             ))}
             {familyLabel && (
-              <span className="text-xs bg-neutral-50 text-neutral-500 border border-neutral-100 rounded-md px-2 py-0.5">
+              <span className="text-xs bg-zinc-800 text-zinc-400 border border-zinc-700 rounded-md px-2 py-0.5">
                 {familyLabel}
               </span>
             )}
@@ -320,7 +320,7 @@ function MatchCard({ match, token }: { match: JobMatchSummary; token: string }) 
         )}
 
         {/* Row 5: Interest signal — always visible */}
-        <div className="mt-3 pt-3 border-t border-neutral-100">
+        <div className="mt-3 pt-3 border-t border-zinc-800">
           <InterestSignalPanel
             matchId={match.match_id}
             sourceUrl={match.source_url}
@@ -352,22 +352,22 @@ function ExpandedMatchContent({
   const [showScoring, setShowScoring] = useState(false);
 
   return (
-    <div className="border-t border-neutral-100">
+    <div className="border-t border-zinc-800">
       {/* Match analysis */}
       <div className="px-5 py-4 space-y-4">
         {/* Why you match */}
         {match.top_strengths.length > 0 && (
           <div>
-            <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">
+            <h4 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">
               Why you match
             </h4>
             <div className="space-y-1.5">
               {match.top_strengths.map((s, i) => (
                 <div
                   key={i}
-                  className="flex items-start gap-2 text-sm text-neutral-700"
+                  className="flex items-start gap-2 text-sm text-zinc-300"
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5 text-neutral-400 shrink-0 mt-0.5" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
                   <span>{humanize(s)}</span>
                 </div>
               ))}
@@ -378,16 +378,16 @@ function ExpandedMatchContent({
         {/* What to work on */}
         {match.top_gaps.length > 0 && (
           <div>
-            <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide mb-2">
+            <h4 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-2">
               What to work on
             </h4>
             <div className="space-y-1.5">
               {match.top_gaps.map((g, i) => (
                 <div
                   key={i}
-                  className="flex items-start gap-2 text-sm text-neutral-700"
+                  className="flex items-start gap-2 text-sm text-zinc-300"
                 >
-                  <AlertTriangle className="w-3.5 h-3.5 text-neutral-400 shrink-0 mt-0.5" />
+                  <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
                   <span>{humanize(g)}</span>
                 </div>
               ))}
@@ -398,7 +398,7 @@ function ExpandedMatchContent({
         {/* Scoring breakdown toggle */}
         <button
           onClick={() => setShowScoring(!showScoring)}
-          className="flex items-center gap-1.5 text-xs text-neutral-400 hover:text-neutral-600 transition-colors"
+          className="flex items-center gap-1.5 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
         >
           <Info className="w-3.5 h-3.5" />
           {showScoring ? "Hide" : "View"} scoring details
@@ -414,8 +414,8 @@ function ExpandedMatchContent({
 
       {/* Job description */}
       {hasDetail && (
-        <div className="border-t border-neutral-100 px-5 py-4 bg-neutral-50 space-y-5">
-          <h4 className="text-xs font-semibold text-neutral-500 uppercase tracking-wide">
+        <div className="border-t border-zinc-800 px-5 py-4 bg-zinc-800/50 space-y-5">
+          <h4 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide">
             About this role
           </h4>
           <StructuredDescription
@@ -429,7 +429,7 @@ function ExpandedMatchContent({
                 href={match.source_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-neutral-900 text-white text-sm font-medium rounded-full hover:bg-neutral-700 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-cyan-500 text-black text-sm font-medium rounded-full hover:bg-cyan-400 transition-colors"
               >
                 Apply for this position{" "}
                 <ExternalLink className="w-3.5 h-3.5" />
@@ -452,14 +452,14 @@ function ScoringBreakdown({ match }: { match: JobMatchSummary }) {
     : null;
 
   return (
-    <div className="bg-neutral-50 rounded-lg p-3 text-xs text-neutral-600 space-y-2">
+    <div className="bg-zinc-800/50 rounded-lg p-3 text-xs text-zinc-400 space-y-2">
       <div className="flex items-center justify-between">
-        <span className="font-medium text-neutral-700">Overall score</span>
-        <span className="font-bold text-neutral-900">{score ?? "—"}/100</span>
+        <span className="font-medium text-zinc-300">Overall score</span>
+        <span className="font-bold text-cyan-400">{score ?? "—"}/100</span>
       </div>
       <div className="flex items-center justify-between">
         <span>Eligibility</span>
-        <span className="text-neutral-700">
+        <span className="text-zinc-300">
           {match.eligibility_status === "eligible"
             ? "Eligible"
             : "Near-fit"}
@@ -469,12 +469,12 @@ function ScoringBreakdown({ match }: { match: JobMatchSummary }) {
         <span>Confidence</span>
         <span>{match.confidence_level ?? "—"}</span>
       </div>
-      <p className="text-neutral-400 pt-1 border-t border-neutral-200">
+      <p className="text-zinc-500 pt-1 border-t border-zinc-700">
         Score reflects trade alignment, geography, credentials, timing, and
         job requirements. For a full breakdown, visit{" "}
         <Link
           href={`/applicant/matches/${match.match_id}`}
-          className="text-neutral-700 hover:underline"
+          className="text-cyan-400 hover:text-cyan-300"
         >
           match details
         </Link>
@@ -556,27 +556,27 @@ type SectionItem =
   | { type: "bullet"; text: string };
 
 const SECTION_ICONS: Record<string, React.ReactNode> = {
-  overview: <Briefcase className="w-4 h-4 text-neutral-400" />,
-  responsibilities: <ClipboardList className="w-4 h-4 text-neutral-400" />,
-  requirements: <Wrench className="w-4 h-4 text-neutral-400" />,
-  qualifications: <GraduationCap className="w-4 h-4 text-neutral-400" />,
-  preferred: <Star className="w-4 h-4 text-neutral-400" />,
-  benefits: <FileText className="w-4 h-4 text-neutral-400" />,
-  other: <FileText className="w-4 h-4 text-neutral-400" />,
+  overview: <Briefcase className="w-4 h-4 text-zinc-400" />,
+  responsibilities: <ClipboardList className="w-4 h-4 text-zinc-400" />,
+  requirements: <Wrench className="w-4 h-4 text-zinc-400" />,
+  qualifications: <GraduationCap className="w-4 h-4 text-zinc-400" />,
+  preferred: <Star className="w-4 h-4 text-zinc-400" />,
+  benefits: <FileText className="w-4 h-4 text-zinc-400" />,
+  other: <FileText className="w-4 h-4 text-zinc-400" />,
 };
 
 function DescriptionSection({ section }: { section: Section }) {
   return (
     <div>
-      <h4 className="text-sm font-semibold text-neutral-800 flex items-center gap-1.5 mb-2">
+      <h4 className="text-sm font-semibold text-zinc-200 flex items-center gap-1.5 mb-2">
         {SECTION_ICONS[section.icon]}
         {section.title}
       </h4>
-      <div className="text-sm text-neutral-600 leading-relaxed">
+      <div className="text-sm text-zinc-400 leading-relaxed">
         {section.items.map((item, i) =>
           item.type === "bullet" ? (
             <div key={i} className="flex items-start gap-2 py-0.5">
-              <span className="w-1.5 h-1.5 bg-neutral-300 rounded-full mt-1.5 shrink-0" />
+              <span className="w-1.5 h-1.5 bg-zinc-600 rounded-full mt-1.5 shrink-0" />
               <span>{item.text}</span>
             </div>
           ) : (
@@ -787,12 +787,12 @@ function StatCard({
   icon: React.ReactNode;
 }) {
   return (
-    <div className="bg-white border border-neutral-200 rounded-lg p-4">
-      <div className="flex items-center gap-1.5 text-neutral-500 text-xs font-medium">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
+      <div className="flex items-center gap-1.5 text-zinc-500 text-xs font-medium">
         {icon}
         {label}
       </div>
-      <p className="text-2xl font-bold text-neutral-900 mt-1 tabular-nums">
+      <p className="text-2xl font-bold text-cyan-400 mt-1 tabular-nums">
         {value}
       </p>
     </div>
@@ -803,7 +803,7 @@ function BackLink() {
   return (
     <Link
       href="/applicant"
-      className="text-sm text-neutral-400 hover:text-neutral-600 inline-flex items-center gap-1 transition-colors"
+      className="text-sm text-zinc-400 hover:text-white inline-flex items-center gap-1 transition-colors"
     >
       <ChevronLeft className="w-4 h-4" /> Dashboard
     </Link>
@@ -812,7 +812,7 @@ function BackLink() {
 
 function EmptySection({ message }: { message: string }) {
   return (
-    <div className="bg-white border border-neutral-200 rounded-lg p-5 text-sm text-neutral-500 text-center">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 text-sm text-zinc-500 text-center">
       {message}
     </div>
   );
@@ -826,24 +826,24 @@ function NoMatchesCard({
   profileHasLocation: boolean;
 }) {
   return (
-    <div className="bg-white border border-neutral-200 rounded-lg p-8 text-center">
-      <Briefcase className="w-8 h-8 text-neutral-300 mx-auto" />
-      <p className="text-neutral-700 font-semibold text-lg mt-3">
+    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-8 text-center">
+      <Briefcase className="w-8 h-8 text-zinc-600 mx-auto" />
+      <p className="text-white font-semibold text-lg mt-3">
         No matches yet
       </p>
-      <p className="text-sm text-neutral-500 mt-2">
+      <p className="text-sm text-zinc-400 mt-2">
         Matches are computed when the scoring pipeline runs.
       </p>
       {!profileHasFamily && (
-        <p className="flex items-center justify-center gap-1.5 text-xs text-neutral-500 mt-4">
-          <AlertCircle className="w-3.5 h-3.5" />
+        <p className="flex items-center justify-center gap-1.5 text-xs text-zinc-500 mt-4">
+          <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
           Your trade program hasn&apos;t been normalized yet — this affects
           match quality.
         </p>
       )}
       {!profileHasLocation && (
-        <p className="flex items-center justify-center gap-1.5 text-xs text-neutral-500 mt-2">
-          <AlertCircle className="w-3.5 h-3.5" />
+        <p className="flex items-center justify-center gap-1.5 text-xs text-zinc-500 mt-2">
+          <AlertCircle className="w-3.5 h-3.5 text-amber-400" />
           Set your location for geography-based matching.
         </p>
       )}

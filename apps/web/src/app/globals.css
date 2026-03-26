@@ -4,14 +4,14 @@
 
 @layer base {
   :root {
-    --spf-navy: #111111;
-    --spf-orange: #111111;
+    --background: #09090b;
+    --foreground: #fafafa;
   }
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
   body {
-    @apply text-neutral-900 bg-neutral-50;
+    @apply text-white bg-zinc-950;
   }
 }

@@ -7,7 +7,7 @@ export default function AuthLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen bg-neutral-50 flex flex-col items-center justify-center px-4 py-16">
+    <div className="min-h-screen bg-zinc-950 flex flex-col items-center justify-center px-4 py-16">
       <Link href="/" className="mb-8">
         <Image
           src="/spf-logo.png"
@@ -15,6 +15,7 @@ export default function AuthLayout({
           width={220}
           height={60}
           priority
+          className="brightness-0 invert"
         />
       </Link>
       {children}

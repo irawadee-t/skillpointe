@@ -60,7 +60,7 @@ export default async function ChatSessionPage({
   } catch {
     return (
       <main className="p-6 md:p-8">
-        <div className="max-w-2xl mx-auto bg-red-50 border border-red-200 rounded-lg p-5 text-sm text-red-800">
+        <div className="max-w-2xl mx-auto bg-rose-500/10 border border-rose-500/30 rounded-lg p-5 text-sm text-rose-400">
           <strong>Could not reach the API.</strong> Please refresh in a moment.
         </div>
       </main>
@@ -76,11 +76,11 @@ export default async function ChatSessionPage({
         <div>
           <Link
             href="/applicant/chat"
-            className="text-sm text-neutral-400 hover:text-neutral-600 inline-flex items-center gap-1"
+            className="text-sm text-zinc-400 hover:text-white inline-flex items-center gap-1 transition-colors"
           >
             ← Back to chats
           </Link>
-          <h1 className="text-xl font-semibold text-neutral-900 mt-1">
+          <h1 className="text-xl font-semibold text-white mt-1">
             {chatSession.title || "Planning chat"}
           </h1>
         </div>

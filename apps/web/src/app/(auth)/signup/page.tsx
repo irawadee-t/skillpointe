@@ -81,13 +81,13 @@ export default function SignupPage() {
   if (done) {
     return (
       <div className="flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-sm bg-white border border-neutral-200 rounded-2xl p-8 text-center">
-          <h2 className="text-xl font-semibold mb-3 text-neutral-900">Check your email</h2>
-          <p className="text-neutral-500 text-sm">
-            We sent a confirmation link to <strong>{email}</strong>. Click the
+        <div className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-8 text-center">
+          <h2 className="text-xl font-semibold mb-3 text-white">Check your email</h2>
+          <p className="text-zinc-400 text-sm">
+            We sent a confirmation link to <strong className="text-white">{email}</strong>. Click the
             link to finish creating your account.
           </p>
-          <Link href="/login" className="mt-6 inline-block text-neutral-500 hover:text-neutral-900 underline text-sm">
+          <Link href="/login" className="mt-6 inline-block text-cyan-400 hover:text-cyan-300 underline text-sm">
             Back to sign in
           </Link>
         </div>
@@ -97,15 +97,15 @@ export default function SignupPage() {
 
   return (
     <div className="flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm bg-white border border-neutral-200 rounded-2xl p-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 mb-1">Create account</h1>
-        <p className="text-sm text-neutral-400 mb-6">
+      <div className="w-full max-w-sm bg-zinc-900 border border-zinc-800 rounded-2xl p-8">
+        <h1 className="text-2xl font-semibold tracking-tight text-white mb-1">Create account</h1>
+        <p className="text-sm text-zinc-400 mb-6">
           Applicants only — employers are added by invitation.
         </p>
 
         <form onSubmit={handleSignup} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium uppercase tracking-wide text-neutral-500 mb-1">
+            <label className="block text-xs font-medium uppercase tracking-wide text-zinc-500 mb-1">
               Email
             </label>
             <input
@@ -114,12 +114,12 @@ export default function SignupPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
-              className="w-full border border-neutral-200 rounded-lg px-3 py-2.5 text-sm bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-400"
+              className="w-full border border-zinc-700 rounded-lg px-3 py-2.5 text-sm bg-zinc-900 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium uppercase tracking-wide text-neutral-500 mb-1">
+            <label className="block text-xs font-medium uppercase tracking-wide text-zinc-500 mb-1">
               Password
             </label>
             <input
@@ -129,13 +129,13 @@ export default function SignupPage() {
               required
               minLength={8}
               autoComplete="new-password"
-              className="w-full border border-neutral-200 rounded-lg px-3 py-2.5 text-sm bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-400"
+              className="w-full border border-zinc-700 rounded-lg px-3 py-2.5 text-sm bg-zinc-900 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500"
             />
-            <p className="text-xs text-neutral-400 mt-1">Minimum 8 characters.</p>
+            <p className="text-xs text-zinc-500 mt-1">Minimum 8 characters.</p>
           </div>
 
           <div>
-            <label className="block text-xs font-medium uppercase tracking-wide text-neutral-500 mb-1">
+            <label className="block text-xs font-medium uppercase tracking-wide text-zinc-500 mb-1">
               Confirm password
             </label>
             <input
@@ -144,26 +144,26 @@ export default function SignupPage() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               autoComplete="new-password"
-              className="w-full border border-neutral-200 rounded-lg px-3 py-2.5 text-sm bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-400"
+              className="w-full border border-zinc-700 rounded-lg px-3 py-2.5 text-sm bg-zinc-900 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500"
             />
           </div>
 
           {error && (
-            <p className="text-sm text-red-600 bg-red-50 rounded p-3">{error}</p>
+            <p className="text-sm text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded p-3">{error}</p>
           )}
 
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-neutral-900 text-white py-2.5 rounded-full text-sm font-medium hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full bg-cyan-500 text-black py-2.5 rounded-full text-sm font-medium hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? "Creating account…" : "Create account"}
           </button>
         </form>
 
-        <p className="mt-6 text-sm text-neutral-600">
+        <p className="mt-6 text-sm text-zinc-400">
           Already have an account?{" "}
-          <Link href="/login" className="text-neutral-500 hover:text-neutral-900 underline font-medium">
+          <Link href="/login" className="text-cyan-400 hover:text-cyan-300 underline font-medium">
             Sign in
           </Link>
         </p>

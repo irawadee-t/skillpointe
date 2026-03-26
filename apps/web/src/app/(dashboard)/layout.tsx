@@ -46,8 +46,8 @@ export default async function DashboardLayout({
   const navItems = NAV_ITEMS[role] ?? NAV_ITEMS.applicant;
 
   return (
-    <div className="min-h-screen bg-neutral-50">
-      <nav className="bg-neutral-950">
+    <div className="min-h-screen bg-zinc-950">
+      <nav className="sticky top-0 z-50 bg-zinc-950/80 backdrop-blur-md border-b border-white/5 transition-all duration-300">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14">
             <div className="flex items-center gap-8">
@@ -65,18 +65,19 @@ export default async function DashboardLayout({
                   <Link
                     key={item.href}
                     href={item.href}
-                    className="px-3 py-1.5 text-sm text-neutral-400 hover:text-white transition-colors"
+                    className="relative px-3 py-1.5 text-sm text-zinc-400 hover:text-white transition-colors duration-200 group"
                   >
                     {item.label}
+                    <span className="absolute bottom-0 left-0 right-0 h-px bg-cyan-400 scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left" />
                   </Link>
                 ))}
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-xs text-neutral-500 hidden sm:inline">{user.email}</span>
+              <span className="text-xs text-zinc-500 hidden sm:inline">{user.email}</span>
               <Link
                 href="/api/auth/signout"
-                className="text-xs text-neutral-400 hover:text-white transition-colors"
+                className="text-xs text-zinc-400 hover:text-white transition-colors duration-200"
               >
                 Sign out
               </Link>

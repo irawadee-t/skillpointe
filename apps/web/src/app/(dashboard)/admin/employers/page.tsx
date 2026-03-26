@@ -44,7 +44,7 @@ export default async function AdminEmployersPage({ searchParams }: PageProps) {
   } catch (e) {
     return (
       <main className="p-6 md:p-8">
-        <div className="max-w-5xl mx-auto bg-red-50 border border-red-200 rounded-lg p-5 text-sm text-red-800">
+        <div className="max-w-5xl mx-auto bg-rose-500/10 border border-rose-500/30 rounded-lg p-5 text-sm text-rose-400">
           {e instanceof ApiError ? `API error ${e.status}` : "Could not reach the API — please refresh."}
         </div>
       </main>
@@ -59,44 +59,44 @@ export default async function AdminEmployersPage({ searchParams }: PageProps) {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Employers</h1>
-            <p className="text-sm text-neutral-500 mt-0.5">{data.total} total</p>
+            <h1 className="text-2xl font-semibold tracking-tight text-white">Employers</h1>
+            <p className="text-sm text-zinc-400 mt-0.5">{data.total} total</p>
           </div>
-          <Link href="/admin" className="text-sm text-neutral-400 hover:text-neutral-600">
+          <Link href="/admin" className="text-sm text-zinc-400 hover:text-white transition-colors">
             ← Dashboard
           </Link>
         </div>
 
         {/* Filter bar */}
-        <form method="GET" action="/admin/employers" className="bg-white border border-neutral-200 rounded-lg p-4">
+        <form method="GET" action="/admin/employers" className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
           <div className="flex flex-wrap gap-3 items-end">
             <div className="flex-1 min-w-[180px]">
-              <label className="block text-xs text-neutral-500 mb-1">Search company name</label>
+              <label className="block text-xs text-zinc-500 mb-1">Search company name</label>
               <input
                 name="q"
                 type="text"
                 defaultValue={sp.q ?? ""}
                 placeholder="Acme Industrial…"
-                className="w-full border border-neutral-200 rounded-md px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                className="w-full border border-zinc-700 rounded-md px-3 py-1.5 text-sm bg-zinc-900 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500"
               />
             </div>
             <div className="min-w-[90px]">
-              <label className="block text-xs text-neutral-500 mb-1">State</label>
+              <label className="block text-xs text-zinc-500 mb-1">State</label>
               <input
                 name="state"
                 type="text"
                 maxLength={2}
                 defaultValue={sp.state ?? ""}
                 placeholder="TX"
-                className="w-full border border-neutral-200 rounded-md px-3 py-1.5 text-sm uppercase focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                className="w-full border border-zinc-700 rounded-md px-3 py-1.5 text-sm bg-zinc-900 text-white placeholder:text-zinc-600 uppercase focus:outline-none focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500"
               />
             </div>
             <div className="min-w-[130px]">
-              <label className="block text-xs text-neutral-500 mb-1">Partner status</label>
+              <label className="block text-xs text-zinc-500 mb-1">Partner status</label>
               <select
                 name="is_partner"
                 defaultValue={sp.is_partner ?? ""}
-                className="w-full border border-neutral-200 rounded-md px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400"
+                className="w-full border border-zinc-700 rounded-md px-2 py-1.5 text-sm bg-zinc-900 text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500"
               >
                 <option value="">All</option>
                 <option value="true">Partners only</option>
@@ -105,14 +105,14 @@ export default async function AdminEmployersPage({ searchParams }: PageProps) {
             </div>
             <button
               type="submit"
-              className="px-4 py-1.5 bg-neutral-900 text-white text-sm font-medium rounded-full hover:bg-neutral-700 transition-colors"
+              className="px-4 py-1.5 bg-cyan-500 text-black text-sm font-medium rounded-full hover:bg-cyan-400 transition-colors"
             >
               Search
             </button>
             {hasFilters && (
               <Link
                 href="/admin/employers"
-                className="px-3 py-1.5 text-sm text-neutral-500 border border-neutral-200 rounded-full hover:bg-neutral-50"
+                className="px-3 py-1.5 text-sm text-zinc-400 border border-zinc-700 rounded-full hover:border-zinc-500 hover:text-zinc-200 transition-colors"
               >
                 Clear
               </Link>
@@ -122,10 +122,10 @@ export default async function AdminEmployersPage({ searchParams }: PageProps) {
 
         {/* Results */}
         {data.employers.length === 0 ? (
-          <div className="bg-white border border-neutral-200 rounded-lg p-8 text-center">
-            <p className="text-neutral-600 font-medium">No employers found</p>
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-8 text-center">
+            <p className="text-zinc-300 font-medium">No employers found</p>
             {hasFilters && (
-              <p className="text-sm text-neutral-500 mt-1">Try adjusting your filters.</p>
+              <p className="text-sm text-zinc-500 mt-1">Try adjusting your filters.</p>
             )}
           </div>
         ) : (
@@ -135,25 +135,25 @@ export default async function AdminEmployersPage({ searchParams }: PageProps) {
               return (
                 <div
                   key={emp.id}
-                  className="bg-white border border-neutral-200 rounded-lg p-5 hover:border-neutral-300 transition-colors"
+                  className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 hover:border-zinc-700 transition-colors"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <Link
                           href={`/admin/employers/${emp.id}`}
-                          className="font-semibold text-neutral-900 hover:underline"
+                          className="font-semibold text-white hover:text-cyan-400 transition-colors"
                         >
                           {emp.name}
                         </Link>
                         {emp.is_partner && (
-                          <span className="inline-flex items-center text-xs font-medium text-neutral-600 bg-neutral-100 border border-neutral-200 rounded-full px-2 py-0.5">
+                          <span className="inline-flex items-center text-xs font-medium text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-full px-2 py-0.5">
                             Partner
                           </span>
                         )}
                       </div>
 
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-neutral-500">
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-zinc-400">
                         {location && (
                           <span className="flex items-center gap-1">
                             <MapPin className="w-3.5 h-3.5" /> {location}
@@ -165,7 +165,7 @@ export default async function AdminEmployersPage({ searchParams }: PageProps) {
                           </span>
                         )}
                         {emp.contact_name && (
-                          <span className="text-neutral-600 font-medium">{emp.contact_name}</span>
+                          <span className="text-zinc-300 font-medium">{emp.contact_name}</span>
                         )}
                       </div>
                     </div>
@@ -173,30 +173,30 @@ export default async function AdminEmployersPage({ searchParams }: PageProps) {
                     {/* Job counts */}
                     <div className="shrink-0 flex gap-3 text-right">
                       <div>
-                        <div className="text-lg font-bold text-neutral-900 leading-none">{emp.active_jobs}</div>
-                        <div className="text-xs text-neutral-400 mt-0.5">active jobs</div>
+                        <div className="text-lg font-bold text-cyan-400 leading-none">{emp.active_jobs}</div>
+                        <div className="text-xs text-zinc-500 mt-0.5">active jobs</div>
                       </div>
                       <div>
-                        <div className="text-lg font-bold text-neutral-600 leading-none">{emp.total_jobs}</div>
-                        <div className="text-xs text-neutral-400 mt-0.5">total jobs</div>
+                        <div className="text-lg font-bold text-zinc-400 leading-none">{emp.total_jobs}</div>
+                        <div className="text-xs text-zinc-500 mt-0.5">total jobs</div>
                       </div>
                     </div>
                   </div>
 
                   {/* Contact row */}
-                  <div className="mt-3 pt-3 border-t border-neutral-100 flex items-center gap-4 flex-wrap">
+                  <div className="mt-3 pt-3 border-t border-zinc-800 flex items-center gap-4 flex-wrap">
                     {emp.contact_email ? (
                       <>
-                        <span className="text-sm text-neutral-500 font-mono">{emp.contact_email}</span>
+                        <span className="text-sm text-zinc-500 font-mono">{emp.contact_email}</span>
                         <a
                           href={`mailto:${emp.contact_email}`}
-                          className="inline-flex items-center gap-1 text-sm font-medium text-neutral-900 hover:underline"
+                          className="inline-flex items-center gap-1 text-sm font-medium text-cyan-400 hover:text-cyan-300 transition-colors"
                         >
                           <Mail className="w-3.5 h-3.5" /> Send email
                         </a>
                       </>
                     ) : (
-                      <span className="text-xs text-neutral-400 italic">No contact on file</span>
+                      <span className="text-xs text-zinc-600 italic">No contact on file</span>
                     )}
                   </div>
                 </div>
@@ -207,7 +207,7 @@ export default async function AdminEmployersPage({ searchParams }: PageProps) {
 
         {/* Pagination */}
         {data.total > 50 && (
-          <div className="flex items-center justify-between text-sm text-neutral-500">
+          <div className="flex items-center justify-between text-sm text-zinc-500">
             <span>
               Showing {(page - 1) * 50 + 1}–{Math.min(page * 50, data.total)} of {data.total}
             </span>
@@ -215,7 +215,7 @@ export default async function AdminEmployersPage({ searchParams }: PageProps) {
               {page > 1 && (
                 <Link
                   href={`/admin/employers?${new URLSearchParams({ ...sp, page: String(page - 1) })}`}
-                  className="px-3 py-1 border border-neutral-200 rounded-full hover:bg-neutral-50"
+                  className="px-3 py-1 border border-zinc-700 rounded-full hover:border-zinc-500 hover:text-zinc-300 transition-colors"
                 >
                   Previous
                 </Link>
@@ -223,7 +223,7 @@ export default async function AdminEmployersPage({ searchParams }: PageProps) {
               {page * 50 < data.total && (
                 <Link
                   href={`/admin/employers?${new URLSearchParams({ ...sp, page: String(page + 1) })}`}
-                  className="px-3 py-1 border border-neutral-200 rounded-full hover:bg-neutral-50"
+                  className="px-3 py-1 border border-zinc-700 rounded-full hover:border-zinc-500 hover:text-zinc-300 transition-colors"
                 >
                   Next
                 </Link>
