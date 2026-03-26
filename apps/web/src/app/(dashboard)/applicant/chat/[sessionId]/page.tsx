@@ -60,7 +60,7 @@ export default async function ChatSessionPage({
   } catch {
     return (
       <main className="p-6 md:p-8">
-        <div className="max-w-2xl mx-auto bg-rose-500/10 border border-rose-500/30 rounded-lg p-5 text-sm text-rose-400">
+        <div className="max-w-5xl mx-auto bg-rose-500/10 border border-rose-500/30 rounded-lg p-5 text-sm text-rose-400">
           <strong>Could not reach the API.</strong> Please refresh in a moment.
         </div>
       </main>
@@ -71,7 +71,7 @@ export default async function ChatSessionPage({
 
   return (
     <main className="p-6 md:p-8">
-      <div className="max-w-2xl mx-auto space-y-4">
+      <div className="max-w-5xl mx-auto space-y-4">
         {/* Header */}
         <div>
           <Link

@@ -39,7 +39,7 @@ export default async function EmployerConversationPage({ params }: PageProps) {
   if (!conv) {
     return (
       <main className="p-6 md:p-8">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <Link href="/employer/messages" className="text-sm text-zinc-400 hover:text-white transition-colors">
             ← Back to messages
           </Link>
@@ -53,7 +53,7 @@ export default async function EmployerConversationPage({ params }: PageProps) {
 
   return (
     <main className="p-6 md:p-8">
-      <div className="max-w-2xl mx-auto flex flex-col" style={{ height: "calc(100vh - 10rem)" }}>
+      <div className="max-w-5xl mx-auto flex flex-col" style={{ height: "calc(100vh - 10rem)" }}>
         <Link
           href="/employer/messages"
           className="text-sm text-zinc-400 hover:text-white inline-flex items-center gap-1 mb-4 shrink-0 transition-colors"

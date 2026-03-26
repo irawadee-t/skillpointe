@@ -61,7 +61,7 @@ export default async function NewJobPage() {
 
   return (
     <main className="p-6 md:p-8">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <div className="mb-6">
           <a
             href="/employer"

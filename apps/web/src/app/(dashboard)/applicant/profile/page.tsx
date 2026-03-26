@@ -147,7 +147,7 @@ export default function EditProfilePage() {
 
   return (
     <main className="p-6 md:p-8">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <Link
           href="/applicant"
           className="text-sm text-zinc-400 hover:text-white mb-6 inline-flex items-center gap-1 transition-colors"

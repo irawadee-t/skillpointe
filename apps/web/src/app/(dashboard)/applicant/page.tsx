@@ -33,7 +33,7 @@ export default async function ApplicantDashboard() {
   if (profileMissing) redirect("/applicant/setup");
   if (!profile) return (
     <main className="p-6 md:p-8">
-      <div className="max-w-3xl mx-auto bg-rose-500/10 border border-rose-500/30 rounded-lg p-5 text-sm text-rose-400">
+      <div className="max-w-5xl mx-auto bg-rose-500/10 border border-rose-500/30 rounded-lg p-5 text-sm text-rose-400">
         <strong>Could not reach the API.</strong> The backend may be starting up — please refresh in a moment.
       </div>
     </main>
@@ -43,7 +43,7 @@ export default async function ApplicantDashboard() {
 
   return (
     <main className="p-6 md:p-8">
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-semibold tracking-tight text-white">
             {profile?.first_name ? `Welcome back, ${profile.first_name}` : "Dashboard"}

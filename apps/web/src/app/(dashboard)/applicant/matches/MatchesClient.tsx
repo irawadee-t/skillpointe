@@ -50,7 +50,7 @@ export function MatchesClient({ data, fetchError, token }: Props) {
   if (fetchError) {
     return (
       <main className="p-6 md:p-8">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <BackLink />
           <div className="mt-6 bg-rose-500/10 border border-rose-500/30 rounded-lg p-5 text-sm text-rose-400 flex items-start gap-2">
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
@@ -68,7 +68,7 @@ export function MatchesClient({ data, fetchError, token }: Props) {
 
   return (
     <main className="p-6 md:p-8">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-5xl mx-auto space-y-6">
         <div>
           <BackLink />
           <h1 className="text-2xl font-semibold tracking-tight text-white mt-2">

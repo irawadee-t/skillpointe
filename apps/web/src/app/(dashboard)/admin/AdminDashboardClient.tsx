@@ -91,7 +91,7 @@ export function AdminDashboardClient({ data, error }: Props) {
   if (error || !data) {
     return (
       <main className="p-8">
-        <div className="max-w-6xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <div className="bg-rose-500/10 border border-rose-500/30 rounded-lg p-6 text-rose-400">
             {error || "Failed to load dashboard data."}
           </div>
@@ -122,7 +122,7 @@ export function AdminDashboardClient({ data, error }: Props) {
 
   return (
     <main className="p-6 md:p-8">
-      <div className="max-w-6xl mx-auto space-y-6">
+      <div className="max-w-5xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>

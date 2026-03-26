@@ -74,7 +74,7 @@ export default async function JobApplicantsPage({
     if (e instanceof ApiError && e.status === 404) {
       return (
         <main className="p-6 md:p-8">
-          <div className="max-w-3xl mx-auto">
+          <div className="max-w-5xl mx-auto">
             <BackLink href={backHref} />
             <div className="mt-6 bg-rose-500/10 border border-rose-500/30 rounded-lg p-5 text-sm text-rose-400">
               Job not found or you do not have access to this job.
@@ -85,7 +85,7 @@ export default async function JobApplicantsPage({
     }
     return (
       <main className="p-6 md:p-8">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <BackLink href={backHref} />
           <div className="mt-6 bg-rose-500/10 border border-rose-500/30 rounded-lg p-5 text-sm text-rose-400">
             <strong>Could not reach the API.</strong> The backend may be starting up — please refresh in a moment.
@@ -100,7 +100,7 @@ export default async function JobApplicantsPage({
 
   return (
     <main className="p-6 md:p-8">
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="max-w-5xl mx-auto space-y-6">
         {/* Header */}
         <div>
           <BackLink href={backHref} />

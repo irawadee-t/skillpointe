@@ -78,7 +78,7 @@ export default async function MatchDetailPage({
     if (e instanceof ApiError && e.status === 404) notFound();
     return (
       <main className="p-6 md:p-8">
-        <div className="max-w-3xl mx-auto bg-rose-500/10 border border-rose-500/30 rounded-lg p-5 text-sm text-rose-400">
+        <div className="max-w-5xl mx-auto bg-rose-500/10 border border-rose-500/30 rounded-lg p-5 text-sm text-rose-400">
           <strong>Could not reach the API.</strong> The backend may be starting up — please refresh in a moment.
         </div>
       </main>
@@ -92,7 +92,7 @@ export default async function MatchDetailPage({
 
   return (
     <main className="p-6 md:p-8">
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="max-w-5xl mx-auto space-y-6">
         {/* Breadcrumb */}
         <Link
           href="/applicant/matches"

@@ -51,7 +51,7 @@ export default async function EmployerDashboard() {
 
   return (
     <main className="p-6 md:p-8">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-5xl mx-auto space-y-6">
         {/* Header */}
         <div>
           <h1 className="text-2xl font-semibold tracking-tight text-white">

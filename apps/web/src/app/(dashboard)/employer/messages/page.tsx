@@ -38,7 +38,7 @@ export default async function EmployerMessagesPage() {
 
   return (
     <main className="p-6 md:p-8">
-      <div className="max-w-2xl mx-auto space-y-6">
+      <div className="max-w-5xl mx-auto space-y-6">
         <div>
           <Link
             href="/employer"

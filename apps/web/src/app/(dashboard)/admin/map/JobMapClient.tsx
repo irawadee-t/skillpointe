@@ -167,7 +167,7 @@ export function JobMapClient({ clusters, error, accessToken }: Props) {
   if (error) {
     return (
       <main className="p-8">
-        <div className="max-w-6xl mx-auto bg-rose-500/10 border border-rose-500/30 rounded-lg p-6 text-rose-400">
+        <div className="max-w-5xl mx-auto bg-rose-500/10 border border-rose-500/30 rounded-lg p-6 text-rose-400">
           {error}
         </div>
       </main>
@@ -176,7 +176,7 @@ export function JobMapClient({ clusters, error, accessToken }: Props) {
 
   return (
     <main className="p-6 md:p-8 min-h-screen">
-      <div className="max-w-6xl mx-auto space-y-4">
+      <div className="max-w-5xl mx-auto space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>

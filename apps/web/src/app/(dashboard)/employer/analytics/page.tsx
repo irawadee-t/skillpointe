@@ -57,7 +57,7 @@ export default async function EmployerAnalyticsPage() {
   } catch {
     return (
       <main className="p-6 md:p-8">
-        <div className="max-w-4xl mx-auto">
+        <div className="max-w-5xl mx-auto">
           <BackLink />
           <div className="mt-6 bg-rose-500/10 border border-rose-500/30 rounded-lg p-5 text-sm text-rose-400">
             <strong>Could not reach the API.</strong> The backend may be starting up — please refresh.
@@ -92,7 +92,7 @@ export default async function EmployerAnalyticsPage() {
 
   return (
     <main className="p-6 md:p-8">
-      <div className="max-w-4xl mx-auto space-y-6">
+      <div className="max-w-5xl mx-auto space-y-6">
         {/* Header */}
         <div>
           <BackLink />
