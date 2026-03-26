@@ -235,7 +235,7 @@ export default async function AdminEngagementPage({ searchParams }: PageProps) {
               href={`/admin/engagement?view=${key}`}
               className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
                 view === key
-                  ? "border-cyan-500 text-white"
+                  ? "border-white text-white"
                   : "border-transparent text-zinc-500 hover:text-zinc-300"
               }`}
             >
@@ -345,24 +345,26 @@ function GeneralView({ data }: { data: GeneralData | null }) {
         {/* Recent activity */}
         <section>
           <h2 className="font-semibold text-white mb-3">Recent activity</h2>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg divide-y divide-zinc-800/50">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
             {data.recent_activity.length === 0 ? (
               <p className="text-sm text-zinc-500 p-5">No recent activity.</p>
             ) : (
-              data.recent_activity.map((a, i) => (
-                <div key={i} className="px-4 py-2.5 flex items-start justify-between gap-3">
-                  <p className="text-sm text-zinc-200 truncate">
-                    <span className="font-medium">{a.actor_name}</span>
-                    {" · "}
-                    <span className="text-zinc-500">
-                      {EVENT_LABELS[a.event_type] ?? a.event_type}
+              <div className="overflow-y-auto max-h-[320px] divide-y divide-zinc-800/50">
+                {data.recent_activity.map((a, i) => (
+                  <div key={i} className="px-4 py-2.5 flex items-start justify-between gap-3">
+                    <p className="text-sm text-zinc-200 truncate">
+                      <span className="font-medium">{a.actor_name}</span>
+                      {" · "}
+                      <span className="text-zinc-500">
+                        {EVENT_LABELS[a.event_type] ?? a.event_type}
+                      </span>
+                    </p>
+                    <span className="shrink-0 text-xs text-zinc-500">
+                      {new Date(a.created_at).toLocaleDateString()}
                     </span>
-                  </p>
-                  <span className="shrink-0 text-xs text-zinc-500">
-                    {new Date(a.created_at).toLocaleDateString()}
-                  </span>
-                </div>
-              ))
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </section>
