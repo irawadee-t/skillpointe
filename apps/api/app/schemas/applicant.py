@@ -109,6 +109,9 @@ class JobMatchSummary(BaseModel):
     confidence_level: str | None
     requires_review: bool
 
+    # Applicant's self-reported interest for this job
+    applicant_interest: str | None   # interested | applied | not_interested | None
+
 
 # ---------------------------------------------------------------------------
 # Match detail (extends summary)

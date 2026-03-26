@@ -9,17 +9,22 @@ const NAV_ITEMS: Record<string, { label: string; href: string }[]> = {
     { label: "Dashboard", href: "/applicant" },
     { label: "Matches", href: "/applicant/matches" },
     { label: "Jobs", href: "/applicant/jobs" },
+    { label: "Plan", href: "/applicant/chat" },
+    { label: "Messages", href: "/applicant/messages" },
     { label: "Profile", href: "/applicant/profile" },
   ],
   employer: [
     { label: "Dashboard", href: "/employer" },
     { label: "Post a job", href: "/employer/jobs/new" },
+    { label: "Messages", href: "/employer/messages" },
+    { label: "Analytics", href: "/employer/analytics" },
   ],
   admin: [
     { label: "Dashboard", href: "/admin" },
     { label: "Map", href: "/admin/map" },
-    { label: "Applicants", href: "/applicant" },
-    { label: "Employers", href: "/employer" },
+    { label: "Applicants", href: "/admin/applicants" },
+    { label: "Employers", href: "/admin/employers" },
+    { label: "Engagement", href: "/admin/engagement" },
   ],
 };
 

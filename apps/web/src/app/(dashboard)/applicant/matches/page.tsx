@@ -25,6 +25,7 @@ export default async function MatchesPage() {
     <MatchesClient
       data={matches ?? null}
       fetchError={fetchError}
+      token={token}
     />
   );
 }

@@ -30,6 +30,7 @@ import type {
   JobMatchSummary,
   RankedMatchesResponse,
 } from "@/lib/api/applicant";
+import { InterestSignalPanel } from "@/components/matches/InterestSignalPanel";
 
 /* ------------------------------------------------------------------ */
 /*  Props                                                              */
@@ -38,13 +39,14 @@ import type {
 interface Props {
   data: RankedMatchesResponse | null;
   fetchError: string | null;
+  token: string;
 }
 
 /* ------------------------------------------------------------------ */
 /*  Main component                                                     */
 /* ------------------------------------------------------------------ */
 
-export function MatchesClient({ data, fetchError }: Props) {
+export function MatchesClient({ data, fetchError, token }: Props) {
   if (fetchError) {
     return (
       <main className="p-6 md:p-8">
@@ -132,7 +134,7 @@ export function MatchesClient({ data, fetchError }: Props) {
               ) : (
                 <div className="space-y-3">
                   {matches.eligible_matches.map((m) => (
-                    <MatchCard key={m.match_id} match={m} />
+                    <MatchCard key={m.match_id} match={m} token={token} />
                   ))}
                 </div>
               )}
@@ -159,7 +161,7 @@ export function MatchesClient({ data, fetchError }: Props) {
               ) : (
                 <div className="space-y-3">
                   {matches.near_fit_matches.map((m) => (
-                    <MatchCard key={m.match_id} match={m} />
+                    <MatchCard key={m.match_id} match={m} token={token} />
                   ))}
                 </div>
               )}
@@ -182,7 +184,7 @@ const WORK_SETTING_LABELS: Record<string, string> = {
   flexible: "Flexible",
 };
 
-function MatchCard({ match }: { match: JobMatchSummary }) {
+function MatchCard({ match, token }: { match: JobMatchSummary; token: string }) {
   const [expanded, setExpanded] = useState(false);
 
   const score = match.policy_adjusted_score
@@ -328,6 +330,16 @@ function MatchCard({ match }: { match: JobMatchSummary }) {
             )}
           </div>
         )}
+
+        {/* Row 5: Interest signal — always visible */}
+        <div className="mt-3 pt-3 border-t border-gray-100">
+          <InterestSignalPanel
+            matchId={match.match_id}
+            sourceUrl={match.source_url}
+            initialSignal={match.applicant_interest ?? null}
+            token={token}
+          />
+        </div>
       </div>
 
       {/* Expanded section: job details + match breakdown */}

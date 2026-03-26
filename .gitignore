@@ -11,6 +11,7 @@ __pycache__/
 *.pyo
 .mypy_cache/
 .ruff_cache/
+tsconfig.tsbuildinfo
 
 # Environment files (never commit real secrets)
 .env

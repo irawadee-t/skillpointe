@@ -1,6 +1,6 @@
 # STATUS.md — SkillPointe Match Build Handoff
 
-> Last updated: 2026-03-11
+> Last updated: 2026-03-26
 >
 > For: teammates picking up where development left off.
 > Read this alongside `CLAUDE.md` (product rules) and `BUILD_PLAN.md` (execution plan).
@@ -10,9 +10,9 @@
 ## What this project is
 
 Three-role workforce matching platform:
-- **Applicants** see ranked job matches, score explanations, and missing requirements
-- **Employers** see ranked applicant lists per job with rationale
-- **Admins** manage imports, taxonomy, scoring policy, review queues, and analytics
+- **Applicants** see ranked job matches, score explanations, interest signals, and a career planning chat
+- **Employers** see ranked matched candidates per job, can reach out with AI-drafted messages, report hire outcomes, and view engagement analytics
+- **Admins** manage imports, browse all applicants/employers, view analytics dashboards and a geography map
 
 MVP is a **continuous ranking and explanation platform** — NOT batch matching, NOT deferred acceptance.
 Ranking is deterministic + policy-reranked + LLM-assisted (in that order of priority).
@@ -31,13 +31,14 @@ Ranking is deterministic + policy-reranked + LLM-assisted (in that order of prio
 | 6.1 | Applicant dashboard + ranked job matches + explanation detail | ✅ Complete |
 | 6.2 | Employer dashboard + job management + ranked applicants per job | ✅ Complete |
 | 6.3 | Match explanation surfaces (dimension breakdown, strengths, gaps, next steps) | ✅ Complete |
-| 7 | LLM extraction + verification | ✅ Complete |
-| 8 | Applicant planning chat | ⬜ Not started |
-| 9 | Admin review + config + analytics | ⬜ Not started |
+| 6.4 | Admin applicant/employer directories + employer detail page + map | ✅ Complete |
+| 7 | LLM extraction + verification + job scraper | ✅ Complete |
+| 8 | Engagement features: interest signals, outreach, hire outcomes, planning chat, auto-recompute | ✅ Complete |
+| 9 | Admin review queue + policy config UI | ⬜ Not started |
 | 10 | QA + end-to-end testing | ⬜ Not started |
 | 11 | Deployment + production readiness | ⬜ Not started |
 
-**Where we are:** Phases 1–7 are complete. The LLM extraction pipeline powers real credential gates, min-requirement gates, and embedding-based semantic scoring. The next milestone is Phase 8 — Applicant Planning Chat.
+**Where we are:** Phases 1–8 are complete. The platform now supports the full candidate engagement loop: match → signal interest → employer reaches out → hire outcome reported. Planning chat is live for applicants. Matches recompute automatically every 6 hours and on job creation / profile update.
 
 ---
 
@@ -45,12 +46,10 @@ Ranking is deterministic + policy-reranked + LLM-assisted (in that order of prio
 
 ### 1. Prerequisites
 
-Install these first:
-
-- [Node.js 20+](https://nodejs.org) + [pnpm](https://pnpm.io/installation): `npm install -g pnpm`
+- [Node.js 20+](https://nodejs.org) + [pnpm](https://pnpm.io/installation)
 - [Python 3.11+](https://python.org)
 - [Supabase CLI](https://supabase.com/docs/guides/cli): `brew install supabase/tap/supabase`
-- [Docker Desktop](https://www.docker.com/products/docker-desktop/) (required by Supabase CLI)
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 
 ### 2. Clone and install
 
@@ -58,10 +57,8 @@ Install these first:
 git clone <repo-url>
 cd skillpointe
 
-# Install frontend dependencies
 pnpm install
 
-# Create Python virtualenv and install backend dependencies
 cd apps/api
 python -m venv .venv
 source .venv/bin/activate
@@ -72,64 +69,52 @@ cd ../..
 ### 3. Start local services
 
 ```bash
-# Start Supabase (Postgres + Auth + Storage + Studio)
 supabase start
-
-# Load the full schema and seed data
-supabase db reset
-
-# Start local Redis (required for async job queue)
-docker compose -f infra/docker-compose.local.yml up -d
+supabase db reset          # applies all 14 migrations + seed
+docker compose -f infra/docker-compose.local.yml up -d   # Redis
 ```
 
 ### 4. Configure environment variables
 
 ```bash
-# Get the local keys from Supabase
-supabase status
+supabase status            # get local keys
 ```
 
-Copy the output values into `apps/api/.env`:
-
+**`apps/api/.env`:**
 ```env
 SUPABASE_URL=http://localhost:54321
-SUPABASE_ANON_KEY=<anon key from supabase status>
-SUPABASE_SERVICE_ROLE_KEY=<service role key from supabase status>
-SUPABASE_JWT_SECRET=<JWT secret from supabase status>
+SUPABASE_ANON_KEY=<from supabase status>
+SUPABASE_SERVICE_ROLE_KEY=<from supabase status>
+SUPABASE_JWT_SECRET=<from supabase status>
 DATABASE_URL=postgresql://postgres:postgres@localhost:54322/postgres
 REDIS_URL=redis://localhost:6379
+OPENAI_API_KEY=<optional — required for AI outreach drafts and planning chat>
 ```
 
-Copy the same values into `apps/web/.env.local`:
-
+**`apps/web/.env.local`:**
 ```env
 NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key>
-API_URL=http://localhost:8000
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<from supabase status>
+NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
 ### 5. Seed test users
 
 ```bash
-# From the repo root — installs deps + creates all 3 test users
 cd apps/api && source .venv/bin/activate && cd ../..
 python scripts/seed_test_users.py
 ```
 
-This creates three ready-to-use accounts (password `Test1234!` for all):
-
-| Role | Email | Goes to |
-|---|---|---|
-| Applicant | `applicant@skillpointe.test` | `/applicant` |
-| Employer | `employer@skillpointe.test` | `/employer` |
-| Admin | `admin@skillpointe.test` | `/admin` |
-
-The script also creates: an applicant profile (Jane Smith, Welding Technology, Austin TX), an employer company (Acme Industrial, partner), 2 sample jobs, and 2 pre-computed matches so the ranked views are populated immediately.
+| Role | Email | Password | Goes to |
+|---|---|---|---|
+| Applicant | `applicant@skillpointe.test` | `Test1234!` | `/applicant` |
+| Employer | `employer@skillpointe.test` | `Test1234!` | `/employer` |
+| Admin | `admin@skillpointe.test` | `Test1234!` | `/admin` |
 
 ### 6. Start the app
 
 ```bash
-# Terminal 1 — API
+# Terminal 1 — API (hot reload)
 cd apps/api && source .venv/bin/activate
 uvicorn main:app --reload --port 8000
 
@@ -137,15 +122,7 @@ uvicorn main:app --reload --port 8000
 pnpm dev:web
 ```
 
-Open `http://localhost:3000`. Log in as any test user.
-
-### 7. Run the test suite
-
-```bash
-cd apps/api
-source .venv/bin/activate
-pytest tests/ -v
-```
+Open `http://localhost:3000`. The API schedule starts automatically on `uvicorn` launch.
 
 ---
 
@@ -153,218 +130,409 @@ pytest tests/ -v
 
 ### Phase 1 — Repo + Environment
 
-- Monorepo with `apps/web`, `apps/api`, `packages/etl`, `packages/matching`, `packages/types`, `packages/ui`
-- Supabase CLI local config (`supabase/config.toml`)
-- Redis via Docker Compose (`infra/docker-compose.local.yml`)
-- Local dev guide: `docs/local-development.md`
+- Monorepo: `apps/web`, `apps/api`, `packages/{etl,matching,extraction,types,ui}`, `scripts/`, `infra/`
+- Supabase CLI local config + Docker Compose for Redis
+- Service ports: Next.js :3000, FastAPI :8000, Supabase :54321, Postgres :54322, Studio :54323, Redis :6379
+
+---
 
 ### Phase 2 — Auth + RBAC
 
-**Backend (`apps/api/app/`):**
-- JWT validation supporting both HS256 and ES256 (Supabase CLI v2) via JWKS (`app/auth/dependencies.py`)
+**Backend:**
+- JWT validation (HS256 + ES256 both supported — Supabase CLI v2 uses ES256 via JWKS)
 - RBAC dependency functions: `require_admin`, `require_applicant`, `require_employer`, `require_employer_or_admin`
-- Auth router: `GET /auth/me`, `POST /auth/complete-signup`, `POST /auth/invite-employer`
-- Health endpoint: `GET /health`
+- `GET /auth/me`, `POST /auth/complete-signup`, `POST /auth/invite-employer`
 
-**Frontend (`apps/web/src/`):**
+**Frontend:**
 - Supabase client helpers: `lib/supabase/client.ts`, `lib/supabase/server.ts`
-- Route protection middleware: `middleware.ts` (redirects wrong-role routes)
-- Auth pages: login, signup, forgot-password, reset-password (`app/(auth)/`)
+- Route protection: `middleware.ts`
+- Auth pages: login, signup, forgot/reset password
 
-**Auth flow:**
-- Applicants: self-signup → `POST /auth/complete-signup` → `/applicant`
-- Employers: admin invites via `POST /auth/invite-employer` → email invite → `/employer`
-- Admins: created via `scripts/seed_admin.py`
+**Tests:** `tests/test_auth.py` (13 tests)
 
-**Tests:** `apps/api/tests/test_auth.py` (13 tests)
+> **Note:** Supabase CLI v2 signs JWTs with ES256. The decoder reads the JWT header and fetches JWKS automatically. Do not revert to HS256-only.
 
-**Important — Supabase CLI v2 note:**
-Supabase CLI v2 signs JWTs with ES256 (ECDSA), not HS256. The `decode_supabase_jwt` function detects the algorithm from the JWT header and validates ES256 tokens via `GET /auth/v1/.well-known/jwks.json`. The JWKS response is cached in-process. This is already handled — do not revert to HS256-only.
+---
 
 ### Phase 3 — Core Data Model
 
-**9 migrations** in `supabase/migrations/`:
-- `000000` — `user_profiles` table (links Supabase Auth → app role)
-- `000001` — enums + pgvector extension
-- `000002` — taxonomy (`canonical_job_families`, `geography_regions`)
-- `000003` — core entities (`applicants`, `employers`, `jobs`)
-- `000004` — documents and signals (`applicant_documents`, `extracted_fields`, etc.)
-- `000005` — matches (`matches`, `match_dimension_scores`)
-- `000006` — ops and config (`policy_configs`, `scoring_runs`, `audit_log`)
-- `000007` — chat (`chat_sessions`, `chat_messages`, `chat_prompt_configs`)
-- `000008` — import support (`import_runs`, `import_rows`)
+**14 SQL migrations** in `supabase/migrations/`:
 
-**Seed data** (`supabase/seed.sql`): 15 canonical job families, 5 geography regions, `policy_config v1` (SCORING_CONFIG.yaml values loaded to DB).
+| Migration | Tables |
+|-----------|--------|
+| 000000 | `user_profiles` |
+| 000001 | enums + pgvector extension |
+| 000002 | `canonical_job_families`, `geography_regions` |
+| 000003 | `applicants`, `employers`, `employer_contacts`, `jobs` |
+| 000004 | `applicant_documents`, `extracted_fields` (documents + signals) |
+| 000005 | `matches`, `match_dimension_scores`, `saved_jobs` |
+| 000006 | `policy_configs`, `scoring_runs`, `audit_logs`, `review_queue_items` |
+| 000007 | `chat_sessions`, `chat_messages` |
+| 000008 | `import_runs`, `import_rows` |
+| 000009 | expanded applicant profile columns |
+| 000010 | scraped jobs support (`source_site`, `source_url`, etc.) |
+| 000011 | `employer_outreach` |
+| 000012 | `engagement_events` |
+| 000013 | `hire_outcomes` |
 
-Schema reference: `docs/schema.md`
+**Seed data** (`supabase/seed.sql`): 15 canonical job families, 5 geography regions, `policy_config v1`.
+
+---
 
 ### Phase 4 — ETL Import Pipeline
 
-**`packages/etl/`:**
-- `loader.py` — header normalization + CSV/XLSX loading
-- `applicant_mapper.py` — maps all 40 real SkillPointe applicant columns
-- `job_mapper.py` — maps all 20 real SkillPointe job columns
-- `coerce.py` — type coercions (bool, date, int, state, text)
-- `models.py` — `MappedApplicant`, `MappedJob`, `ImportResult`
-- `db.py` — psycopg2 DB helpers (`insert_applicant`, `upsert_job`, `get_connection`)
-- `reporting.py` — formatted import output
+**`packages/etl/`:** loader, applicant_mapper, job_mapper, coerce, models, db, reporting
 
-**Import scripts:**
-- `scripts/import_applicants.py` — imports applicants from XLSX/CSV
-- `scripts/import_jobs.py` — imports jobs from XLSX/CSV
+**Scripts:**
+- `import_applicants.py` — XLSX/CSV → `applicants` table
+- `import_jobs.py` — XLSX/CSV → `jobs` table
+- `normalize_data.py` — program names → canonical job families, pay parsing, region resolution
 
-**Normalization script:**
-- `scripts/normalize_data.py` — maps program names/job titles → canonical job families, parses pay ranges, resolves geography regions
+**Tests:** `tests/test_etl_import.py` (79 tests)
 
-**Tests:** `apps/api/tests/test_etl_import.py` (79 tests)
+---
 
-### Phase 5 — Matching Engine v1
+### Phase 5 — Matching Engine
 
 **`packages/matching/`:**
 
 | File | What it does |
 |------|-------------|
-| `config.py` | Loads `SCORING_CONFIG.yaml` → `ScoringConfig` dataclass. Falls back to built-in defaults if YAML missing. |
-| `normalizer.py` | Pure normalization functions: program→job family, pay range parsing, location→region, timing→readiness label. Defines `JOB_FAMILY_ADJACENCY` map. |
-| `gates.py` | 5 hard eligibility gates (job family, credentials, timing, geography, min requirements) + `compute_eligibility` aggregator. |
-| `scorer.py` | 9 structured scoring dimensions + `compute_structured_score`. Null handling defaults are neutral, not punitive. |
-| `engine.py` | `compute_match(applicant, job, employer, config)` — orchestrates all stages, returns `MatchResult`. Semantic score is a placeholder (50.0) until Phase 7. |
+| `config.py` | Loads `SCORING_CONFIG.yaml` → `ScoringConfig` |
+| `normalizer.py` | Normalization functions + `JOB_FAMILY_ADJACENCY` map |
+| `gates.py` | 5 hard eligibility gates (job family, credentials, timing, geography, min requirements) |
+| `scorer.py` | 9 structured scoring dimensions |
+| `engine.py` | `compute_match()` orchestrator — gates → structured score → semantic score → policy reranking |
 
 **Three-stage pipeline:**
-1. **Hard gates** → `eligibility_status` (eligible/near_fit/ineligible) + `hard_gate_cap` (1.0/0.75/0.35)
-2. **Base fit** → `gate_cap × (structured_score × 0.75 + semantic_score × 0.25)`
-3. **Policy reranking** → adds partner/geography/readiness modifiers → `policy_adjusted_score`
+1. Hard gates → `eligibility_status` + `hard_gate_cap` (1.0 / 0.75 / 0.35)
+2. Base fit → `gate_cap × (structured × 0.75 + semantic × 0.25)`
+3. Policy reranking → partner/geography/readiness modifiers → `policy_adjusted_score`
 
-**Tests:** `apps/api/tests/test_matching.py` (122 tests)
+**Tests:** `tests/test_matching.py` (122 tests, no DB required)
 
-### Phase 6 — Product Surfaces (Applicant + Employer)
+---
 
-#### 6.1 — Applicant dashboard + ranked jobs
+### Phase 6.1 — Applicant Dashboard + Ranked Matches
 
-**Backend:**
-- `GET /applicant/me/profile` — returns applicant profile summary
-- `GET /applicant/me/matches` — returns ranked job list (policy_adjusted_score DESC)
-- `GET /applicant/me/matches/{match_id}` — returns full match detail with dimension scores, gate results, policy modifiers
+**API endpoints:**
+- `GET /applicant/me/profile` — profile summary
+- `PATCH /applicant/me/profile` — partial update (auto-normalizes program → job family, state → region)
+- `GET /applicant/me/matches` — ranked jobs (eligible + near-fit sections, policy_adjusted_score DESC)
+- `GET /applicant/me/matches/{match_id}` — full match detail (dimensions, gates, policy modifiers)
+- `GET /applicant/me/matches/{match_id}/interest` — get interest signal *(Phase 8)*
+- `POST /applicant/me/matches/{match_id}/interest` — set signal (interested/applied/not_interested) *(Phase 8)*
 
-**Frontend:**
-- `apps/web/src/app/(dashboard)/applicant/page.tsx` — profile summary dashboard
-- `apps/web/src/app/(dashboard)/applicant/matches/page.tsx` — ranked jobs list (eligible + near-fit sections)
-- `apps/web/src/app/(dashboard)/applicant/matches/[matchId]/page.tsx` — full match detail view
-- `apps/web/src/components/matches/JobMatchCard.tsx` — job match summary card
-- `apps/web/src/components/matches/MatchLabel.tsx` — match quality badge
-- `apps/web/src/components/matches/DimensionBreakdown.tsx` — 9-dimension score breakdown visualization
-- `apps/web/src/lib/api/applicant.ts` — typed API client functions
-- `apps/api/app/schemas/applicant.py` — Pydantic response schemas
+**Frontend pages:**
+- `/applicant` — profile summary dashboard
+- `/applicant/matches` — ranked job list (eligible + near-fit sections)
+- `/applicant/matches/[matchId]` — full match detail (strengths, gaps, gates, dimension bars, score transparency, **interest panel**, apply link)
+- `/applicant/profile` — edit profile form
+- `/applicant/jobs` — browse all jobs
 
-#### 6.2 — Employer dashboard + job management + ranked applicants
+**Key components:**
+- `components/matches/JobMatchCard.tsx` — match summary card
+- `components/matches/MatchLabel.tsx` — eligibility + quality badges
+- `components/matches/DimensionBreakdown.tsx` — 9-dimension score bars
+- `components/matches/InterestSignalPanel.tsx` — interest signal buttons + "Apply externally" link *(Phase 8)*
 
-**Backend:**
-- `GET /employer/me/company` — returns company summary
-- `GET /employer/me/jobs` — returns job list with per-job match stats
-- `POST /employer/me/jobs` — creates new job
-- `PATCH /employer/me/jobs/{job_id}` — updates job fields
-- `GET /employer/me/jobs/{job_id}/applicants` — returns ranked applicant list with filters
+---
 
-**Critical safety rules enforced in SQL:**
+### Phase 6.2 — Employer Dashboard + Job Management
+
+**API endpoints:**
+- `GET /employer/me/company` — company summary
+- `GET /employer/me/jobs` — job list with per-job match stats
+- `POST /employer/me/jobs` — create job (triggers fire-and-forget recompute)
+- `PATCH /employer/me/jobs/{job_id}` — update job fields
+- `GET /employer/me/jobs/{job_id}/applicants` — ranked matched candidates (filterable by eligibility, min score, state, relocate)
+- `POST /employer/me/outreach/draft` — AI-draft outreach message *(Phase 8)*
+- `POST /employer/me/outreach/send` — record sent outreach *(Phase 8)*
+- `POST /employer/me/jobs/{job_id}/candidates/{applicant_id}/hire` — report hire outcome *(Phase 8)*
+- `GET /employer/me/analytics` — outreach + interest + hire metrics *(Phase 8)*
+
+**Critical safety rules in SQL:**
 - Every query resolves `employer_id` via `employer_contacts` — cross-employer access is impossible
 - All match queries require `is_visible_to_employer = TRUE`
+- Admin role bypasses employer scoping for support purposes
 
-**Frontend:**
-- `apps/web/src/app/(dashboard)/employer/page.tsx` — company summary + jobs list
-- `apps/web/src/app/(dashboard)/employer/jobs/new/page.tsx` — create job form (server action)
-- `apps/web/src/app/(dashboard)/employer/jobs/[jobId]/edit/page.tsx` — edit job form (server action)
-- `apps/web/src/app/(dashboard)/employer/jobs/[jobId]/applicants/page.tsx` — ranked applicants (URL-based filters, bookmarkable)
-- `apps/web/src/components/employer/ApplicantMatchCard.tsx` — applicant match card with strengths/gaps/geography
-- `apps/web/src/lib/api/employer.ts` — typed API client functions
-- `apps/api/app/schemas/employer.py` — Pydantic response schemas
+**Frontend pages:**
+- `/employer` — company summary, active/total jobs, jobs list with match counts
+- `/employer/jobs/new` — create job form (server action)
+- `/employer/jobs/[jobId]/edit` — edit job form (server action)
+- `/employer/jobs/[jobId]/applicants` — ranked matched candidates with filter bar, "Reach out" and "Mark as hired" buttons
+- `/employer/analytics` — outreach count, interested/applied/hired stats, recent outreach history *(Phase 8)*
 
-**Tests:** `apps/api/tests/test_employer_visibility.py` (8 test classes covering employer scoping, visibility flags, RBAC, safe field exposure, geography notes)
+**Key components:**
+- `components/employer/ApplicantMatchCard.tsx` — candidate card (name, program, location, mobility, score, strengths/gaps)
+- `components/employer/CandidateActions.tsx` — "Reach out" + "Mark as hired" client buttons *(Phase 8)*
+- `components/employer/OutreachModal.tsx` — AI draft + edit + mark-as-sent modal *(Phase 8)*
 
-#### 6.3 — Explanation surfaces
+---
+
+### Phase 6.3 — Match Explanation Surfaces
 
 Built within 6.1 and 6.2:
-- Full 9-dimension score breakdown with per-dimension score, weight, contribution (DimensionBreakdown component)
-- Hard gate results (pass/near_fit/fail per gate, with reason)
+- Full 9-dimension score breakdown with per-dimension score, weight, and contribution bar
+- Hard gate results (pass/near_fit/fail per gate, with reason text)
 - Policy modifier breakdown (partner bonus, geography boost, readiness boost, penalties)
 - `top_strengths`, `top_gaps`, `required_missing_items`, `recommended_next_step` on every match
-- Geography note derived from job work_setting + applicant location/preferences
-- Confidence and review status flags
+- Geography note derived from job work_setting + applicant location + preferences
+- Confidence level and review status flags
 
 ---
 
-## Known infrastructure quirks
+### Phase 6.4 — Admin Directories + Map
 
-### Supabase CLI v2 uses ES256 JWTs (not HS256)
-Supabase CLI v2 switched from symmetric HS256 to asymmetric ES256 JWT signing. The FastAPI `decode_supabase_jwt` function now handles this automatically by reading the JWT header `alg` field and fetching the JWKS when needed. **Do not change `algorithms=["HS256"]` back** — both are intentionally supported.
+**API endpoints:**
+- `GET /admin/applicants` — list all applicants (filter: name/email, state, job_family; paged 50/page)
+- `GET /admin/employers` — list all employers (filter: name, state, is_partner; paged 50/page)
+- `GET /admin/employers/{employer_id}` — employer detail (jobs, counts, contact info)
+- `GET /admin/analytics/dashboard` — overview stats + jobs by family/source/state + match quality
+- `GET /admin/analytics/job-map` — city-level job clusters for map view
+- `GET /admin/analytics/cluster-jobs` — drill-down jobs for a map cluster
 
-### Running `seed_test_users.py`
-The script uses the API virtualenv dependencies. Activate `.venv` before running it, or install `psycopg2-binary` and `supabase` in whichever Python environment you're using:
-```bash
-cd apps/api && source .venv/bin/activate && cd ../..
-python scripts/seed_test_users.py
-```
+**Frontend pages:**
+- `/admin` — analytics dashboard (overview stats, charts, data quality metrics)
+- `/admin/map` — interactive Leaflet.js map of job clusters (click cluster → job list drill-down)
+- `/admin/applicants` — applicant directory with search, state, and job family filters; shows match counts + profile completeness badge + contact email
+- `/admin/employers` — employer directory with search, state, partner filter; clickable employer names
+- `/admin/employers/[employerId]` — employer detail (company info, description, partner since, active/archived jobs with match counts)
 
-### `match_label_enum` values
-The DB enum uses: `strong_fit`, `good_fit`, `moderate_fit`, `low_fit`. The migration was corrected from an earlier wrong set of values (`strong_match`, `good_match`, etc.) to match SCORING_CONFIG.yaml. If you ever see `invalid input value for enum match_label_enum`, run `supabase db reset`.
-
----
-
-## Phase 7 — LLM Extraction + Verification (Complete)
-
-### What was built
-
-**`packages/extraction/`** — LLM extraction pipeline (pure Python, no DB I/O):
-- `client.py` — OpenAI client wrapper with retry logic
-- `prompts.py` — Structured prompt templates for applicant and job extraction (v1.0)
-- `applicant_extractor.py` — Extracts skills, certifications, desired job families, work style, experience, readiness, and intent signals from applicant profile text
-- `job_extractor.py` — Extracts required/preferred skills, credentials, job family signals, experience level, physical requirements, and work style from job postings
-- `verifier.py` — Heuristic + optional LLM verification; flags low-confidence items for `review_queue_items`
-- `embeddings.py` — Text combination helpers and cosine similarity for semantic scoring
-
-**`scripts/run_extraction.py`** — CLI extraction pipeline:
-- Processes all applicants and/or jobs through LLM extraction
-- Generates `text-embedding-3-small` embeddings (1536-dim, matching pgvector schema)
-- Stores results in `extracted_applicant_signals` and `extracted_job_signals` tables
-- Flags low-confidence extractions into `review_queue_items`
-- Supports `--skip-existing`, `--force`, `--verify`, `--dry-run`, `--limit`
-
-**Matching engine upgrades:**
-- **Credential gate** (Gate 2): compares extracted applicant certifications against job required credentials → PASS/NEAR_FIT/FAIL based on match ratio (was always NEAR_FIT)
-- **Min-requirement gate** (Gate 5): compares extracted applicant skills against job critical/required skills → PASS/NEAR_FIT/FAIL (was always NEAR_FIT)
-- **Credential readiness scorer**: uses extracted cert match ratio for precise scoring (was null default)
-- **Experience scorer**: uses extracted experience quality signal (strong/moderate/weak) instead of text-length heuristic
-- **Employer soft pref scorer**: compares extracted work style signals between applicant and job
-- **Semantic score**: cosine similarity between applicant and job embeddings × 100 (was hardcoded 50.0)
-- **`recompute_matches.py`**: fetches extracted signals + embeddings from DB and passes them to the engine
-
-All changes are backward-compatible: without extraction data, the engine falls back to the same placeholder behavior as before.
-
-### How to run extraction
-
-```bash
-cd apps/api && source .venv/bin/activate && cd ../..
-
-# Add OPENAI_API_KEY to apps/api/.env first
-pip install openai
-
-# Run extraction (335 applicants + 300 jobs)
-python scripts/run_extraction.py --verbose
-
-# Then recompute matches with real signals
-python scripts/recompute_matches.py
-
-# Compare results
-python scripts/inspect_matches.py --stats
-```
+**Notes:**
+- Terminology: the employer-facing view calls matched candidates "matched candidates" (not "applicants") since they haven't necessarily applied yet
+- Admin can view any job's matched candidates via `/employer/jobs/[jobId]/applicants` (employer scoping bypassed for admin role)
 
 ---
 
-## What to build next — Phase 8
+### Phase 7 — LLM Extraction + Verification + Job Scraper
 
-**Applicant planning chat** — grounded chat using applicant profile + ranked matches + gaps.
-- Tables already exist: `chat_sessions`, `chat_messages`, `chat_prompt_configs`
-- Base prompts are in `PROMPTS.md`
-- Build retrieval context from ranked matches + gaps + geography first, then add the UI
+**`packages/extraction/`:**
+- `applicant_extractor.py` — extracts skills, certs, desired families, work style, readiness from profile text
+- `job_extractor.py` — extracts required/preferred skills, credentials, job family, experience level, physical requirements
+- `embeddings.py` — generates `text-embedding-3-small` embeddings (1536-dim) for semantic scoring
+- `verifier.py` — heuristic + LLM verification, flags low-confidence items for `review_queue_items`
+
+**`packages/scraper/`:** adapters for Southwire, Ford, GE Vernova, Ball, Delta, Schneider
+
+**Matching engine upgrades (all backward-compatible):**
+- Credential gate uses extracted cert match ratio
+- Min-requirement gate uses extracted skill match ratio
+- Semantic score uses real cosine similarity on embeddings (was hardcoded 50.0)
+- Experience and employer soft-pref scorers use extracted signals
+
+**Scripts:**
+- `run_extraction.py` — processes all applicants + jobs through LLM extraction + embeddings
+- `recompute_matches.py` — full recompute using extracted signals when available
+
+---
+
+### Phase 8 — Engagement + Planning Chat
+
+Everything here was added on top of Phases 1–7. Three new DB tables, new API endpoints, and new frontend surfaces.
+
+#### Feature 1 — Automatic Match Recompute
+
+- **`apps/api/app/worker/scheduler.py`** — APScheduler `AsyncIOScheduler` fires `recompute_matches.py` as a subprocess every 6 hours, guarded by a Redis distributed lock (`skillpointe:recompute_lock`) so only one instance runs at a time
+- **`apps/api/app/main.py`** — lifespan context manager starts/stops the scheduler on app startup/shutdown
+- **Job creation** (`POST /employer/me/jobs`) fires `trigger_recompute_for_job(job_id)` as a background task
+- **Profile updates** (`PATCH /applicant/me/profile`) fires `trigger_recompute_for_applicant(applicant_id)` when significant fields change (state, program, job family, relocate)
+
+#### Feature 2 — Interest Signals + Apply Link
+
+- `saved_jobs` table (existing, migration 005) stores `interest_level`: `interested` | `applied` | `not_interested`
+- `GET /applicant/me/matches/{match_id}/interest` — fetch current signal
+- `POST /applicant/me/matches/{match_id}/interest` — upsert signal; logs `engagement_events` row
+- **`InterestSignalPanel.tsx`** — client component shown on match detail page; three-button selector + "Apply externally" link (opens `source_url` in new tab, auto-sets signal to "applied")
+
+#### Features 3 & 4 — Employer Outreach + AI Draft
+
+- **`employer_outreach`** table (migration 011): employer_id, job_id, applicant_id, match_id, subject, body, ai_generated, status, sent_at
+- `POST /employer/me/outreach/draft` — generates AI draft via `services/chat.py:generate_outreach_draft()` (OpenAI gpt-4o-mini, JSON response_format)
+- `POST /employer/me/outreach/send` — records sent outreach + logs `engagement_events` row
+- **`OutreachModal.tsx`** — modal dialog: AI draft button, editable subject/body, "Mark as sent" button, success state
+- **`CandidateActions.tsx`** — client component rendered in every `ApplicantMatchCard`; houses "Reach out" and "Mark as hired" buttons
+
+#### Feature 5 — Engagement Event Tracking
+
+- **`engagement_events`** table (migration 012): applicant_id, employer_id, job_id, match_id, event_type, event_data, created_at
+- Event types logged: `interest_set`, `apply_click`, `outreach_sent`, `hire_reported`, `chat_message_sent`
+- All engagement-modifying endpoints write an event row (no separate event API needed)
+
+#### Feature 6 — Hire Outcome Reporting + Employer Analytics
+
+- **`hire_outcomes`** table (migration 013): applicant_id, job_id, employer_id, match_id, outcome_type (hired/declined/withdrew), hire_date, notes, reported_by
+- UNIQUE constraint on (applicant_id, job_id) — upsert semantics (re-reporting updates in place)
+- `POST /employer/me/jobs/{job_id}/candidates/{applicant_id}/hire` — report outcome + log engagement event
+- `GET /employer/me/analytics` — returns: outreach_sent, candidates_interested, candidates_applied, hired_count, declined_count, recent_outreach (last 10)
+- **`/employer/analytics`** page — stat cards + recent outreach history
+
+#### Feature 7 — Applicant Planning Chat
+
+- `chat_sessions` + `chat_messages` tables already existed (migration 007); now fully implemented
+- Context snapshot built at session creation from applicant's top 5 matches (scores, strengths, gaps, next steps)
+- LLM grounded in context snapshot — cannot fabricate matches; stays within provided data
+- `GET  /applicant/me/chat/sessions` — list sessions (most recent first)
+- `POST /applicant/me/chat/sessions` — create session; optional `job_id` makes it job-focused (builds targeted snapshot + generates an AI opening message about that specific job)
+- `GET  /applicant/me/chat/sessions/{id}` — session + full message history
+- `POST /applicant/me/chat/sessions/{id}/messages` — send user message, get AI reply (gpt-4o-mini)
+- **`/applicant/chat`** — session list page; shows **ChatJobPicker** modal before session creation (pick from eligible matches, near-fit matches, or search all jobs) then starts a job-focused chat
+- **`/applicant/chat/[sessionId]`** — session page (server-rendered history + client chat input)
+- **`ChatClient.tsx`** — client component: message bubbles, optimistic UI, Enter to send
+- **`ChatJobPicker.tsx`** — modal: two tabs ("Your matches" filtered by eligibility; "Browse all jobs" debounced search)
+- **`apps/api/app/services/chat.py`** — `generate_chat_response()`, `generate_outreach_draft()`, `_build_job_focused_snapshot()`, `_generate_opening_message()`
+- "Plan" nav link added for applicants
+
+#### Feature 8 — Direct Messaging (Applicant ↔ Employer)
+
+- New migration `20260326000014_conversations.sql` adds `conversations` + `direct_messages` tables
+- `conversations`: applicant_id, employer_id, job_id, match_id, last_message_at, employer_unread, applicant_unread
+- `direct_messages`: conversation_id, sender_role (employer|applicant), content, read_at
+- `GET /conversations`, `POST /conversations` — list and create conversations (role-aware)
+- `GET /conversations/{id}/messages`, `POST /conversations/{id}/messages` — thread read/write
+- `POST /conversations/{id}/read` — mark messages read (resets unread count for caller's role)
+- All DM sends log `dm_sent` to `engagement_events`
+- **`/applicant/messages`** + **`/applicant/messages/[conversationId]`** — applicant inbox + thread
+- **`/employer/messages`** + **`/employer/messages/[conversationId]`** — employer inbox + thread
+- **`MessageThread.tsx`** — client component with 5-second polling (no WebSockets — simpler for MVP)
+- "Message" button added to `CandidateActions.tsx` — creates or opens conversation thread
+- "Messages" nav link added for both applicant and employer dashboards
+
+#### Feature 9 — AI Candidate Prioritisation
+
+- `GET /employer/me/jobs/{job_id}/applicants/ai-priority` — fetches top 10 eligible/near-fit candidates ranked by score, then calls gpt-4o-mini to write a 1-sentence reason per candidate; falls back to score-based order when `OPENAI_API_KEY` is absent
+- Response includes `match_id` (needed for action buttons)
+- **`AIPriorityPanel.tsx`** — collapsible panel above the filter bar; lazy-loads on first click; shows ranked list with "Top pick" badge, score, eligibility, AI reason, and full action buttons (Reach out, Message, Mark as hired) per row
+- Admin viewing employer pages sees the panel in read-only mode (action buttons hidden via `isAdmin` prop)
+
+#### Feature 10 — Admin Engagement Analytics Dashboard
+
+- `GET /admin/analytics/engagement` — platform-wide counts: total events, DMs, outreach, interest signals, apply clicks, hires, active conversations
+- `GET /admin/analytics/engagement/applicants` — per-applicant breakdown: interest_signals, apply_clicks, chat_messages, dms_sent, total_events (sortable)
+- `GET /admin/analytics/engagement/employers` — per-employer breakdown: outreach_sent, dms_sent, hires_reported, candidates_viewed, total_actions (sortable)
+- **`/admin/engagement`** — three URL-driven tab views (`?view=general|applicants|employers`); server-rendered, bookmarkable
+- "Engagement" nav link added to admin dashboard
+
+#### Feature 11 — Interest Signals on Matches List
+
+- `GET /applicant/me/matches` now LEFT JOINs `saved_jobs` and returns `applicant_interest` per match
+- `InterestSignalPanel` is now rendered inline on every match card in the matches list (not just the detail page)
+- For jobs with `source_url`: shows "Interested / Applied externally / Not interested" + external apply button
+- For jobs without `source_url`: shows "Planning to apply / I've applied / Not interested" with clipboard header
+- `applicant_interest` also returned by employer's ranked applicants endpoint and shown as a badge on `ApplicantMatchCard`
+
+---
+
+## API routes reference
+
+### Applicant
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/applicant/me/profile` | Profile summary |
+| PATCH | `/applicant/me/profile` | Partial profile update + auto-normalize |
+| GET | `/applicant/me/matches` | Ranked job matches |
+| GET | `/applicant/me/matches/{id}` | Full match detail + dimensions |
+| GET | `/applicant/me/matches/{id}/interest` | Get interest signal |
+| POST | `/applicant/me/matches/{id}/interest` | Set interest signal |
+| GET | `/applicant/me/chat/sessions` | List chat sessions |
+| POST | `/applicant/me/chat/sessions` | Start new chat session |
+| GET | `/applicant/me/chat/sessions/{id}` | Session + messages |
+| POST | `/applicant/me/chat/sessions/{id}/messages` | Send message, get AI reply |
+
+### Employer
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/employer/me/company` | Company summary |
+| GET | `/employer/me/jobs` | Job list + match counts |
+| POST | `/employer/me/jobs` | Create job (triggers recompute) |
+| PATCH | `/employer/me/jobs/{id}` | Update job |
+| GET | `/employer/me/jobs/{id}/applicants` | Ranked matched candidates (filtered) |
+| GET | `/employer/me/jobs/{id}/applicants/ai-priority` | AI-ranked top 10 with 1-sentence reasons |
+| POST | `/employer/me/outreach/draft` | AI-draft outreach message |
+| POST | `/employer/me/outreach/send` | Record sent outreach |
+| POST | `/employer/me/jobs/{jid}/candidates/{aid}/hire` | Report hire outcome |
+| GET | `/employer/me/analytics` | Engagement + hire analytics |
+
+### Admin
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/admin/applicants` | All applicants (search + filter) |
+| GET | `/admin/employers` | All employers (search + filter) |
+| GET | `/admin/employers/{id}` | Employer detail + jobs |
+| GET | `/admin/analytics/dashboard` | Full analytics dashboard data |
+| GET | `/admin/analytics/job-map` | City-level job clusters |
+| GET | `/admin/analytics/cluster-jobs` | Jobs in a map cluster |
+| GET | `/admin/analytics/engagement` | Platform-wide engagement stats |
+| GET | `/admin/analytics/engagement/applicants` | Per-applicant engagement breakdown |
+| GET | `/admin/analytics/engagement/employers` | Per-employer engagement breakdown |
+
+### Messaging (Both Roles)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/conversations` | List conversations for current user |
+| POST | `/conversations` | Start or retrieve conversation (applicant_id + job_id) |
+| GET | `/conversations/{id}/messages` | Full message thread |
+| POST | `/conversations/{id}/messages` | Send a message |
+| POST | `/conversations/{id}/read` | Mark messages read (resets unread count) |
+
+### Public
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Health check |
+| GET | `/auth/me` | Current user info |
+| POST | `/auth/complete-signup` | Complete applicant signup |
+| POST | `/auth/invite-employer` | Admin: invite employer |
+| GET | `/jobs/browse` | Browse all jobs (paginated, filtered) |
+
+---
+
+## Frontend pages reference
+
+### Applicant
+| Route | Description |
+|-------|-------------|
+| `/applicant` | Profile dashboard |
+| `/applicant/matches` | Ranked job matches (eligible + near-fit sections) |
+| `/applicant/matches/[matchId]` | Full match detail with interest panel + apply link |
+| `/applicant/jobs` | Browse all jobs |
+| `/applicant/profile` | Edit profile |
+| `/applicant/setup` | Onboarding flow |
+| `/applicant/chat` | Planning chat session list |
+| `/applicant/chat/[sessionId]` | Chat conversation |
+
+### Employer
+| Route | Description |
+|-------|-------------|
+| `/employer` | Company summary + jobs list |
+| `/employer/jobs/new` | Create job |
+| `/employer/jobs/[jobId]/edit` | Edit job |
+| `/employer/jobs/[jobId]/applicants` | Ranked matched candidates + AI priority panel + outreach/hire actions |
+| `/employer/analytics` | Engagement + hire analytics (outreach sent, interested, applied, hired) |
+| `/employer/messages` | DM inbox |
+| `/employer/messages/[conversationId]` | DM thread (5s polling) |
+
+### Admin
+| Route | Description |
+|-------|-------------|
+| `/admin` | Analytics dashboard |
+| `/admin/map` | Job geography map (Leaflet) |
+| `/admin/applicants` | Applicant directory |
+| `/admin/employers` | Employer directory |
+| `/admin/employers/[employerId]` | Employer detail (read-only; no employer actions) |
+| `/admin/engagement` | Platform engagement analytics (3 views: general / applicants / employers) |
+
+### Applicant (additions since Phase 6.1)
+| Route | Description |
+|-------|-------------|
+| `/applicant/chat` | Planning chat — job picker modal → job-focused AI session |
+| `/applicant/chat/[sessionId]` | Chat conversation |
+| `/applicant/messages` | DM inbox |
+| `/applicant/messages/[conversationId]` | DM thread (5s polling) |
 
 ---
 
@@ -373,107 +541,98 @@ python scripts/inspect_matches.py --stats
 ```
 skillpointe/
 ├── CLAUDE.md                       ← Product rules + guardrails (read first)
-├── BUILD_PLAN.md                   ← Execution plan (read second)
 ├── DECISIONS.md                    ← Architecture decision log
-├── SCORING_CONFIG.yaml             ← Scoring weights + policy config (source of truth)
-├── PROMPTS.md                      ← LLM prompt library (Phase 7+)
+├── SCORING_CONFIG.yaml             ← Scoring weights + policy config
+├── PROMPTS.md                      ← LLM prompt library
 ├── STATUS.md                       ← This file
 │
 ├── supabase/
-│   ├── migrations/                 ← 9 SQL migration files (full schema)
+│   ├── migrations/                 ← 14 SQL migrations (000000–000013)
 │   └── seed.sql                    ← Taxonomy + policy config v1
 │
 ├── apps/
-│   ├── api/                        ← FastAPI backend
+│   ├── api/
 │   │   ├── app/
-│   │   │   ├── auth/               ← JWT validation (HS256+ES256), RBAC deps, schemas
-│   │   │   ├── routers/            ← auth.py, health.py, applicants.py, employers.py
-│   │   │   ├── schemas/            ← applicant.py, employer.py (Pydantic response models)
-│   │   │   ├── config.py           ← Pydantic settings
-│   │   │   └── main.py
+│   │   │   ├── auth/               ← JWT (HS256+ES256), RBAC deps, schemas
+│   │   │   ├── routers/            ← auth, health, applicants, employers, jobs, admin, chat
+│   │   │   ├── schemas/            ← applicant.py, employer.py (Pydantic models)
+│   │   │   ├── services/           ← chat.py (LLM context builder + response generator)
+│   │   │   ├── worker/             ← scheduler.py (APScheduler 6h recompute + Redis lock)
+│   │   │   ├── config.py
+│   │   │   ├── db.py               ← asyncpg connection helper
+│   │   │   └── main.py             ← app factory + lifespan (scheduler start/stop)
 │   │   ├── tests/
-│   │   │   ├── conftest.py
-│   │   │   ├── test_auth.py                  ← 13 tests
-│   │   │   ├── test_etl_import.py            ← 79 tests
-│   │   │   ├── test_matching.py              ← 122 tests
-│   │   │   └── test_employer_visibility.py   ← 8 test classes (employer scoping + visibility)
-│   │   ├── requirements.txt
-│   │   └── pyproject.toml
+│   │   │   ├── test_auth.py               (13 tests)
+│   │   │   ├── test_etl_import.py         (79 tests)
+│   │   │   ├── test_matching.py           (122 tests)
+│   │   │   └── test_employer_visibility.py
+│   │   └── requirements.txt
 │   │
-│   └── web/                        ← Next.js 15 frontend
-│       └── src/
-│           ├── lib/
-│           │   ├── supabase/       ← client.ts + server.ts helpers
-│           │   └── api/            ← client.ts, applicant.ts, employer.ts
-│           ├── middleware.ts        ← route protection
-│           ├── components/
-│           │   ├── matches/        ← JobMatchCard, MatchLabel, DimensionBreakdown
-│           │   └── employer/       ← ApplicantMatchCard
-│           └── app/
-│               ├── (auth)/         ← login, signup, forgot/reset password
-│               └── (dashboard)/
-│                   ├── applicant/  ← page.tsx, matches/page.tsx, matches/[matchId]/page.tsx
-│                   ├── employer/   ← page.tsx, jobs/new, jobs/[id]/edit, jobs/[id]/applicants
-│                   └── admin/      ← page.tsx (placeholder — Phase 9)
+│   └── web/src/
+│       ├── lib/
+│       │   ├── supabase/            ← client.ts + server.ts
+│       │   └── api/                 ← client.ts, applicant.ts, employer.ts, admin.ts
+│       ├── middleware.ts             ← route protection
+│       ├── components/
+│       │   ├── matches/             ← JobMatchCard, MatchLabel, DimensionBreakdown, InterestSignalPanel
+│       │   ├── employer/            ← ApplicantMatchCard, CandidateActions, OutreachModal, AIPriorityPanel
+│       │   ├── chat/                ← ChatClient, ChatStartButton, ChatJobPicker
+│       │   └── messages/            ← MessageThread (5s polling)
+│       └── app/
+│           ├── (auth)/              ← login, signup, forgot/reset password
+│           └── (dashboard)/
+│               ├── layout.tsx        ← nav bar (role-aware)
+│               ├── applicant/        ← dashboard, matches, matches/[id], jobs, profile, chat/, messages/
+│               ├── employer/         ← dashboard, jobs/new, jobs/[id]/edit, jobs/[id]/applicants, analytics, messages/
+│               └── admin/            ← dashboard, map, applicants, employers, employers/[id], engagement/
 │
 ├── packages/
-│   ├── etl/                        ← Import + normalization logic (pure Python)
-│   │   ├── loader.py, coerce.py, models.py
-│   │   ├── applicant_mapper.py, job_mapper.py
-│   │   └── db.py, reporting.py
-│   │
-│   ├── matching/                   ← Matching engine (pure Python, no DB)
-│   │   ├── config.py               ← ScoringConfig loader
-│   │   ├── normalizer.py           ← Normalization + JOB_FAMILY_ADJACENCY
-│   │   ├── gates.py                ← 5 hard eligibility gates (uses extracted signals)
-│   │   ├── scorer.py               ← 9 structured scoring dimensions (uses extracted signals)
-│   │   └── engine.py               ← compute_match orchestrator (real semantic scoring)
-│   │
-│   └── extraction/                 ← LLM extraction pipeline (Phase 7, pure Python)
-│       ├── client.py               ← OpenAI client wrapper with retry
-│       ├── prompts.py              ← Prompt templates v1.0
-│       ├── applicant_extractor.py  ← Applicant signal extraction
-│       ├── job_extractor.py        ← Job signal extraction
-│       ├── verifier.py             ← Heuristic + LLM verification
-│       └── embeddings.py           ← Text builders + cosine similarity
+│   ├── etl/                         ← Import + normalization (pure Python)
+│   ├── matching/                    ← Matching engine (pure Python, no DB)
+│   ├── extraction/                  ← LLM extraction + embeddings (pure Python)
+│   └── scraper/                     ← Job scraper adapters
 │
-├── scripts/
-│   ├── import_applicants.py        ← Import applicants from XLSX
-│   ├── import_jobs.py              ← Import jobs from XLSX
-│   ├── normalize_data.py           ← Normalization pipeline
-│   ├── run_extraction.py           ← Phase 7: LLM extraction + embeddings
-│   ├── recompute_matches.py        ← Full match recompute (uses extracted signals)
-│   ├── inspect_matches.py          ← CLI match inspection + CSV export
-│   ├── seed_admin.py               ← Create first admin user
-│   ├── seed_test_users.py          ← Create all 3 test users for local dev
-│   ├── verify_schema.py            ← Check DB schema is correct
-│   └── check_connections.py        ← Verify DB + Redis connections
-│
-└── docs/
-    ├── local-development.md        ← Dev environment reference
-    ├── schema.md                   ← DB schema documentation
-    └── MATCHING_SCRIPTS.md         ← How to run normalize/recompute/inspect
+└── scripts/
+    ├── import_applicants.py
+    ├── import_jobs.py
+    ├── normalize_data.py
+    ├── run_extraction.py            ← LLM extraction + embedding generation
+    ├── recompute_matches.py         ← Full match recompute
+    ├── inspect_matches.py
+    ├── seed_admin.py
+    ├── seed_test_users.py
+    ├── verify_schema.py
+    └── check_connections.py
 ```
 
 ---
 
 ## Things to know before touching the matching engine
 
-1. **`base_fit_score` and `policy_adjusted_score` must always be stored separately.** Never merge them. This is `DECISIONS.md 1.6`.
+1. **`base_fit_score` and `policy_adjusted_score` are stored separately.** Never merge them (`DECISIONS.md 1.6`).
+2. **Hard gate failures cap the score.** `ineligible` → 0.35 cap regardless of structured score (`DECISIONS.md 1.12`).
+3. **Semantic score uses embedding cosine similarity** when extraction has been run; falls back to neutral (50.0) without it.
+4. **Credential and min-requirement gates use extracted signals** when available; fall back to `near_fit` without them.
+5. **`packages/matching/` has zero DB I/O.** All DB reads/writes happen in `scripts/` and `app/routers/`.
+6. **`packages/extraction/` also has zero DB I/O.** Returns dataclasses; caller handles storage.
+7. **Null handling is neutral, not punitive.** Missing data → neutral default score, never 0.
+8. **Geography is first-class.** Affects hard gates, structured score, and policy reranking.
 
-2. **Hard gate failures cap the score — they never get overridden.** `ineligible` pairs get a 0.35 cap regardless of structured score. `DECISIONS.md 1.12`.
+---
 
-3. **Semantic score uses embedding cosine similarity when extraction has been run.** Without extraction, it falls back to the neutral default (50.0). Run `scripts/run_extraction.py` to generate embeddings.
+## Things to know before touching the engagement features
 
-4. **Credential and min-requirement gates use extracted signals when available.** Without extraction, they fall back to `near_fit` (null handling). The gates automatically use LLM-extracted certifications and skills from `extracted_applicant_signals` / `extracted_job_signals`.
-
-5. **`packages/matching/` has zero DB I/O.** All DB reads/writes happen in `scripts/`. The matching package is pure functions only. Extracted signals and embeddings are passed in as optional parameters.
-
-6. **`packages/extraction/` also has zero DB I/O.** It returns dataclasses; the calling script handles storage.
-
-7. **Null handling is neutral, not punitive.** If data is missing, the default score is neutral (not 0). See `SCORING_CONFIG.yaml §null_handling`.
-
-8. **Geography is first-class.** It affects hard gates, the structured score, AND policy reranking. Don't skip it when adding features.
+1. **`employer_outreach` records outreach intent, not actual email delivery.** There is no email-sending integration — outreach is marked as sent by the employer after they send manually.
+2. **`engagement_events` is append-only.** Never update or delete rows. Add new event_type values as needed.
+3. **`saved_jobs.interest_level`** is upserted — one row per (applicant, job) pair. Values: `interested`, `applied`, `not_interested`.
+4. **`hire_outcomes`** is upserted on (applicant_id, job_id). Re-reporting an outcome updates in place.
+5. **The scheduler uses `sys.executable`** to call `recompute_matches.py` as a subprocess, so it always uses the same Python virtualenv the API runs in.
+6. **Redis lock key:** `skillpointe:recompute_lock` (2-hour TTL). If a recompute is still running when the next 6h tick fires, the second run is skipped silently.
+7. **"System improves over time" is data-collection only.** `hire_outcomes` and `engagement_events` are fully populated, but there is no automated feedback loop that adjusts `SCORING_CONFIG.yaml` weights based on hire success. This is intended for Phase 9+ (admin config UI).
+8. **DM system uses polling (5s interval), not WebSockets.** `MessageThread.tsx` polls `GET /conversations/{id}/messages`. Simple and reliable for MVP; upgrade to WebSockets later if needed.
+9. **Admin cannot act as employer.** `CandidateActions` and AI priority action buttons are conditionally hidden via `isAdmin` prop when the page is viewed under an admin session. The employer applicants page passes `isAdmin={role === "admin"}`.
+10. **`_resolve_employer_id()` in `employers.py` raises HTTP 404 for non-employer users.** Any endpoint shared between employer + admin must check `is_admin` first: `employer_id = None if is_admin else await _resolve_employer_id(conn, ...)`. Never call it unconditionally on a `require_employer_or_admin` route.
+11. **Always use `get_settings()` for env vars.** `os.environ.get()` does not read `.env` files with Pydantic Settings. Use `from app.config import get_settings; get_settings().openai_api_key`.
 
 ---
 
@@ -485,29 +644,39 @@ source .venv/bin/activate
 pytest tests/ -v
 ```
 
-- `test_auth.py` — 13 tests (JWT, RBAC, signup flows)
-- `test_etl_import.py` — 79 tests (ETL mapping, coercions, real SkillPointe columns)
-- `test_matching.py` — 122 tests (normalizer, gates, scorer, engine — no DB required)
-- `test_employer_visibility.py` — 8 test classes (employer scoping, visibility flags, RBAC, safe field exposure)
-
-All matching engine tests run without Supabase or a database connection.
+- `test_auth.py` — 13 tests
+- `test_etl_import.py` — 79 tests
+- `test_matching.py` — 122 tests (no DB required)
+- `test_employer_visibility.py` — employer scoping, visibility flags, RBAC
 
 ---
 
-## Data
+## Data pipeline (with real SkillPointe data)
 
-Real SkillPointe data files are stored locally (not committed to git):
-- **Applicants:** 335 rows across 40 columns
-- **Jobs:** 300 rows across 20 columns
+Real data files are stored locally (not committed to git): ~335 applicants, ~300 jobs.
 
-Full pipeline (first-time setup with real data):
 ```bash
 supabase db reset
 python scripts/import_applicants.py data/applicants.xlsx
 python scripts/import_jobs.py data/jobs.xlsx
 python scripts/normalize_data.py
+python scripts/run_extraction.py --verbose   # requires OPENAI_API_KEY
 python scripts/recompute_matches.py
 python scripts/inspect_matches.py --stats
 ```
 
-After Phase 7 extraction is added, re-run `recompute_matches.py` to refresh scores with real LLM-extracted signals.
+Without `run_extraction.py`, the engine falls back to placeholder behavior (neutral semantic score, near_fit credential gates). Scores still work — extraction just improves them.
+
+---
+
+## Known infrastructure quirks
+
+**Supabase CLI v2 uses ES256 JWTs:** The `decode_supabase_jwt` function handles both HS256 and ES256. Do not revert to HS256-only.
+
+**`seed_test_users.py`:** Activate the API `.venv` before running. Uses psycopg2 + supabase-py.
+
+**`match_label_enum` values:** `strong_fit`, `good_fit`, `moderate_fit`, `low_fit`. If you see `invalid input value for enum`, run `supabase db reset`.
+
+**Map dots not showing on first load:** Leaflet requires a CSS invalidate after mount. The `JobMapClient.tsx` uses `setTimeout(300ms)` + `mapInstance.current` ref to avoid React 18 strict-mode double-invocation issues.
+
+**Running `seed_test_users.py` twice:** The jobs `INSERT` uses a UUID PK with no natural unique constraint, so running twice creates duplicate jobs. Always `supabase db reset` before re-seeding.

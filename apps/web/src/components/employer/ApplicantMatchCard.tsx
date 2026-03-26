@@ -17,6 +17,9 @@ import {
   CheckCircle2,
   AlertTriangle,
   Info,
+  ThumbsUp,
+  ThumbsDown,
+  ClipboardCheck,
 } from "lucide-react";
 
 import type { ApplicantMatchSummary } from "@/lib/api/employer";
@@ -26,12 +29,17 @@ import {
   formatWorkSetting,
 } from "@/lib/api/employer";
 import { EligibilityBadge, MatchLabel } from "@/components/matches/MatchLabel";
+import { CandidateActions } from "./CandidateActions";
 
 interface ApplicantMatchCardProps {
   match: ApplicantMatchSummary;
+  jobId: string;
+  jobTitle: string;
+  token: string;
+  isAdmin?: boolean;
 }
 
-export function ApplicantMatchCard({ match }: ApplicantMatchCardProps) {
+export function ApplicantMatchCard({ match, jobId, jobTitle, token, isAdmin = false }: ApplicantMatchCardProps) {
   const {
     first_name,
     last_name,
@@ -52,6 +60,7 @@ export function ApplicantMatchCard({ match }: ApplicantMatchCardProps) {
     confidence_level,
     requires_review,
     geography_note,
+    applicant_interest,
   } = match;
 
   const name = formatApplicantName(first_name, last_name);
@@ -89,6 +98,7 @@ export function ApplicantMatchCard({ match }: ApplicantMatchCardProps) {
       <div className="flex flex-wrap items-center gap-2 mt-3">
         <EligibilityBadge status={eligibility_status} />
         {match_label && <MatchLabel label={match_label} />}
+        {applicant_interest && <ApplicantInterestBadge level={applicant_interest} />}
       </div>
 
       {/* Location + availability */}
@@ -176,8 +186,45 @@ export function ApplicantMatchCard({ match }: ApplicantMatchCardProps) {
           )}
         </div>
       )}
+
+      {/* Actions: reach out + hire — hidden for admin (admin cannot act as employer) */}
+      {!isAdmin && (
+        <CandidateActions
+          matchId={match.match_id}
+          applicantId={match.applicant_id}
+          jobId={jobId}
+          applicantName={name}
+          jobTitle={jobTitle}
+          token={token}
+        />
+      )}
     </div>
   );
+}
+
+function ApplicantInterestBadge({ level }: { level: string }) {
+  if (level === "applied") {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs bg-blue-50 text-blue-700 border border-blue-200 rounded-md px-2 py-0.5">
+        <ClipboardCheck className="w-3 h-3" /> Candidate applied
+      </span>
+    );
+  }
+  if (level === "interested") {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs bg-green-50 text-green-700 border border-green-200 rounded-md px-2 py-0.5">
+        <ThumbsUp className="w-3 h-3" /> Candidate interested
+      </span>
+    );
+  }
+  if (level === "not_interested") {
+    return (
+      <span className="inline-flex items-center gap-1 text-xs bg-gray-100 text-gray-500 border border-gray-200 rounded-md px-2 py-0.5">
+        <ThumbsDown className="w-3 h-3" /> Not interested
+      </span>
+    );
+  }
+  return null;
 }
 
 function _short(text: string): string {

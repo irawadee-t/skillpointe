@@ -256,6 +256,21 @@ async def update_my_profile(
                 current_user.user_id, onboarding_val,
             )
 
+    # Fire-and-forget: recompute matches if significant fields changed
+    significant = {"program_name_raw", "program_field", "specific_career", "state",
+                   "willing_to_relocate", "canonical_job_family_id"}
+    if updates.keys() & significant:
+        import asyncio as _asyncio
+        from app.worker.scheduler import trigger_recompute_for_applicant
+        # Get applicant UUID
+        async with get_db() as _conn:
+            _app_id = await _conn.fetchval(
+                "SELECT id::text FROM public.applicants WHERE user_id = $1",
+                current_user.user_id,
+            )
+        if _app_id:
+            _asyncio.create_task(trigger_recompute_for_applicant(_app_id))
+
     return {"updated": True, "auto_normalized": bool(program_name and updates.get("canonical_job_family_id"))}
 
 
@@ -336,12 +351,14 @@ async def get_my_matches(
                 j.preferred_qualifications_raw,
                 j.experience_level,
                 $2::text       AS app_state,
-                $3::text       AS app_region
+                $3::text       AS app_region,
+                sj.interest_level AS applicant_interest
             FROM public.matches m
             JOIN public.applicants a ON a.id = m.applicant_id
             JOIN public.jobs j        ON j.id = m.job_id
             JOIN public.employers e   ON e.id = j.employer_id
             LEFT JOIN public.canonical_job_families jf ON jf.id = j.canonical_job_family_id
+            LEFT JOIN public.saved_jobs sj ON sj.applicant_id = a.id AND sj.job_id = m.job_id
             WHERE a.user_id = $1
               AND m.is_visible_to_applicant = TRUE
               AND m.eligibility_status IN ('eligible', 'near_fit')
@@ -550,6 +567,7 @@ def _row_to_summary(row: dict[str, Any]) -> JobMatchSummary:
         experience_level=row.get("experience_level"),
         confidence_level=row.get("confidence_level"),
         requires_review=bool(row.get("requires_review", False)),
+        applicant_interest=row.get("applicant_interest"),
     )
 
 
@@ -631,6 +649,136 @@ def _safe_list(val: Any) -> list[str]:
     if isinstance(val, list):
         return [str(v) for v in val]
     return []
+
+
+# ---------------------------------------------------------------------------
+# GET /applicant/me/matches/{match_id}/interest
+# POST /applicant/me/matches/{match_id}/interest
+# ---------------------------------------------------------------------------
+
+class InterestSignalRequest(_BaseModel):
+    interest_level: str  # 'interested' | 'applied' | 'not_interested'
+
+
+class InterestSignalResponse(_BaseModel):
+    match_id: str
+    job_id: str
+    interest_level: str | None
+    updated_at: str | None
+
+
+@router.get("/me/matches/{match_id}/interest", response_model=InterestSignalResponse)
+async def get_interest_signal(
+    match_id: str,
+    current_user: Annotated[CurrentUser, Depends(require_applicant)],
+) -> InterestSignalResponse:
+    """Return the applicant's current interest signal for this match."""
+    async with get_db() as conn:
+        # Verify match ownership
+        match_row = await conn.fetchrow(
+            """
+            SELECT m.id::text AS match_id, m.job_id::text
+            FROM public.matches m
+            JOIN public.applicants a ON a.id = m.applicant_id
+            WHERE m.id = $1::uuid AND a.user_id = $2
+            """,
+            match_id, current_user.user_id,
+        )
+        if not match_row:
+            raise HTTPException(status_code=404, detail="Match not found")
+
+        signal_row = await conn.fetchrow(
+            """
+            SELECT interest_level, updated_at::text
+            FROM public.saved_jobs sj
+            JOIN public.applicants a ON a.id = sj.applicant_id
+            WHERE sj.job_id = $1::uuid AND a.user_id = $2
+            """,
+            match_row["job_id"], current_user.user_id,
+        )
+
+    return InterestSignalResponse(
+        match_id=match_row["match_id"],
+        job_id=match_row["job_id"],
+        interest_level=signal_row["interest_level"] if signal_row else None,
+        updated_at=signal_row["updated_at"] if signal_row else None,
+    )
+
+
+@router.post("/me/matches/{match_id}/interest", response_model=InterestSignalResponse)
+async def set_interest_signal(
+    match_id: str,
+    body: InterestSignalRequest,
+    current_user: Annotated[CurrentUser, Depends(require_applicant)],
+) -> InterestSignalResponse:
+    """
+    Set or update the applicant's interest signal for a matched job.
+    Upserts into saved_jobs; logs an engagement event.
+    """
+    valid_levels = {"interested", "applied", "not_interested"}
+    if body.interest_level not in valid_levels:
+        raise HTTPException(
+            status_code=422,
+            detail=f"interest_level must be one of: {', '.join(sorted(valid_levels))}",
+        )
+
+    async with get_db() as conn:
+        # Get applicant_id + job_id from match
+        row = await conn.fetchrow(
+            """
+            SELECT m.job_id::text, a.id AS applicant_id
+            FROM public.matches m
+            JOIN public.applicants a ON a.id = m.applicant_id
+            WHERE m.id = $1::uuid AND a.user_id = $2
+              AND m.is_visible_to_applicant = TRUE
+            """,
+            match_id, current_user.user_id,
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Match not found")
+
+        job_id = row["job_id"]
+        applicant_id = row["applicant_id"]
+
+        signal_row = await conn.fetchrow(
+            """
+            INSERT INTO public.saved_jobs (applicant_id, job_id, interest_level)
+            VALUES ($1, $2::uuid, $3)
+            ON CONFLICT (applicant_id, job_id)
+            DO UPDATE SET interest_level = EXCLUDED.interest_level, updated_at = NOW()
+            RETURNING interest_level, updated_at::text
+            """,
+            applicant_id, job_id, body.interest_level,
+        )
+
+        # Log engagement event for all interest changes
+        await conn.execute(
+            """
+            INSERT INTO public.engagement_events (applicant_id, job_id, event_type, event_data)
+            VALUES ($1, $2::uuid, 'interest_set', $3::jsonb)
+            """,
+            applicant_id,
+            job_id,
+            {"interest_level": body.interest_level, "match_id": match_id},
+        )
+        # Additionally log apply_click when applicant marks themselves as applied
+        if body.interest_level == "applied":
+            await conn.execute(
+                """
+                INSERT INTO public.engagement_events (applicant_id, job_id, event_type, event_data)
+                VALUES ($1, $2::uuid, 'apply_click', $3::jsonb)
+                """,
+                applicant_id,
+                job_id,
+                {"match_id": match_id, "source": "self_reported"},
+            )
+
+    return InterestSignalResponse(
+        match_id=match_id,
+        job_id=job_id,
+        interest_level=signal_row["interest_level"],
+        updated_at=signal_row["updated_at"],
+    )
 
 
 # ---------------------------------------------------------------------------

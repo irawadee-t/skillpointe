@@ -38,6 +38,7 @@ import {
 import type { GateResultItem, PolicyModifierItem } from "@/lib/api/applicant";
 import { EligibilityBadge, MatchLabel } from "@/components/matches/MatchLabel";
 import { DimensionBreakdown } from "@/components/matches/DimensionBreakdown";
+import { InterestSignalPanel } from "@/components/matches/InterestSignalPanel";
 
 export default async function MatchDetailPage({
   params,
@@ -54,13 +55,37 @@ export default async function MatchDetailPage({
   if (!session) redirect("/login");
   if (session.user.app_metadata?.role !== "applicant") redirect("/login");
 
+  // Fetch interest signal
+  async function fetchInterestSignal(mId: string, tok: string) {
+    try {
+      const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+      const res = await fetch(`${API_URL}/applicant/me/matches/${mId}/interest`, {
+        headers: { Authorization: `Bearer ${tok}` },
+        cache: "no-store",
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.interest_level ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   let match;
   try {
     match = await fetchMatchDetail(matchId, session.access_token);
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) notFound();
-    throw e;
+    return (
+      <main className="p-6 md:p-8">
+        <div className="max-w-3xl mx-auto bg-red-50 border border-red-200 rounded-xl p-5 text-sm text-red-800">
+          <strong>Could not reach the API.</strong> The backend may be starting up — please refresh in a moment.
+        </div>
+      </main>
+    );
   }
+
+  const interestSignal = await fetchInterestSignal(matchId, session.access_token);
 
   const locationStr = [match.job_city, match.job_state].filter(Boolean).join(", ");
   const payStr = formatPay(match.pay_min, match.pay_max, match.pay_type);
@@ -153,6 +178,17 @@ export default async function MatchDetailPage({
           {match.geography_note && (
             <p className="mt-2 text-sm text-blue-600">{match.geography_note}</p>
           )}
+        </section>
+
+        {/* Apply + Interest signal */}
+        <section className="bg-white border border-gray-200 rounded-lg p-5">
+          <h2 className="font-semibold text-gray-900 mb-3">Your interest</h2>
+          <InterestSignalPanel
+            matchId={matchId}
+            sourceUrl={match.source_url}
+            initialSignal={interestSignal}
+            token={session.access_token}
+          />
         </section>
 
         {/* Strengths */}

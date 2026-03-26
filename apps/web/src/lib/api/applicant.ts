@@ -53,6 +53,7 @@ export interface JobMatchSummary {
   experience_level: string | null;
   confidence_level: "high" | "medium" | "low" | null;
   requires_review: boolean;
+  applicant_interest: "interested" | "applied" | "not_interested" | null;
 }
 
 export interface DimensionScoreItem {

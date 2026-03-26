@@ -12,6 +12,9 @@ python-jose[cryptography]==3.3.0
 # Redis
 redis==5.2.1
 
+# Scheduler (6-hour match recompute)
+apscheduler>=3.10.0
+
 # HTTP
 httpx==0.28.1
 

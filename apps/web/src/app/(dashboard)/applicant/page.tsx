@@ -24,12 +24,20 @@ export default async function ApplicantDashboard() {
 
   const token = session.access_token;
 
+  let profileMissing = false;
   const profile = await fetchMyProfile(token).catch((e) => {
-    if (e instanceof ApiError && e.status === 404) return null;
-    throw e;
+    if (e instanceof ApiError && e.status === 404) { profileMissing = true; return null; }
+    return null; // API unreachable — render error state below
   });
 
-  if (!profile) redirect("/applicant/setup");
+  if (profileMissing) redirect("/applicant/setup");
+  if (!profile) return (
+    <main className="p-6 md:p-8">
+      <div className="max-w-3xl mx-auto bg-red-50 border border-red-200 rounded-xl p-5 text-sm text-red-800">
+        <strong>Could not reach the API.</strong> The backend may be starting up — please refresh in a moment.
+      </div>
+    </main>
+  );
 
   const matches = await fetchMyMatches(token).catch(() => null);
 

@@ -28,7 +28,7 @@ export default async function NewJobPage() {
     } = await supabase.auth.getSession();
     if (!session) redirect("/login");
 
-    const API_URL = process.env.API_URL ?? "http://localhost:8000";
+    const API_URL = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
     const payload = {
       title_raw: formData.get("title_raw") as string,

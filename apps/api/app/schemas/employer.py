@@ -117,6 +117,7 @@ class ApplicantMatchSummary(BaseModel):
     confidence_level: str | None         # high | medium | low
     requires_review: bool
     geography_note: str | None
+    applicant_interest: str | None       # interested | applied | not_interested | None
 
 
 class RankedApplicantsResponse(BaseModel):

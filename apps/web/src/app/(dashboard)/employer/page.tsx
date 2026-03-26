@@ -28,20 +28,25 @@ import { createClient } from "@/lib/supabase/server";
 export default async function EmployerDashboard() {
   const supabase = await createClient();
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+  } = await supabase.auth.getUser();
 
+  if (!user) redirect("/login");
+
+  const role = user.app_metadata?.role;
+  if (role === "admin") redirect("/admin/employers");
+  if (role !== "employer") redirect("/login");
+
+  const { data: { session } } = await supabase.auth.getSession();
   if (!session) redirect("/login");
-
-  const role = session.user.app_metadata?.role;
-  if (role !== "employer" && role !== "admin") redirect("/login");
 
   const token = session.access_token;
 
+  let apiError = false;
   const [company, jobsList] = await Promise.all([
     fetchMyCompany(token).catch((e) => {
       if (e instanceof ApiError && e.status === 404) return null;
-      throw e;
+      apiError = true; return null;
     }),
     fetchMyJobs(token).catch(() => null),
   ]);
@@ -186,7 +191,7 @@ function JobCard({ job }: { job: EmployerJobSummary }) {
           href={`/employer/jobs/${job.job_id}/applicants`}
           className="inline-flex items-center gap-1 text-sm font-medium text-spf-navy hover:underline"
         >
-          <Users className="w-3.5 h-3.5" /> View applicants ({job.total_visible})
+          <Users className="w-3.5 h-3.5" /> View matched candidates ({job.total_visible})
         </Link>
         <Link
           href={`/employer/jobs/${job.job_id}/edit`}

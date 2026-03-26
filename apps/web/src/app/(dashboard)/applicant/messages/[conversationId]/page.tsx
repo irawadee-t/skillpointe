@@ -1,0 +1,74 @@
+/**
+ * Applicant — individual conversation thread.
+ */
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
+import { MessageThread } from "@/components/messages/MessageThread";
+
+interface PageProps {
+  params: Promise<{ conversationId: string }>;
+}
+
+async function fetchConversation(id: string, token: string) {
+  const API_URL =
+    process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  const res = await fetch(`${API_URL}/conversations/${id}/messages`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+  if (!res.ok) return null;
+  return res.json() as Promise<{
+    conversation_id: string;
+    other_party_name: string;
+    job_title: string | null;
+    messages: unknown[];
+  }>;
+}
+
+export default async function ApplicantConversationPage({ params }: PageProps) {
+  const { conversationId } = await params;
+
+  const supabase = await createClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) redirect("/login");
+  if (session.user.app_metadata?.role !== "applicant") redirect("/login");
+
+  const conv = await fetchConversation(conversationId, session.access_token);
+  if (!conv) {
+    return (
+      <main className="p-6 md:p-8">
+        <div className="max-w-2xl mx-auto">
+          <Link href="/applicant/messages" className="text-sm text-gray-500 hover:text-gray-700">
+            ← Back to messages
+          </Link>
+          <div className="mt-6 bg-red-50 border border-red-200 rounded-xl p-5 text-sm text-red-800">
+            Conversation not found.
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="p-6 md:p-8">
+      <div className="max-w-2xl mx-auto flex flex-col" style={{ height: "calc(100vh - 10rem)" }}>
+        <Link
+          href="/applicant/messages"
+          className="text-sm text-gray-500 hover:text-gray-700 inline-flex items-center gap-1 mb-4 shrink-0"
+        >
+          ← Back to messages
+        </Link>
+        <div className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col flex-1 overflow-hidden">
+          <MessageThread
+            conversationId={conversationId}
+            otherPartyName={conv.other_party_name}
+            jobTitle={conv.job_title}
+            token={session.access_token}
+            myRole="applicant"
+          />
+        </div>
+      </div>
+    </main>
+  );
+}

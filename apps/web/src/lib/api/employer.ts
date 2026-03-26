@@ -66,6 +66,7 @@ export interface ApplicantMatchSummary {
   confidence_level: "high" | "medium" | "low" | null;
   requires_review: boolean;
   geography_note: string | null;
+  applicant_interest: "interested" | "applied" | "not_interested" | null;
 }
 
 export interface RankedApplicantsResponse {

@@ -119,11 +119,15 @@ export function JobMapClient({ clusters, error, accessToken }: Props) {
       markersLayer.current = layer;
       mapInstance.current = map;
 
-      // Force correct sizing after DOM paints
-      requestAnimationFrame(() => {
-        map.invalidateSize();
+      // Force correct sizing after CSS and layout settle.
+      // Use the ref (not the closed-over 'map') so that React 18 strict-mode's
+      // double-invoke doesn't call invalidateSize on a removed map instance.
+      setTimeout(() => {
+        const m = mapInstance.current;
+        if (!m || !markersLayer.current) return;
+        m.invalidateSize();
         setLoaded(true);
-      });
+      }, 300);
     };
 
     if ((window as any).L) {

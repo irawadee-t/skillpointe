@@ -19,6 +19,7 @@ import { fetchJobApplicants } from "@/lib/api/employer";
 import { ApiError } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/server";
 import { ApplicantMatchCard } from "@/components/employer/ApplicantMatchCard";
+import { AIPriorityPanel } from "@/components/employer/AIPriorityPanel";
 
 interface PageProps {
   params: Promise<{ jobId: string }>;
@@ -44,7 +45,7 @@ export default async function JobApplicantsPage({
 
   if (!session) redirect("/login");
 
-  const role = session.user.app_metadata?.role;
+  const role = session.user.app_metadata?.role as string;
   if (role !== "employer" && role !== "admin") redirect("/login");
 
   const token = session.access_token;
@@ -59,6 +60,8 @@ export default async function JobApplicantsPage({
   const relocateFilter =
     sp.relocate === "true" ? true : sp.relocate === "false" ? false : undefined;
 
+  const backHref = role === "admin" ? "/admin/employers" : "/employer";
+
   let data;
   try {
     data = await fetchJobApplicants(jobId, token, {
@@ -72,7 +75,7 @@ export default async function JobApplicantsPage({
       return (
         <main className="p-6 md:p-8">
           <div className="max-w-3xl mx-auto">
-            <BackLink />
+            <BackLink href={backHref} />
             <div className="mt-6 bg-red-50 border border-red-200 rounded-lg p-5 text-sm text-red-800">
               Job not found or you do not have access to this job.
             </div>
@@ -80,7 +83,16 @@ export default async function JobApplicantsPage({
         </main>
       );
     }
-    throw e;
+    return (
+      <main className="p-6 md:p-8">
+        <div className="max-w-3xl mx-auto">
+          <BackLink href={backHref} />
+          <div className="mt-6 bg-red-50 border border-red-200 rounded-xl p-5 text-sm text-red-800">
+            <strong>Could not reach the API.</strong> The backend may be starting up — please refresh in a moment.
+          </div>
+        </div>
+      </main>
+    );
   }
 
   const hasActiveFilters =
@@ -91,7 +103,7 @@ export default async function JobApplicantsPage({
       <div className="max-w-3xl mx-auto space-y-6">
         {/* Header */}
         <div>
-          <BackLink />
+          <BackLink href={backHref} />
           <div className="flex items-start justify-between mt-1">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">{data.job_title}</h1>
@@ -108,10 +120,15 @@ export default async function JobApplicantsPage({
 
         {/* Quick stats */}
         <div className="grid grid-cols-3 gap-4">
-          <StatCard label="Total visible" value={data.total_visible} color="gray" />
+          <StatCard label="Matched candidates" value={data.total_visible} color="gray" />
           <StatCard label="Eligible" value={data.eligible_count} color="green" />
           <StatCard label="Near fit" value={data.near_fit_count} color="orange" />
         </div>
+
+        {/* AI prioritisation panel */}
+        {data.applicants.length > 0 && (
+          <AIPriorityPanel jobId={jobId} jobTitle={data.job_title} token={token} isAdmin={role === "admin"} />
+        )}
 
         {/* Filter bar */}
         <FilterBar
@@ -135,10 +152,10 @@ export default async function JobApplicantsPage({
           </div>
         )}
 
-        {/* Applicant list */}
+        {/* Matched candidates list */}
         {data.applicants.length === 0 ? (
           <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
-            <p className="text-gray-600 font-medium">No applicants found</p>
+            <p className="text-gray-600 font-medium">No matched candidates found</p>
             <p className="text-sm text-gray-500 mt-2">
               {hasActiveFilters
                 ? "Try adjusting your filters."
@@ -148,7 +165,14 @@ export default async function JobApplicantsPage({
         ) : (
           <div className="space-y-4">
             {data.applicants.map((match) => (
-              <ApplicantMatchCard key={match.match_id} match={match} />
+              <ApplicantMatchCard
+                key={match.match_id}
+                match={match}
+                jobId={jobId}
+                jobTitle={data.job_title}
+                token={token}
+                isAdmin={role === "admin"}
+              />
             ))}
           </div>
         )}
@@ -161,10 +185,10 @@ export default async function JobApplicantsPage({
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function BackLink() {
+function BackLink({ href }: { href: string }) {
   return (
     <Link
-      href="/employer"
+      href={href}
       className="text-sm text-gray-500 hover:text-gray-700 inline-flex items-center gap-1"
     >
       ← Back to dashboard
