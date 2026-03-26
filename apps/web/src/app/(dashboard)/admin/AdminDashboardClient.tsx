@@ -71,9 +71,9 @@ function BarChart({
         return (
           <div key={i} className="flex items-center gap-3">
             <div className="w-28 text-xs text-zinc-400 truncate text-right font-medium">{label}</div>
-            <div className="flex-1 h-6 bg-zinc-800 rounded-full overflow-hidden">
+            <div className="flex-1 h-2 bg-zinc-800 rounded-sm overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-cyan-500 to-blue-600 rounded-full transition-all duration-700"
+                className="h-full bg-gradient-to-r from-cyan-500 to-blue-600 rounded-sm transition-all duration-700"
                 style={{ width: `${Math.max(pct, 2)}%` }}
               />
             </div>
@@ -256,9 +256,9 @@ export function AdminDashboardClient({ data, error }: Props) {
             {data.data_quality.map((dq) => (
               <div key={dq.metric} className="flex items-center gap-4">
                 <div className="w-48 text-sm text-zinc-300">{dq.metric}</div>
-                <div className="flex-1 h-3 bg-zinc-800 rounded-full overflow-hidden">
+                <div className="flex-1 h-2 bg-zinc-800 rounded-sm overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-700 ${dq.pct > 20 ? "bg-rose-500" : dq.pct > 5 ? "bg-amber-500" : "bg-emerald-500"}`}
+                    className={`h-full rounded-sm transition-all duration-700 ${dq.pct > 20 ? "bg-rose-500" : dq.pct > 5 ? "bg-amber-500" : "bg-emerald-500"}`}
                     style={{ width: `${Math.max(dq.pct, 1)}%` }}
                   />
                 </div>
