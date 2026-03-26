@@ -71,12 +71,19 @@ export default async function JobBrowsePage({ searchParams }: PageProps) {
   let employers: string[] = [];
 
   try {
-    [data, { employers }] = await Promise.all([
-      apiFetch<JobBrowseResponse>(`/jobs/browse?${qs.toString()}`, session.access_token),
-      apiFetch<{ employers: string[] }>("/jobs/employers", session.access_token),
-    ]);
+    data = await apiFetch<JobBrowseResponse>(
+      `/jobs/browse?${qs.toString()}`,
+      session.access_token,
+    );
   } catch (e) {
     fetchError = e instanceof Error ? e.message : "Failed to load jobs";
+  }
+
+  try {
+    const emp = await apiFetch<{ employers: string[] }>("/jobs/employers", session.access_token);
+    employers = emp.employers ?? [];
+  } catch {
+    // Non-critical — jobs still show, dropdown falls back to empty
   }
 
   return (
