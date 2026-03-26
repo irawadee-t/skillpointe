@@ -39,10 +39,10 @@ export default async function ApplicantConversationPage({ params }: PageProps) {
     return (
       <main className="p-6 md:p-8">
         <div className="max-w-2xl mx-auto">
-          <Link href="/applicant/messages" className="text-sm text-gray-500 hover:text-gray-700">
+          <Link href="/applicant/messages" className="text-sm text-neutral-400 hover:text-neutral-600">
             ← Back to messages
           </Link>
-          <div className="mt-6 bg-red-50 border border-red-200 rounded-xl p-5 text-sm text-red-800">
+          <div className="mt-6 bg-red-50 border border-red-200 rounded-lg p-5 text-sm text-red-800">
             Conversation not found.
           </div>
         </div>
@@ -55,11 +55,11 @@ export default async function ApplicantConversationPage({ params }: PageProps) {
       <div className="max-w-2xl mx-auto flex flex-col" style={{ height: "calc(100vh - 10rem)" }}>
         <Link
           href="/applicant/messages"
-          className="text-sm text-gray-500 hover:text-gray-700 inline-flex items-center gap-1 mb-4 shrink-0"
+          className="text-sm text-neutral-400 hover:text-neutral-600 inline-flex items-center gap-1 mb-4 shrink-0"
         >
           ← Back to messages
         </Link>
-        <div className="bg-white border border-gray-200 rounded-xl p-5 flex flex-col flex-1 overflow-hidden">
+        <div className="bg-white border border-neutral-200 rounded-lg p-5 flex flex-col flex-1 overflow-hidden">
           <MessageThread
             conversationId={conversationId}
             otherPartyName={conv.other_party_name}

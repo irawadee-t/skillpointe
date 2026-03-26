@@ -86,10 +86,10 @@ export function CandidateActions({
 
   return (
     <>
-      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
+      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-neutral-100">
         <button
           onClick={() => setShowOutreach(true)}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-spf-navy border border-spf-navy/20 rounded-md px-3 py-1.5 hover:bg-spf-navy/5 transition-colors"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-700 border border-neutral-200 rounded-full px-3 py-1.5 hover:bg-neutral-50 transition-colors"
         >
           <Mail className="w-3.5 h-3.5" /> Reach out
         </button>
@@ -97,7 +97,7 @@ export function CandidateActions({
         <button
           onClick={handleMessage}
           disabled={startingDM}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-600 border border-gray-200 rounded-md px-3 py-1.5 hover:bg-gray-50 transition-colors disabled:opacity-50"
+          className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-600 border border-neutral-200 rounded-full px-3 py-1.5 hover:bg-neutral-50 transition-colors disabled:opacity-50"
         >
           {startingDM ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -108,14 +108,14 @@ export function CandidateActions({
         </button>
 
         {hired ? (
-          <span className="inline-flex items-center gap-1 text-xs text-green-700 font-medium">
+          <span className="inline-flex items-center gap-1 text-xs text-neutral-700 font-medium">
             <CheckCircle2 className="w-3.5 h-3.5" /> Marked as hired
           </span>
         ) : (
           <button
             onClick={handleHire}
             disabled={hiring}
-            className="inline-flex items-center gap-1.5 text-xs text-gray-500 border border-gray-200 rounded-md px-3 py-1.5 hover:text-green-700 hover:border-green-300 transition-colors"
+            className="inline-flex items-center gap-1.5 text-xs text-neutral-500 border border-neutral-200 rounded-full px-3 py-1.5 hover:text-neutral-900 hover:border-neutral-400 transition-colors"
           >
             {hiring ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />

@@ -167,7 +167,7 @@ export function JobMapClient({ clusters, error, accessToken }: Props) {
   if (error) {
     return (
       <main className="p-8">
-        <div className="max-w-6xl mx-auto bg-red-50 border border-red-200 rounded-xl p-6 text-red-800">
+        <div className="max-w-6xl mx-auto bg-red-50 border border-red-200 rounded-lg p-6 text-red-800">
           {error}
         </div>
       </main>
@@ -175,26 +175,26 @@ export function JobMapClient({ clusters, error, accessToken }: Props) {
   }
 
   return (
-    <main className="p-6 md:p-8 bg-gray-50 min-h-screen">
+    <main className="p-6 md:p-8 bg-neutral-50 min-h-screen">
       <div className="max-w-6xl mx-auto space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold text-spf-navy flex items-center gap-2">
+            <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 flex items-center gap-2">
               <MapPin className="w-6 h-6" />
               Job Distribution Map
             </h1>
-            <p className="text-sm text-gray-500 mt-1">
+            <p className="text-sm text-neutral-500 mt-1">
               {totalJobs} jobs across {filteredClusters.length} locations
             </p>
           </div>
 
           <div className="flex items-center gap-2">
-            <Filter className="w-4 h-4 text-gray-400" />
+            <Filter className="w-4 h-4 text-neutral-400" />
             <select
               value={familyFilter}
               onChange={(e) => { setFamilyFilter(e.target.value); setSelectedCluster(null); }}
-              className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-spf-navy/20"
+              className="text-sm border border-neutral-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-neutral-400"
             >
               <option value="">All trades</option>
               {allFamilies.map((f) => (
@@ -204,7 +204,7 @@ export function JobMapClient({ clusters, error, accessToken }: Props) {
               ))}
             </select>
             {familyFilter && (
-              <button onClick={() => setFamilyFilter("")} className="p-1 text-gray-400 hover:text-gray-600">
+              <button onClick={() => setFamilyFilter("")} className="p-1 text-neutral-400 hover:text-neutral-600">
                 <X className="w-4 h-4" />
               </button>
             )}
@@ -213,14 +213,14 @@ export function JobMapClient({ clusters, error, accessToken }: Props) {
 
         {/* Map container — must have explicit height for Leaflet */}
         <div
-          className="relative bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm"
+          className="relative bg-white border border-neutral-200 rounded-lg overflow-hidden"
           style={{ height: "520px" }}
         >
           <div ref={mapRef} style={{ width: "100%", height: "100%" }} />
           {!loaded && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-50 z-10">
-              <div className="flex items-center gap-2 text-gray-400 text-sm">
-                <div className="w-4 h-4 border-2 border-gray-300 border-t-spf-navy rounded-full animate-spin" />
+            <div className="absolute inset-0 flex items-center justify-center bg-neutral-50 z-10">
+              <div className="flex items-center gap-2 text-neutral-400 text-sm">
+                <div className="w-4 h-4 border-2 border-neutral-200 border-t-neutral-800 rounded-full animate-spin" />
                 Loading map…
               </div>
             </div>
@@ -235,8 +235,8 @@ export function JobMapClient({ clusters, error, accessToken }: Props) {
               onClick={() => { setFamilyFilter(familyFilter === family ? "" : family); setSelectedCluster(null); }}
               className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full border transition-all ${
                 familyFilter === family
-                  ? "border-gray-500 bg-gray-100 font-semibold"
-                  : "border-gray-200 hover:border-gray-400"
+                  ? "border-neutral-500 bg-neutral-100 font-semibold"
+                  : "border-neutral-200 hover:border-neutral-400"
               }`}
             >
               <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
@@ -247,21 +247,21 @@ export function JobMapClient({ clusters, error, accessToken }: Props) {
 
         {/* Selected cluster panel */}
         {selectedCluster && (
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+          <div className="bg-white border border-neutral-200 rounded-lg p-5">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-2">
-                <MapPin className="w-4 h-4 text-spf-navy" />
-                <h3 className="font-semibold text-gray-900">
+                <MapPin className="w-4 h-4 text-neutral-500" />
+                <h3 className="font-semibold text-neutral-900">
                   {selectedCluster.city}, {selectedCluster.state}
                 </h3>
               </div>
-              <button onClick={() => setSelectedCluster(null)} className="text-gray-400 hover:text-gray-600">
+              <button onClick={() => setSelectedCluster(null)} className="text-neutral-400 hover:text-neutral-600">
                 <X className="w-4 h-4" />
               </button>
             </div>
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-bold text-spf-navy">{selectedCluster.count}</span>
-              <span className="text-sm text-gray-500">active job{selectedCluster.count !== 1 ? "s" : ""}</span>
+              <span className="text-3xl font-bold text-neutral-900">{selectedCluster.count}</span>
+              <span className="text-sm text-neutral-500">active job{selectedCluster.count !== 1 ? "s" : ""}</span>
             </div>
             <div className="mt-2 flex flex-wrap gap-1.5">
               {selectedCluster.families.map((f) => (
@@ -280,29 +280,29 @@ export function JobMapClient({ clusters, error, accessToken }: Props) {
             </div>
 
             {/* Job list drill-down */}
-            <div className="mt-4 border-t border-gray-100 pt-3">
-              <h4 className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-2">Jobs at this location</h4>
+            <div className="mt-4 border-t border-neutral-100 pt-3">
+              <h4 className="text-xs font-medium text-neutral-500 uppercase tracking-wide mb-2">Jobs at this location</h4>
               {loadingJobs ? (
-                <div className="flex items-center gap-2 py-4 justify-center text-gray-400 text-sm">
-                  <div className="w-4 h-4 border-2 border-gray-300 border-t-spf-navy rounded-full animate-spin" />
+                <div className="flex items-center gap-2 py-4 justify-center text-neutral-400 text-sm">
+                  <div className="w-4 h-4 border-2 border-neutral-200 border-t-neutral-800 rounded-full animate-spin" />
                   Loading jobs…
                 </div>
               ) : clusterJobs.length === 0 ? (
-                <p className="text-sm text-gray-400 py-2">No jobs found.</p>
+                <p className="text-sm text-neutral-400 py-2">No jobs found.</p>
               ) : (
                 <div className="max-h-[300px] overflow-y-auto -mx-1 px-1">
                   {clusterJobs.map((job) => (
-                    <div key={job.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-0">
+                    <div key={job.id} className="flex items-center justify-between py-2 border-b border-neutral-100 last:border-0">
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium text-gray-900 truncate">{job.title}</div>
-                        <div className="text-xs text-gray-500">{job.employer}</div>
+                        <div className="text-sm font-medium text-neutral-900 truncate">{job.title}</div>
+                        <div className="text-xs text-neutral-500">{job.employer}</div>
                       </div>
                       <div className="flex items-center gap-2 ml-3">
                         {job.experience_level && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-600">{job.experience_level}</span>
+                          <span className="text-xs px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600">{job.experience_level}</span>
                         )}
                         {job.source_url && (
-                          <a href={job.source_url} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline whitespace-nowrap">
+                          <a href={job.source_url} target="_blank" rel="noopener noreferrer" className="text-xs text-neutral-700 hover:underline whitespace-nowrap">
                             View <ExternalLink className="w-3 h-3 inline" />
                           </a>
                         )}

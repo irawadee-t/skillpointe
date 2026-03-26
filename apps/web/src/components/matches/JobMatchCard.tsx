@@ -5,7 +5,6 @@ import {
   ChevronRight,
   CheckCircle2,
   AlertTriangle,
-  Star,
   Info,
 } from "lucide-react";
 
@@ -50,24 +49,25 @@ export function JobMatchCard({ match }: JobMatchCardProps) {
   return (
     <Link
       href={`/applicant/matches/${match_id}`}
-      className="bg-white border border-gray-200 rounded-xl p-5 hover:border-gray-300 hover:shadow-sm transition-all block group"
+      className="bg-white border border-neutral-200 rounded-lg p-5 hover:border-neutral-300 transition-all block group"
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-gray-900 text-base leading-snug group-hover:text-spf-navy transition-colors">
+          <h3 className="font-semibold text-neutral-900 text-base leading-snug">
             {job_title}
           </h3>
-          <p className="text-sm text-gray-500 mt-0.5 flex items-center gap-1">
+          <p className="text-sm text-neutral-500 mt-0.5 flex items-center gap-1">
             {employer_name}
-            {is_partner_employer && (
-              <Star className="w-3.5 h-3.5 text-spf-orange fill-spf-orange" />
-            )}
           </p>
         </div>
 
-        {/* Score ring */}
-        {score !== null && <ScoreIndicator score={score} />}
+        {/* Score */}
+        {score !== null && (
+          <div className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold bg-neutral-100 text-neutral-900">
+            {score}
+          </div>
+        )}
       </div>
 
       {/* Badges */}
@@ -77,30 +77,30 @@ export function JobMatchCard({ match }: JobMatchCardProps) {
       </div>
 
       {/* Meta row */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm text-gray-600">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm text-neutral-600">
         {locationStr && (
           <span className="flex items-center gap-1">
-            <MapPin className="w-3.5 h-3.5 text-gray-400" />
+            <MapPin className="w-3.5 h-3.5 text-neutral-400" />
             {locationStr}
-            {work_setting && <span className="text-gray-400"> · {formatWorkSetting(work_setting)}</span>}
+            {work_setting && <span className="text-neutral-400"> · {formatWorkSetting(work_setting)}</span>}
           </span>
         )}
         {!locationStr && work_setting && (
           <span className="flex items-center gap-1">
-            <MapPin className="w-3.5 h-3.5 text-gray-400" />
+            <MapPin className="w-3.5 h-3.5 text-neutral-400" />
             {formatWorkSetting(work_setting)}
           </span>
         )}
         {pay_min !== null && (
           <span className="flex items-center gap-1">
-            <DollarSign className="w-3.5 h-3.5 text-gray-400" />
+            <DollarSign className="w-3.5 h-3.5 text-neutral-400" />
             {payStr}
           </span>
         )}
       </div>
 
       {geography_note && (
-        <p className="mt-1.5 text-xs text-spf-navy/70 flex items-center gap-1">
+        <p className="mt-1.5 text-xs text-neutral-500 flex items-center gap-1">
           <Info className="w-3 h-3" />
           {geography_note}
         </p>
@@ -112,7 +112,7 @@ export function JobMatchCard({ match }: JobMatchCardProps) {
           {top_strengths.slice(0, 2).map((s, i) => (
             <span
               key={`s-${i}`}
-              className="inline-flex items-center gap-1 text-xs bg-green-50 text-green-700 border border-green-200 rounded-md px-2 py-0.5"
+              className="inline-flex items-center gap-1 text-xs bg-neutral-100 text-neutral-700 border border-neutral-200 rounded-md px-2 py-0.5"
             >
               <CheckCircle2 className="w-3 h-3" />
               {shortRationale(s)}
@@ -121,7 +121,7 @@ export function JobMatchCard({ match }: JobMatchCardProps) {
           {top_gaps.slice(0, 2).map((g, i) => (
             <span
               key={`g-${i}`}
-              className="inline-flex items-center gap-1 text-xs bg-amber-50 text-amber-700 border border-amber-200 rounded-md px-2 py-0.5"
+              className="inline-flex items-center gap-1 text-xs bg-neutral-50 text-neutral-500 border border-neutral-200 rounded-md px-2 py-0.5"
             >
               <AlertTriangle className="w-3 h-3" />
               {shortRationale(g)}
@@ -132,54 +132,30 @@ export function JobMatchCard({ match }: JobMatchCardProps) {
 
       {/* Next step */}
       {recommended_next_step && (
-        <p className="mt-3 text-sm text-gray-600 leading-snug">
-          <span className="font-medium text-gray-800">Next step:</span> {recommended_next_step}
+        <p className="mt-3 text-sm text-neutral-600 leading-snug">
+          <span className="font-medium text-neutral-800">Next step:</span> {recommended_next_step}
         </p>
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
-        <div className="flex items-center gap-3 text-xs text-gray-400">
+      <div className="flex items-center justify-between mt-4 pt-3 border-t border-neutral-100">
+        <div className="flex items-center gap-3 text-xs text-neutral-400">
           {confidence_level === "low" && (
-            <span className="flex items-center gap-1 text-amber-500">
+            <span className="flex items-center gap-1">
               <AlertTriangle className="w-3 h-3" /> Low confidence
             </span>
           )}
           {requires_review && (
-            <span className="flex items-center gap-1 text-amber-500">
+            <span className="flex items-center gap-1">
               <Info className="w-3 h-3" /> Pending review
             </span>
           )}
         </div>
-        <span className="text-sm font-medium text-spf-navy group-hover:underline flex items-center gap-1">
+        <span className="text-sm font-medium text-neutral-500 group-hover:text-neutral-900 flex items-center gap-1">
           View details <ChevronRight className="w-4 h-4" />
         </span>
       </div>
     </Link>
-  );
-}
-
-function ScoreIndicator({ score }: { score: number }) {
-  const color = score >= 80 ? "text-green-600" : score >= 60 ? "text-spf-navy" : score >= 40 ? "text-amber-600" : "text-gray-400";
-  const bgColor = score >= 80 ? "stroke-green-500" : score >= 60 ? "stroke-spf-navy" : score >= 40 ? "stroke-amber-500" : "stroke-gray-300";
-  const circumference = 2 * Math.PI * 18;
-  const filled = (score / 100) * circumference;
-
-  return (
-    <div className="relative w-14 h-14 shrink-0">
-      <svg className="w-14 h-14 -rotate-90" viewBox="0 0 40 40">
-        <circle cx="20" cy="20" r="18" fill="none" strokeWidth="3" className="stroke-gray-100" />
-        <circle
-          cx="20" cy="20" r="18" fill="none" strokeWidth="3"
-          className={bgColor}
-          strokeLinecap="round"
-          strokeDasharray={`${filled} ${circumference}`}
-        />
-      </svg>
-      <div className={`absolute inset-0 flex flex-col items-center justify-center ${color}`}>
-        <span className="text-base font-bold leading-none tabular-nums">{score}</span>
-      </div>
-    </div>
   );
 }
 

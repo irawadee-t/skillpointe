@@ -140,7 +140,7 @@ export default function EditProfilePage() {
   if (loading) {
     return (
       <main className="flex items-center justify-center p-20">
-        <p className="text-gray-400 text-sm">Loading profile...</p>
+        <p className="text-neutral-400 text-sm">Loading profile...</p>
       </main>
     );
   }
@@ -150,12 +150,12 @@ export default function EditProfilePage() {
       <div className="max-w-2xl mx-auto">
         <Link
           href="/applicant"
-          className="text-sm text-spf-navy hover:underline mb-6 inline-flex items-center gap-1"
+          className="text-sm text-neutral-400 hover:text-neutral-600 mb-6 inline-flex items-center gap-1"
         >
           &larr; Back to dashboard
         </Link>
 
-        <h1 className="text-2xl font-bold text-spf-navy mb-6">Edit profile</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 mb-6">Edit profile</h1>
 
         <form onSubmit={handleSubmit} className="space-y-6">
 
@@ -223,11 +223,11 @@ export default function EditProfilePage() {
             </Field>
             <Field label="Specific career or program name">
               <Input value={form.specific_career as string} onChange={(v) => set("specific_career", v)} placeholder="e.g. A.A.S. Building Construction Technologies" />
-              <p className="text-xs text-gray-400 mt-1">Free text — describe exactly what you study or want to do</p>
+              <p className="text-xs text-neutral-400 mt-1">Free text — describe exactly what you study or want to do</p>
             </Field>
             <Field label="Program name (as you know it)">
               <Input value={form.program_name_raw as string} onChange={(v) => set("program_name_raw", v)} placeholder="e.g. Electrician Apprentice" />
-              <p className="text-xs text-gray-400 mt-1">Auto-matched to a job family when you save</p>
+              <p className="text-xs text-neutral-400 mt-1">Auto-matched to a job family when you save</p>
             </Field>
           </Section>
 
@@ -243,7 +243,7 @@ export default function EditProfilePage() {
             </Row>
             <Field label="Available to start work">
               <Input type="date" value={form.available_from_date as string} onChange={(v) => set("available_from_date", v)} />
-              <p className="text-xs text-gray-400 mt-1">When can you start a new job?</p>
+              <p className="text-xs text-neutral-400 mt-1">When can you start a new job?</p>
             </Field>
             <Field label="Current wages">
               <Select value={form.current_wages as string} onChange={(v) => set("current_wages", v)} options={WAGE_RANGES.map((w) => ({ value: w.value, label: w.label }))} />
@@ -267,18 +267,18 @@ export default function EditProfilePage() {
             <Field label="Willingness to travel for work">
               <div className="space-y-2">
                 {TRAVEL_OPTIONS.map((opt) => (
-                  <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${form.travel_preference === opt.value ? "border-spf-navy bg-spf-navy/5" : "border-gray-200 hover:border-gray-300"}`}>
+                  <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${form.travel_preference === opt.value ? "border-neutral-900 bg-neutral-50" : "border-neutral-200 hover:border-neutral-300"}`}>
                     <input
                       type="radio"
                       name="travel_preference"
                       value={opt.value}
                       checked={form.travel_preference === opt.value}
                       onChange={() => set("travel_preference", opt.value)}
-                      className="mt-0.5 accent-spf-navy"
+                      className="mt-0.5 accent-neutral-900"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-800">{opt.label}</span>
-                      <p className="text-xs text-gray-400">{opt.desc}</p>
+                      <span className="text-sm font-medium text-neutral-800">{opt.label}</span>
+                      <p className="text-xs text-neutral-400">{opt.desc}</p>
                     </div>
                   </label>
                 ))}
@@ -288,18 +288,18 @@ export default function EditProfilePage() {
             <Field label="Willingness to relocate">
               <div className="space-y-2">
                 {RELOCATION_OPTIONS.map((opt) => (
-                  <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${form.relocation_preference === opt.value ? "border-spf-orange bg-spf-orange/5" : "border-gray-200 hover:border-gray-300"}`}>
+                  <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${form.relocation_preference === opt.value ? "border-neutral-900 bg-neutral-50" : "border-neutral-200 hover:border-neutral-300"}`}>
                     <input
                       type="radio"
                       name="relocation_preference"
                       value={opt.value}
                       checked={form.relocation_preference === opt.value}
                       onChange={() => set("relocation_preference", opt.value)}
-                      className="mt-0.5 accent-spf-orange"
+                      className="mt-0.5 accent-neutral-900"
                     />
                     <div>
-                      <span className="text-sm font-medium text-gray-800">{opt.label}</span>
-                      <p className="text-xs text-gray-400">{opt.desc}</p>
+                      <span className="text-sm font-medium text-neutral-800">{opt.label}</span>
+                      <p className="text-xs text-neutral-400">{opt.desc}</p>
                     </div>
                   </label>
                 ))}
@@ -308,7 +308,7 @@ export default function EditProfilePage() {
 
             {form.relocation_preference === "specific_states" && (
               <Field label="Which states would you relocate to?">
-                <div className="grid grid-cols-5 sm:grid-cols-8 gap-1.5 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                <div className="grid grid-cols-5 sm:grid-cols-8 gap-1.5 max-h-48 overflow-y-auto border border-neutral-200 rounded-lg p-3">
                   {US_STATES.map((s) => {
                     const selected = (form.relocation_states as string[] || []).includes(s);
                     return (
@@ -319,7 +319,7 @@ export default function EditProfilePage() {
                           const current = (form.relocation_states as string[]) || [];
                           set("relocation_states", selected ? current.filter((x) => x !== s) : [...current, s]);
                         }}
-                        className={`text-xs font-mono py-1.5 rounded transition-colors ${selected ? "bg-spf-orange text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}
+                        className={`text-xs font-mono py-1.5 rounded transition-colors ${selected ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-600 hover:bg-neutral-200"}`}
                       >
                         {s}
                       </button>
@@ -327,7 +327,7 @@ export default function EditProfilePage() {
                   })}
                 </div>
                 {(form.relocation_states as string[])?.length > 0 && (
-                  <p className="text-xs text-gray-500 mt-1">
+                  <p className="text-xs text-neutral-500 mt-1">
                     Selected: {(form.relocation_states as string[]).join(", ")}
                   </p>
                 )}
@@ -347,7 +347,7 @@ export default function EditProfilePage() {
                 value={form.activities as string}
                 onChange={(e) => set("activities", e.target.value)}
                 rows={3}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-spf-navy/40 resize-none"
+                className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400 resize-none"
                 placeholder="Clubs, sports, volunteer work, SkillsUSA, FFA, etc."
               />
             </Field>
@@ -358,19 +358,19 @@ export default function EditProfilePage() {
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg p-3">{error}</p>
           )}
           {saved && (
-            <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-lg p-3">
+            <p className="text-sm text-neutral-700 bg-neutral-50 border border-neutral-200 rounded-lg p-3">
               Profile saved. Your program has been automatically matched to a job family.
             </p>
           )}
 
           <div className="flex gap-3">
-            <Link href="/applicant" className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-md text-sm font-medium hover:bg-gray-50 text-center">
+            <Link href="/applicant" className="flex-1 border border-neutral-200 text-neutral-700 py-2.5 rounded-full text-sm font-medium hover:bg-neutral-50 text-center">
               Cancel
             </Link>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 bg-spf-navy text-white py-2.5 rounded-md text-sm font-medium hover:bg-spf-navy-light disabled:opacity-50 transition-colors"
+              className="flex-1 bg-neutral-900 text-white py-2.5 rounded-full text-sm font-medium hover:bg-neutral-700 disabled:opacity-50 transition-colors"
             >
               {saving ? "Saving..." : "Save changes"}
             </button>
@@ -385,8 +385,8 @@ export default function EditProfilePage() {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-6 space-y-5">
-      <h2 className="font-semibold text-spf-navy">{title}</h2>
+    <div className="bg-white border border-neutral-200 rounded-lg p-6 space-y-5">
+      <h2 className="font-semibold text-neutral-900">{title}</h2>
       {children}
     </div>
   );
@@ -399,7 +399,7 @@ function Row({ children }: { children: React.ReactNode }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      {label && <label className="block text-sm font-medium text-gray-700 mb-1">{label}</label>}
+      {label && <label className="block text-sm font-medium text-neutral-700 mb-1">{label}</label>}
       {children}
     </div>
   );
@@ -420,7 +420,7 @@ function Input({
       step={step}
       min={min}
       max={max}
-      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-spf-navy/40"
+      className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400"
     />
   );
 }
@@ -435,7 +435,7 @@ function Select({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-spf-navy/40"
+      className="w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400"
     >
       <option value="">Select...</option>
       {options.map((o) => (
@@ -456,9 +456,9 @@ function Checkbox({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="w-4 h-4 rounded border-gray-300 accent-spf-navy"
+        className="w-4 h-4 rounded border-neutral-300 accent-neutral-900"
       />
-      <span className="text-sm text-gray-700">{label}</span>
+      <span className="text-sm text-neutral-700">{label}</span>
     </label>
   );
 }

@@ -77,9 +77,9 @@ function LoginForm() {
 
   return (
     <div className="flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md bg-white rounded-xl shadow p-8">
-        <h1 className="text-2xl font-bold text-spf-navy mb-1">Sign in</h1>
-        <p className="text-sm text-gray-500 mb-6">SkillPointe Match</p>
+      <div className="w-full max-w-sm bg-white border border-neutral-200 rounded-2xl p-8">
+        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 mb-1">Sign in</h1>
+        <p className="text-sm text-neutral-400 mb-6">SkillPointe Match</p>
 
         {searchParams.get("error") === "auth_callback_failed" && (
           <p className="mb-4 text-sm text-red-600 bg-red-50 rounded p-3">
@@ -89,7 +89,7 @@ function LoginForm() {
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-xs font-medium uppercase tracking-wide text-neutral-500 mb-1">
               Email
             </label>
             <input
@@ -98,12 +98,12 @@ function LoginForm() {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-spf-navy/40"
+              className="w-full border border-neutral-200 rounded-lg px-3 py-2.5 text-sm bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-400"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-xs font-medium uppercase tracking-wide text-neutral-500 mb-1">
               Password
             </label>
             <input
@@ -112,7 +112,7 @@ function LoginForm() {
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="current-password"
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-spf-navy/40"
+              className="w-full border border-neutral-200 rounded-lg px-3 py-2.5 text-sm bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-400"
             />
           </div>
 
@@ -123,27 +123,27 @@ function LoginForm() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-spf-navy text-white py-2 rounded-md text-sm font-medium hover:bg-spf-navy-light disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full bg-neutral-900 text-white py-2.5 rounded-full text-sm font-medium hover:bg-neutral-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
 
-        <div className="mt-6 text-sm space-y-2 text-gray-600">
+        <div className="mt-6 text-sm space-y-2 text-neutral-600">
           <p>
             New applicant?{" "}
-            <Link href="/signup" className="text-spf-orange hover:underline font-medium">
+            <Link href="/signup" className="text-neutral-500 hover:text-neutral-900 underline font-medium">
               Create account
             </Link>
           </p>
           <p>
-            <Link href="/forgot-password" className="text-spf-navy hover:underline">
+            <Link href="/forgot-password" className="text-neutral-500 hover:text-neutral-900 underline">
               Forgot password?
             </Link>
           </p>
         </div>
 
-        <p className="mt-6 text-xs text-gray-400">
+        <p className="mt-6 text-xs text-neutral-400">
           Employers and admins are added by invitation only. Contact SkillPointe
           if you need access.
         </p>

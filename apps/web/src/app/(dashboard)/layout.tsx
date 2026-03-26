@@ -46,8 +46,8 @@ export default async function DashboardLayout({
   const navItems = NAV_ITEMS[role] ?? NAV_ITEMS.applicant;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <nav className="bg-spf-navy">
+    <div className="min-h-screen bg-neutral-50">
+      <nav className="bg-neutral-950">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14">
             <div className="flex items-center gap-8">
@@ -65,7 +65,7 @@ export default async function DashboardLayout({
                   <Link
                     key={item.href}
                     href={item.href}
-                    className="px-3 py-1.5 rounded-md text-sm text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+                    className="px-3 py-1.5 text-sm text-neutral-400 hover:text-white transition-colors"
                   >
                     {item.label}
                   </Link>
@@ -73,10 +73,10 @@ export default async function DashboardLayout({
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-xs text-white/50 hidden sm:inline">{user.email}</span>
+              <span className="text-xs text-neutral-500 hidden sm:inline">{user.email}</span>
               <Link
                 href="/api/auth/signout"
-                className="text-xs text-white/60 hover:text-spf-orange transition-colors"
+                className="text-xs text-neutral-400 hover:text-white transition-colors"
               >
                 Sign out
               </Link>

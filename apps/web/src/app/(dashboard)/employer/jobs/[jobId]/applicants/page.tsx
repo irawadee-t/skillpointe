@@ -87,7 +87,7 @@ export default async function JobApplicantsPage({
       <main className="p-6 md:p-8">
         <div className="max-w-3xl mx-auto">
           <BackLink href={backHref} />
-          <div className="mt-6 bg-red-50 border border-red-200 rounded-xl p-5 text-sm text-red-800">
+          <div className="mt-6 bg-red-50 border border-red-200 rounded-lg p-5 text-sm text-red-800">
             <strong>Could not reach the API.</strong> The backend may be starting up — please refresh in a moment.
           </div>
         </div>
@@ -106,12 +106,12 @@ export default async function JobApplicantsPage({
           <BackLink href={backHref} />
           <div className="flex items-start justify-between mt-1">
             <div>
-              <h1 className="text-2xl font-bold text-gray-900">{data.job_title}</h1>
-              <p className="text-sm text-gray-500 mt-0.5">{data.employer_name}</p>
+              <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">{data.job_title}</h1>
+              <p className="text-sm text-neutral-500 mt-0.5">{data.employer_name}</p>
             </div>
             <Link
               href={`/employer/jobs/${jobId}/edit`}
-              className="shrink-0 text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-md px-3 py-1.5"
+              className="shrink-0 text-sm text-neutral-500 hover:text-neutral-900 border border-neutral-200 rounded-lg px-3 py-1.5 transition-colors"
             >
               Edit job
             </Link>
@@ -120,9 +120,9 @@ export default async function JobApplicantsPage({
 
         {/* Quick stats */}
         <div className="grid grid-cols-3 gap-4">
-          <StatCard label="Matched candidates" value={data.total_visible} color="gray" />
-          <StatCard label="Eligible" value={data.eligible_count} color="green" />
-          <StatCard label="Near fit" value={data.near_fit_count} color="orange" />
+          <StatCard label="Matched candidates" value={data.total_visible} />
+          <StatCard label="Eligible" value={data.eligible_count} />
+          <StatCard label="Near fit" value={data.near_fit_count} />
         </div>
 
         {/* AI prioritisation panel */}
@@ -141,11 +141,11 @@ export default async function JobApplicantsPage({
 
         {/* Active filter indicator */}
         {hasActiveFilters && (
-          <div className="flex items-center gap-2 text-sm text-gray-600">
+          <div className="flex items-center gap-2 text-sm text-neutral-600">
             <span>Filters active</span>
             <Link
               href={`/employer/jobs/${jobId}/applicants`}
-              className="text-blue-600 hover:text-blue-800 underline"
+              className="text-neutral-900 hover:underline font-medium"
             >
               Clear all
             </Link>
@@ -154,9 +154,9 @@ export default async function JobApplicantsPage({
 
         {/* Matched candidates list */}
         {data.applicants.length === 0 ? (
-          <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
-            <p className="text-gray-600 font-medium">No matched candidates found</p>
-            <p className="text-sm text-gray-500 mt-2">
+          <div className="bg-white border border-neutral-200 rounded-lg p-8 text-center">
+            <p className="text-neutral-600 font-medium">No matched candidates found</p>
+            <p className="text-sm text-neutral-500 mt-2">
               {hasActiveFilters
                 ? "Try adjusting your filters."
                 : "Matches are computed when the admin runs the scoring pipeline."}
@@ -189,7 +189,7 @@ function BackLink({ href }: { href: string }) {
   return (
     <Link
       href={href}
-      className="text-sm text-gray-500 hover:text-gray-700 inline-flex items-center gap-1"
+      className="text-sm text-neutral-400 hover:text-neutral-600 inline-flex items-center gap-1"
     >
       ← Back to dashboard
     </Link>
@@ -199,22 +199,14 @@ function BackLink({ href }: { href: string }) {
 function StatCard({
   label,
   value,
-  color,
 }: {
   label: string;
   value: number;
-  color: "gray" | "green" | "orange";
 }) {
-  const valueColor =
-    color === "green"
-      ? "text-green-700"
-      : color === "orange"
-        ? "text-orange-600"
-        : "text-gray-900";
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-4 text-center">
-      <div className={`text-3xl font-bold ${valueColor}`}>{value}</div>
-      <div className="text-xs text-gray-500 mt-1">{label}</div>
+    <div className="bg-white border border-neutral-200 rounded-lg p-4 text-center">
+      <div className="text-3xl font-bold text-neutral-900">{value}</div>
+      <div className="text-xs text-neutral-500 mt-1">{label}</div>
     </div>
   );
 }
@@ -240,19 +232,19 @@ function FilterBar({
     <form
       method="GET"
       action={`/employer/jobs/${jobId}/applicants`}
-      className="bg-white border border-gray-200 rounded-lg p-4"
+      className="bg-white border border-neutral-200 rounded-lg p-4"
     >
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-3">
         Filters
       </p>
       <div className="flex flex-wrap gap-4 items-end">
         {/* Eligibility */}
         <div className="min-w-[140px]">
-          <label className="block text-xs text-gray-600 mb-1">Eligibility</label>
+          <label className="block text-xs text-neutral-600 mb-1">Eligibility</label>
           <select
             name="eligibility"
             defaultValue={eligibility}
-            className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm"
+            className="w-full border border-neutral-200 rounded-md px-2 py-1.5 text-sm"
           >
             <option value="all">All (eligible + near fit)</option>
             <option value="eligible">Eligible only</option>
@@ -262,7 +254,7 @@ function FilterBar({
 
         {/* Min score */}
         <div className="min-w-[120px]">
-          <label className="block text-xs text-gray-600 mb-1">Min score</label>
+          <label className="block text-xs text-neutral-600 mb-1">Min score</label>
           <input
             type="number"
             name="min_score"
@@ -271,32 +263,32 @@ function FilterBar({
             step="5"
             defaultValue={minScore || ""}
             placeholder="0"
-            className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm"
+            className="w-full border border-neutral-200 rounded-md px-2 py-1.5 text-sm"
           />
         </div>
 
         {/* State */}
         <div className="min-w-[100px]">
-          <label className="block text-xs text-gray-600 mb-1">State</label>
+          <label className="block text-xs text-neutral-600 mb-1">State</label>
           <input
             type="text"
             name="state"
             maxLength={2}
             defaultValue={state || ""}
             placeholder="e.g. TX"
-            className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm uppercase"
+            className="w-full border border-neutral-200 rounded-md px-2 py-1.5 text-sm uppercase"
           />
         </div>
 
         {/* Willing to relocate */}
         <div className="min-w-[140px]">
-          <label className="block text-xs text-gray-600 mb-1">Relocate willingness</label>
+          <label className="block text-xs text-neutral-600 mb-1">Relocate willingness</label>
           <select
             name="relocate"
             defaultValue={
               relocate === true ? "true" : relocate === false ? "false" : ""
             }
-            className="w-full border border-gray-300 rounded-md px-2 py-1.5 text-sm"
+            className="w-full border border-neutral-200 rounded-md px-2 py-1.5 text-sm"
           >
             <option value="">Any</option>
             <option value="true">Open to relocate</option>
@@ -306,7 +298,7 @@ function FilterBar({
 
         <button
           type="submit"
-          className="px-4 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
+          className="px-4 py-1.5 bg-neutral-900 text-white text-sm font-medium rounded-full hover:bg-neutral-700 transition-colors"
         >
           Apply
         </button>

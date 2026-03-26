@@ -19,6 +19,7 @@ const config: Config = {
           gray:       "#9d9b9c",
           "gray-light": "#c4c3c3",
         },
+        ink: "#111111",
       },
     },
   },

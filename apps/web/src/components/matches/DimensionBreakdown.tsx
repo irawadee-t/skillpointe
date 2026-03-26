@@ -15,7 +15,7 @@ interface DimensionBreakdownProps {
 export function DimensionBreakdown({ dimensions }: DimensionBreakdownProps) {
   if (dimensions.length === 0) {
     return (
-      <p className="text-sm text-gray-500">No scoring breakdown available.</p>
+      <p className="text-sm text-neutral-500">No scoring breakdown available.</p>
     );
   }
 
@@ -29,15 +29,6 @@ export function DimensionBreakdown({ dimensions }: DimensionBreakdownProps) {
 }
 
 function DimensionRow({ dim }: { dim: DimensionScoreItem }) {
-  const scoreColor =
-    dim.raw_score >= 80
-      ? "bg-green-500"
-      : dim.raw_score >= 60
-        ? "bg-blue-500"
-        : dim.raw_score >= 40
-          ? "bg-amber-400"
-          : "bg-red-400";
-
   const isNullHandled = dim.null_handling_applied;
   const barWidth = `${Math.round(dim.raw_score)}%`;
 
@@ -45,35 +36,31 @@ function DimensionRow({ dim }: { dim: DimensionScoreItem }) {
     <div>
       <div className="flex items-center justify-between mb-1">
         <div className="flex items-center gap-2">
-          <span className="text-sm font-medium text-gray-800">
+          <span className="text-sm font-medium text-neutral-800">
             {formatDimensionName(dim.dimension)}
           </span>
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-neutral-400">
             (weight {dim.weight})
           </span>
           {isNullHandled && (
             <span
-              className="text-xs text-amber-600 border border-amber-200 bg-amber-50 rounded px-1.5 py-0.5"
+              className="text-xs text-neutral-500 border border-neutral-200 bg-neutral-50 rounded px-1.5 py-0.5"
               title="Score is a neutral default — data missing for this dimension"
             >
               estimated
             </span>
           )}
         </div>
-        <span
-          className={`text-sm font-semibold ${
-            dim.raw_score >= 70 ? "text-green-700" : "text-gray-700"
-          }`}
-        >
+        <span className="text-sm font-semibold text-neutral-700">
           {Math.round(dim.raw_score)}
         </span>
       </div>
 
       {/* Score bar */}
-      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+      <div className="h-2 bg-neutral-100 rounded-full overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all ${scoreColor} ${
-            isNullHandled ? "opacity-50" : ""
+          className={`h-full rounded-full transition-all bg-neutral-800 ${
+            isNullHandled ? "opacity-30" : ""
           }`}
           style={{ width: barWidth }}
         />
@@ -81,7 +68,7 @@ function DimensionRow({ dim }: { dim: DimensionScoreItem }) {
 
       {/* Rationale */}
       {dim.rationale && (
-        <p className="text-xs text-gray-500 mt-1">{dim.rationale}</p>
+        <p className="text-xs text-neutral-500 mt-1">{dim.rationale}</p>
       )}
     </div>
   );

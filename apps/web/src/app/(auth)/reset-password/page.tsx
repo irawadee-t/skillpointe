@@ -53,15 +53,15 @@ export default function ResetPasswordPage() {
 
   return (
     <div className="flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md bg-white rounded-xl shadow p-8">
-        <h1 className="text-2xl font-bold mb-1">Set new password</h1>
-        <p className="text-sm text-gray-500 mb-6">
+      <div className="w-full max-w-sm bg-white border border-neutral-200 rounded-2xl p-8">
+        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 mb-1">Set new password</h1>
+        <p className="text-sm text-neutral-400 mb-6">
           Choose a new password for your account.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-xs font-medium uppercase tracking-wide text-neutral-500 mb-1">
               New password
             </label>
             <input
@@ -71,12 +71,12 @@ export default function ResetPasswordPage() {
               required
               minLength={8}
               autoComplete="new-password"
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-neutral-200 rounded-lg px-3 py-2.5 text-sm bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-400"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-xs font-medium uppercase tracking-wide text-neutral-500 mb-1">
               Confirm new password
             </label>
             <input
@@ -85,7 +85,7 @@ export default function ResetPasswordPage() {
               onChange={(e) => setConfirmPassword(e.target.value)}
               required
               autoComplete="new-password"
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-neutral-200 rounded-lg px-3 py-2.5 text-sm bg-white text-neutral-900 focus:outline-none focus:ring-1 focus:ring-neutral-400"
             />
           </div>
 
@@ -96,7 +96,7 @@ export default function ResetPasswordPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-2 rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+            className="w-full bg-neutral-900 text-white py-2.5 rounded-full text-sm font-medium hover:bg-neutral-700 disabled:opacity-50 transition-colors"
           >
             {loading ? "Updating…" : "Update password"}
           </button>

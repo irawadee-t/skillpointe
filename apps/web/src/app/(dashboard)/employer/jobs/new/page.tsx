@@ -65,25 +65,25 @@ export default async function NewJobPage() {
         <div className="mb-6">
           <a
             href="/employer"
-            className="text-sm text-gray-500 hover:text-gray-700 inline-flex items-center gap-1"
+            className="text-sm text-neutral-400 hover:text-neutral-600 inline-flex items-center gap-1"
           >
             ← Back to dashboard
           </a>
-          <h1 className="text-2xl font-bold text-gray-900 mt-1">Post a new job</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900 mt-1">Post a new job</h1>
         </div>
 
-        <form action={handleCreate} className="bg-white border border-gray-200 rounded-lg p-6 space-y-5">
+        <form action={handleCreate} className="bg-white border border-neutral-200 rounded-lg p-6 space-y-5">
           <JobFormFields />
           <div className="flex gap-3 pt-2">
             <button
               type="submit"
-              className="px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700"
+              className="px-5 py-2 bg-neutral-900 text-white text-sm font-medium rounded-full hover:bg-neutral-700 transition-colors"
             >
               Create job
             </button>
             <a
               href="/employer"
-              className="px-5 py-2 text-sm text-gray-600 hover:text-gray-800"
+              className="px-5 py-2 text-sm text-neutral-500 hover:text-neutral-700"
             >
               Cancel
             </a>
@@ -248,7 +248,7 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-gray-700 mb-1">
+      <label className="block text-sm font-medium text-neutral-700 mb-1">
         {label}
         {required && <span className="text-red-500 ml-0.5">*</span>}
       </label>
@@ -258,4 +258,4 @@ function Field({
 }
 
 const inputClass =
-  "w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent";
+  "w-full border border-neutral-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-neutral-400";

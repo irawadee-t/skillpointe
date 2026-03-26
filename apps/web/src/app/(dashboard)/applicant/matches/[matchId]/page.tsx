@@ -78,7 +78,7 @@ export default async function MatchDetailPage({
     if (e instanceof ApiError && e.status === 404) notFound();
     return (
       <main className="p-6 md:p-8">
-        <div className="max-w-3xl mx-auto bg-red-50 border border-red-200 rounded-xl p-5 text-sm text-red-800">
+        <div className="max-w-3xl mx-auto bg-red-50 border border-red-200 rounded-lg p-5 text-sm text-red-800">
           <strong>Could not reach the API.</strong> The backend may be starting up — please refresh in a moment.
         </div>
       </main>
@@ -96,26 +96,26 @@ export default async function MatchDetailPage({
         {/* Breadcrumb */}
         <Link
           href="/applicant/matches"
-          className="text-sm text-gray-500 hover:text-gray-700 inline-flex items-center gap-1"
+          className="text-sm text-neutral-400 hover:text-neutral-600 inline-flex items-center gap-1"
         >
           <ChevronLeft className="w-4 h-4" /> Back to matches
         </Link>
 
         {/* Job header */}
-        <section className="bg-white border border-gray-200 rounded-lg p-6">
+        <section className="bg-white border border-neutral-200 rounded-lg p-6">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
-              <h1 className="text-xl font-bold text-gray-900 leading-snug">
+              <h1 className="text-xl font-semibold text-neutral-900 leading-snug">
                 {match.job_title}
               </h1>
-              <p className="text-gray-600 mt-0.5">
+              <p className="text-neutral-600 mt-0.5">
                 {match.employer_name}
                 {match.is_partner_employer && (
                   <span
-                    className="ml-1.5 inline-flex items-center gap-0.5 text-spf-orange"
+                    className="ml-1.5 inline-flex items-center gap-0.5 text-neutral-500"
                     title="SkillPointe partner employer"
                   >
-                    <Star className="w-4 h-4 inline text-spf-orange fill-spf-orange" /> Partner
+                    <Star className="w-4 h-4 inline" /> Partner
                   </span>
                 )}
               </p>
@@ -124,10 +124,10 @@ export default async function MatchDetailPage({
             {/* Display score */}
             {match.policy_adjusted_score !== null && (
               <div className="shrink-0 text-right">
-                <div className="text-4xl font-bold text-gray-900 leading-none">
+                <div className="text-4xl font-bold text-neutral-900 leading-none">
                   {Math.round(match.policy_adjusted_score)}
                 </div>
-                <div className="text-xs text-gray-400 mt-0.5">/ 100</div>
+                <div className="text-xs text-neutral-400 mt-0.5">/ 100</div>
               </div>
             )}
           </div>
@@ -139,22 +139,22 @@ export default async function MatchDetailPage({
               <MatchLabel label={match.match_label} size="md" />
             )}
             {match.confidence_level === "low" && (
-              <span className="inline-flex items-center gap-1 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-1">
+              <span className="inline-flex items-center gap-1 text-sm font-medium text-neutral-600 bg-neutral-50 border border-neutral-200 rounded-full px-3 py-1">
                 <AlertTriangle className="w-3.5 h-3.5" /> Low confidence
               </span>
             )}
             {match.requires_review && (
-              <span className="inline-flex items-center gap-1 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-1">
+              <span className="inline-flex items-center gap-1 text-sm font-medium text-neutral-600 bg-neutral-50 border border-neutral-200 rounded-full px-3 py-1">
                 <Info className="w-3.5 h-3.5" /> Pending review
               </span>
             )}
           </div>
 
           {/* Location + pay */}
-          <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-4 text-sm text-gray-600">
+          <div className="flex flex-wrap gap-x-5 gap-y-1.5 mt-4 text-sm text-neutral-600">
             {locationStr && (
               <span className="flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                <MapPin className="w-3.5 h-3.5 text-neutral-400" />
                 {locationStr}
                 {match.work_setting &&
                   ` · ${formatWorkSetting(match.work_setting)}`}
@@ -162,13 +162,13 @@ export default async function MatchDetailPage({
             )}
             {!locationStr && match.work_setting && (
               <span className="flex items-center gap-1">
-                <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                <MapPin className="w-3.5 h-3.5 text-neutral-400" />
                 {formatWorkSetting(match.work_setting)}
               </span>
             )}
             {match.pay_min !== null && (
               <span className="flex items-center gap-1">
-                <DollarSign className="w-3.5 h-3.5 text-gray-400" />
+                <DollarSign className="w-3.5 h-3.5 text-neutral-400" />
                 {payStr}
               </span>
             )}
@@ -176,13 +176,13 @@ export default async function MatchDetailPage({
 
           {/* Geography note */}
           {match.geography_note && (
-            <p className="mt-2 text-sm text-blue-600">{match.geography_note}</p>
+            <p className="mt-2 text-sm text-neutral-500">{match.geography_note}</p>
           )}
         </section>
 
         {/* Apply + Interest signal */}
-        <section className="bg-white border border-gray-200 rounded-lg p-5">
-          <h2 className="font-semibold text-gray-900 mb-3">Your interest</h2>
+        <section className="bg-white border border-neutral-200 rounded-lg p-5">
+          <h2 className="font-semibold text-neutral-900 mb-3">Your interest</h2>
           <InterestSignalPanel
             matchId={matchId}
             sourceUrl={match.source_url}
@@ -196,8 +196,8 @@ export default async function MatchDetailPage({
           <Section title="Why this matched">
             <ul className="space-y-2">
               {match.top_strengths.map((s, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                  <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 shrink-0" />
+                <li key={i} className="flex items-start gap-2 text-sm text-neutral-700">
+                  <CheckCircle2 className="w-4 h-4 text-neutral-400 mt-0.5 shrink-0" />
                   {s}
                 </li>
               ))}
@@ -208,7 +208,7 @@ export default async function MatchDetailPage({
         {/* Recommended next step */}
         {match.recommended_next_step && (
           <Section title="Recommended next step">
-            <p className="text-sm text-gray-700">{match.recommended_next_step}</p>
+            <p className="text-sm text-neutral-700">{match.recommended_next_step}</p>
           </Section>
         )}
 
@@ -224,8 +224,8 @@ export default async function MatchDetailPage({
           <Section title="Areas to strengthen">
             <ul className="space-y-2">
               {match.top_gaps.map((g, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm text-gray-700">
-                  <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
+                <li key={i} className="flex items-start gap-2 text-sm text-neutral-700">
+                  <AlertTriangle className="w-4 h-4 text-neutral-400 mt-0.5 shrink-0" />
                   {g}
                 </li>
               ))}
@@ -276,8 +276,8 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <section className="bg-white border border-gray-200 rounded-lg p-5">
-      <h2 className="font-semibold text-gray-900 mb-3">{title}</h2>
+    <section className="bg-white border border-neutral-200 rounded-lg p-5">
+      <h2 className="font-semibold text-neutral-900 mb-3">{title}</h2>
       {children}
     </section>
   );
@@ -331,7 +331,7 @@ function MissingItems({ items }: { items: string[] }) {
       )}
       {improvable.length > 0 && (
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 mb-2">
+          <p className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-2">
             Improvable — would strengthen fit
           </p>
           <ul className="space-y-2">
@@ -353,10 +353,10 @@ function MissingItem({
   type: "mandatory" | "improvable";
 }) {
   return (
-    <li className="flex items-start gap-2 text-sm text-gray-700">
+    <li className="flex items-start gap-2 text-sm text-neutral-700">
       {type === "mandatory"
         ? <XCircle className="w-4 h-4 text-red-500 mt-0.5 shrink-0" />
-        : <Circle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />}
+        : <Circle className="w-4 h-4 text-neutral-400 mt-0.5 shrink-0" />}
       {text}
     </li>
   );
@@ -372,10 +372,10 @@ function GateResultsTable({ gates }: { gates: GateResultItem[] }) {
         >
           <GateIcon result={gate.result} />
           <div className="min-w-0">
-            <span className="font-medium text-gray-800 capitalize">
+            <span className="font-medium text-neutral-800 capitalize">
               {gate.gate_name.replace(/_/g, " ")}
             </span>
-            <p className="text-gray-500 mt-0.5">{gate.reason}</p>
+            <p className="text-neutral-500 mt-0.5">{gate.reason}</p>
           </div>
         </div>
       ))}
@@ -385,9 +385,9 @@ function GateResultsTable({ gates }: { gates: GateResultItem[] }) {
 
 function GateIcon({ result }: { result: "pass" | "near_fit" | "fail" }) {
   if (result === "pass")
-    return <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0 mt-0.5" />;
+    return <CheckCircle2 className="w-4 h-4 text-neutral-500 shrink-0 mt-0.5" />;
   if (result === "near_fit")
-    return <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />;
+    return <AlertTriangle className="w-4 h-4 text-neutral-400 shrink-0 mt-0.5" />;
   return <XCircle className="w-4 h-4 text-red-500 shrink-0 mt-0.5" />;
 }
 
@@ -404,8 +404,8 @@ function ScoreTransparency({
 }) {
   if (base === null) return null;
   return (
-    <div className="mt-5 pt-4 border-t border-gray-100">
-      <p className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
+    <div className="mt-5 pt-4 border-t border-neutral-100">
+      <p className="text-xs font-semibold uppercase tracking-wide text-neutral-400 mb-2">
         Score components
       </p>
       <dl className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -429,10 +429,10 @@ function ScoreKV({
 }) {
   return (
     <div>
-      <dt className="text-xs text-gray-400">{label}</dt>
+      <dt className="text-xs text-neutral-400">{label}</dt>
       <dd
         className={`text-lg font-bold mt-0.5 ${
-          highlight ? "text-gray-900" : "text-gray-600"
+          highlight ? "text-neutral-900" : "text-neutral-600"
         }`}
       >
         {value !== null ? Math.round(value) : "—"}
@@ -447,14 +447,14 @@ function PolicyModifierList({ modifiers }: { modifiers: PolicyModifierItem[] }) 
       {modifiers.map((mod, i) => (
         <div key={i} className="flex items-start justify-between gap-4 text-sm">
           <div>
-            <span className="font-medium text-gray-800 capitalize">
+            <span className="font-medium text-neutral-800 capitalize">
               {mod.policy.replace(/_/g, " ")}
             </span>
-            <p className="text-gray-500 mt-0.5">{mod.reason}</p>
+            <p className="text-neutral-500 mt-0.5">{mod.reason}</p>
           </div>
           <span
             className={`shrink-0 font-semibold ${
-              mod.value > 0 ? "text-green-600" : "text-red-600"
+              mod.value > 0 ? "text-neutral-700" : "text-red-600"
             }`}
           >
             {mod.value > 0 ? `+${mod.value}` : mod.value}
