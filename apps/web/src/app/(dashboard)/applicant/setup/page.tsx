@@ -256,7 +256,7 @@ export default function ApplicantSetupPage() {
                         <button key={s} type="button" onClick={() => {
                           const cur = (form.relocation_states as string[]) || [];
                           set("relocation_states", selected ? cur.filter((x) => x !== s) : [...cur, s]);
-                        }} className={`text-xs font-mono py-1.5 rounded transition-colors ${selected ? "bg-cyan-500 text-black font-medium" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"}`}>{s}</button>
+                        }} className={`text-xs py-1.5 rounded transition-colors ${selected ? "bg-cyan-500 text-black font-medium" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"}`}>{s}</button>
                       );
                     })}
                   </div>

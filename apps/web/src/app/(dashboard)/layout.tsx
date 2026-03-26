@@ -68,7 +68,7 @@ export default async function DashboardLayout({
                     className="relative px-3 py-1.5 text-sm text-zinc-400 hover:text-white transition-colors duration-200 group"
                   >
                     {item.label}
-                    <span className="absolute bottom-0 left-0 right-0 h-px bg-cyan-400 scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left" />
+                    <span className="absolute bottom-0 left-0 right-0 h-px bg-white scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left" />
                   </Link>
                 ))}
               </div>
