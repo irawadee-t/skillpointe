@@ -22,14 +22,6 @@ import {
 
 import type { JobBrowseItem, JobBrowseResponse } from "./page";
 
-const EMPLOYERS = [
-  "Ball Corporation",
-  "Delta Air Lines",
-  "Ford Motor Company",
-  "GE Vernova",
-  "Schneider Electric",
-  "Southwire",
-];
 
 const US_STATES = [
   "AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA",
@@ -53,6 +45,7 @@ interface Props {
   stateFilter: string;
   workSetting: string;
   employerFilter: string;
+  employers: string[];
 }
 
 export function JobBrowseClient({
@@ -63,6 +56,7 @@ export function JobBrowseClient({
   stateFilter,
   workSetting,
   employerFilter,
+  employers,
 }: Props) {
   const jobs = data?.jobs ?? [];
   const total = data?.total ?? 0;
@@ -105,7 +99,7 @@ export function JobBrowseClient({
           <div className="flex flex-wrap gap-3 pt-2 border-t border-zinc-800">
             <select name="employer" defaultValue={employerFilter} className="border border-zinc-700 rounded-lg px-3 py-1.5 text-sm bg-zinc-900 text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500">
               <option value="">All employers</option>
-              {EMPLOYERS.map((e) => (<option key={e} value={e}>{e}</option>))}
+              {employers.map((e) => (<option key={e} value={e}>{e}</option>))}
             </select>
             <select name="state" defaultValue={stateFilter} className="border border-zinc-700 rounded-lg px-3 py-1.5 text-sm bg-zinc-900 text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500">
               <option value="">All states</option>

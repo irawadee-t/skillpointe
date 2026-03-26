@@ -68,12 +68,13 @@ export default async function JobBrowsePage({ searchParams }: PageProps) {
 
   let data: JobBrowseResponse | null = null;
   let fetchError: string | null = null;
+  let employers: string[] = [];
 
   try {
-    data = await apiFetch<JobBrowseResponse>(
-      `/jobs/browse?${qs.toString()}`,
-      session.access_token,
-    );
+    [data, { employers }] = await Promise.all([
+      apiFetch<JobBrowseResponse>(`/jobs/browse?${qs.toString()}`, session.access_token),
+      apiFetch<{ employers: string[] }>("/jobs/employers", session.access_token),
+    ]);
   } catch (e) {
     fetchError = e instanceof Error ? e.message : "Failed to load jobs";
   }
@@ -87,6 +88,7 @@ export default async function JobBrowsePage({ searchParams }: PageProps) {
       stateFilter={stateFilter}
       workSetting={workSetting}
       employerFilter={employerFilter}
+      employers={employers}
     />
   );
 }

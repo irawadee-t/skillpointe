@@ -52,6 +52,24 @@ class JobBrowseResponse(BaseModel):
     total_pages: int
 
 
+@router.get("/employers")
+async def list_job_employers(
+    user=Depends(require_authenticated),
+    conn=Depends(get_db),
+):
+    """Return distinct employer names that have at least one active job."""
+    rows = await conn.fetch(
+        """
+        SELECT DISTINCT e.name
+        FROM public.jobs j
+        JOIN public.employers e ON e.id = j.employer_id
+        WHERE j.is_active = TRUE AND e.name IS NOT NULL
+        ORDER BY e.name
+        """
+    )
+    return {"employers": [r["name"] for r in rows]}
+
+
 @router.get("/browse", response_model=JobBrowseResponse)
 async def browse_jobs(
     user=Depends(require_authenticated),
