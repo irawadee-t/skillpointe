@@ -45,6 +45,7 @@ class Settings(BaseSettings):
 
     # CORS
     cors_origins: str = "http://localhost:3000"
+    cors_origin_regex: str = ""
 
     @property
     def cors_origins_list(self) -> list[str]:
