@@ -746,7 +746,7 @@ async def set_interest_signal(
             VALUES ($1, $2::uuid, $3)
             ON CONFLICT (applicant_id, job_id)
             DO UPDATE SET interest_level = EXCLUDED.interest_level, updated_at = NOW()
-            RETURNING interest_level, updated_at::text
+            RETURNING interest_level, saved_jobs.updated_at::text
             """,
             applicant_id, job_id, body.interest_level,
         )
