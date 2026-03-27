@@ -162,6 +162,28 @@ async def complete_signup(
     except Exception as exc:
         logger.warning("Could not set app_metadata for %s: %s", user_id, exc)
 
+    # Fire-and-forget: compute initial matches for this new applicant
+    try:
+        import asyncio as _asyncio
+        from app.db import get_db
+        from app.worker.scheduler import trigger_recompute_for_applicant
+
+        async def _trigger() -> None:
+            try:
+                async with get_db() as conn:
+                    app_id = await conn.fetchval(
+                        "SELECT id::text FROM public.applicants WHERE user_id = $1",
+                        user_id,
+                    )
+                if app_id:
+                    await trigger_recompute_for_applicant(app_id)
+            except Exception as exc:
+                logger.warning("Could not trigger recompute for new applicant %s: %s", user_id, exc)
+
+        _asyncio.create_task(_trigger())
+    except Exception as exc:
+        logger.warning("Could not schedule recompute for new applicant %s: %s", user_id, exc)
+
     return CompleteSignupResponse(role="applicant", already_existed=False)
 
 
