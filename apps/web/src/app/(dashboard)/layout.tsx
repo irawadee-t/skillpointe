@@ -77,6 +77,7 @@ export default async function DashboardLayout({
               <span className="text-xs text-zinc-500 hidden sm:inline">{user.email}</span>
               <Link
                 href="/api/auth/signout"
+                prefetch={false}
                 className="text-xs text-zinc-400 hover:text-white transition-colors duration-200"
               >
                 Sign out
