@@ -33,7 +33,7 @@ export default async function ApplicantDashboard() {
   if (profileMissing) redirect("/applicant/setup");
   if (!profile) return (
     <main className="p-6 md:p-8">
-      <div className="max-w-5xl mx-auto bg-rose-500/10 border border-rose-500/30 rounded-lg p-5 text-sm text-rose-400">
+      <div className="max-w-5xl mx-auto bg-rose-50 border border-rose-200 rounded-lg p-5 text-sm text-rose-600">
         <strong>Could not reach the API.</strong> The backend may be starting up — please refresh in a moment.
       </div>
     </main>
@@ -45,12 +45,12 @@ export default async function ApplicantDashboard() {
     <main className="p-6 md:p-8">
       <div className="max-w-5xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold tracking-tight text-white">
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
             {profile?.first_name ? `Welcome back, ${profile.first_name}` : "Dashboard"}
           </h1>
           <Link
             href="/applicant/profile"
-            className="text-sm font-medium text-zinc-400 hover:text-white transition-colors flex items-center gap-1"
+            className="text-sm font-medium text-zinc-500 hover:text-zinc-900 transition-colors flex items-center gap-1"
           >
             Edit profile <ChevronRight className="w-4 h-4" />
           </Link>
@@ -58,14 +58,14 @@ export default async function ApplicantDashboard() {
 
         {/* Profile card */}
         {profile && (
-          <section className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between">
-              <h2 className="font-semibold text-white text-sm">Profile overview</h2>
+          <section className="bg-zinc-50 border border-zinc-200 rounded-lg overflow-hidden shadow-sm">
+            <div className="px-6 py-4 border-b border-zinc-200 flex items-center justify-between">
+              <h2 className="font-semibold text-zinc-900 text-sm">Profile overview</h2>
               <CompletenessBar score={profile.profile_completeness} />
             </div>
             <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
               <ProfileItem
-                icon={<Briefcase className="w-4 h-4 text-zinc-400" />}
+                icon={<Briefcase className="w-4 h-4 text-zinc-500" />}
                 label="Program"
                 value={profile.canonical_job_family_code
                   ? `${profile.program_name_raw ?? ""} (${profile.canonical_job_family_code})`
@@ -73,19 +73,19 @@ export default async function ApplicantDashboard() {
                 fallback="Not set"
               />
               <ProfileItem
-                icon={<MapPin className="w-4 h-4 text-zinc-400" />}
+                icon={<MapPin className="w-4 h-4 text-zinc-500" />}
                 label="Location"
                 value={[profile.city, profile.state].filter(Boolean).join(", ") || null}
                 fallback="Not set"
               />
               <ProfileItem
-                icon={<Calendar className="w-4 h-4 text-zinc-400" />}
+                icon={<Calendar className="w-4 h-4 text-zinc-500" />}
                 label="Available from"
                 value={profile.available_from_date ?? profile.expected_completion_date ?? null}
                 fallback="Not set"
               />
               <ProfileItem
-                icon={<User className="w-4 h-4 text-zinc-400" />}
+                icon={<User className="w-4 h-4 text-zinc-500" />}
                 label="Preferences"
                 value={[
                   profile.willing_to_relocate ? "Open to relocate" : null,
@@ -98,23 +98,23 @@ export default async function ApplicantDashboard() {
             {(!profile.canonical_job_family_code ||
               (!profile.available_from_date && !profile.expected_completion_date) ||
               !profile.city) && (
-              <div className="px-6 py-4 bg-zinc-800/50 border-t border-zinc-800 space-y-2">
+              <div className="px-6 py-4 bg-zinc-100 border-t border-zinc-200 space-y-2">
                 {!profile.canonical_job_family_code && (
                   <AlertRow>
                     Your program hasn&apos;t been matched to a job family.{" "}
-                    <Link href="/applicant/profile" className="underline font-medium text-cyan-400">Update profile</Link> to auto-match.
+                    <Link href="/applicant/profile" className="underline font-medium text-spf-navy">Update profile</Link> to auto-match.
                   </AlertRow>
                 )}
                 {!profile.available_from_date && !profile.expected_completion_date && (
                   <AlertRow>
                     No availability date set.{" "}
-                    <Link href="/applicant/profile" className="underline font-medium text-cyan-400">Set your dates</Link> for better timing matches.
+                    <Link href="/applicant/profile" className="underline font-medium text-spf-navy">Set your dates</Link> for better timing matches.
                   </AlertRow>
                 )}
                 {!profile.city && (
                   <AlertRow>
                     No city set.{" "}
-                    <Link href="/applicant/profile" className="underline font-medium text-cyan-400">Add your location</Link> for geography matching.
+                    <Link href="/applicant/profile" className="underline font-medium text-spf-navy">Add your location</Link> for geography matching.
                   </AlertRow>
                 )}
               </div>
@@ -125,7 +125,7 @@ export default async function ApplicantDashboard() {
         {/* Matches */}
         {matches && (
           <section>
-            <h2 className="font-semibold text-white mb-4 text-sm">Match summary</h2>
+            <h2 className="font-semibold text-zinc-900 mb-4 text-sm">Match summary</h2>
 
             {!matches.has_matches ? (
               <NoMatchesCard
@@ -153,7 +153,7 @@ export default async function ApplicantDashboard() {
                 <div className="mt-4">
                   <Link
                     href="/applicant/matches"
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-cyan-400 hover:text-cyan-300 transition-colors"
+                    className="inline-flex items-center gap-1.5 text-sm font-medium text-spf-navy hover:text-spf-navy-light transition-colors"
                   >
                     View all ranked jobs <ArrowRight className="w-4 h-4" />
                   </Link>
@@ -180,10 +180,10 @@ function ProfileItem({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="mt-0.5 p-1.5 bg-zinc-800 rounded-md">{icon}</div>
+      <div className="mt-0.5 p-1.5 bg-zinc-100 rounded-md">{icon}</div>
       <div className="min-w-0">
-        <dt className="text-xs font-medium text-zinc-500 uppercase tracking-widest">{label}</dt>
-        <dd className={`mt-0.5 text-sm ${value ? "text-white" : "text-zinc-500 italic"}`}>
+        <dt className="text-xs font-medium text-zinc-400 uppercase tracking-widest">{label}</dt>
+        <dd className={`mt-0.5 text-sm ${value ? "text-zinc-900" : "text-zinc-400 italic"}`}>
           {value ?? fallback}
         </dd>
       </div>
@@ -192,21 +192,21 @@ function ProfileItem({
 }
 
 function CompletenessBar({ score }: { score: number }) {
-  const color = score >= 80 ? "bg-gradient-to-r from-cyan-500 to-blue-600" : score >= 50 ? "bg-amber-500" : "bg-zinc-600";
+  const color = score >= 80 ? "bg-gradient-to-r from-spf-navy to-blue-600" : score >= 50 ? "bg-amber-500" : "bg-zinc-200";
   return (
     <div className="flex items-center gap-2">
-      <div className="w-24 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+      <div className="w-24 h-1.5 bg-zinc-100 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${color} transition-all duration-700`} style={{ width: `${score}%` }} />
       </div>
-      <span className="text-xs text-zinc-400 tabular-nums">{score}%</span>
+      <span className="text-xs text-zinc-500 tabular-nums">{score}%</span>
     </div>
   );
 }
 
 function AlertRow({ children }: { children: React.ReactNode }) {
   return (
-    <p className="flex items-start gap-2 text-xs text-zinc-500">
-      <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-400" />
+    <p className="flex items-start gap-2 text-xs text-zinc-400">
+      <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-600" />
       <span>{children}</span>
     </p>
   );
@@ -232,12 +232,12 @@ function StatCard({
   return (
     <Link
       href={href}
-      className={`bg-zinc-900 border border-zinc-800 border-l-4 ${accent} rounded-lg p-5 hover:border-zinc-700 transition-colors block group`}
+      className={`bg-zinc-50 border border-zinc-200 border-l-4 ${accent} rounded-lg p-5 hover:border-zinc-200 transition-colors block group shadow-sm`}
     >
-      <div className={`text-3xl font-bold tabular-nums ${variant === "eligible" ? "text-emerald-400" : "text-amber-400"}`}>{count}</div>
-      <div className="text-sm font-semibold text-white mt-1">{label}</div>
-      <div className="text-xs text-zinc-500 mt-0.5">{description}</div>
-      <div className="mt-3 text-xs font-medium text-zinc-500 group-hover:text-cyan-400 flex items-center gap-1 transition-colors">
+      <div className={`text-3xl font-bold tabular-nums ${variant === "eligible" ? "text-emerald-600" : "text-amber-600"}`}>{count}</div>
+      <div className="text-sm font-semibold text-zinc-900 mt-1">{label}</div>
+      <div className="text-xs text-zinc-400 mt-0.5">{description}</div>
+      <div className="mt-3 text-xs font-medium text-zinc-500 group-hover:text-spf-navy flex items-center gap-1 transition-colors">
         View details <ChevronRight className="w-3 h-3" />
       </div>
     </Link>
@@ -254,22 +254,22 @@ function NoMatchesCard({
   const allReady = profileHasFamily && profileHasLocation;
 
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6">
-      <p className="text-white font-semibold">No matches yet</p>
+    <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-6 shadow-sm">
+      <p className="text-zinc-900 font-semibold">No matches yet</p>
 
       {allReady ? (
         <div className="mt-3">
-          <p className="text-sm text-zinc-400">
+          <p className="text-sm text-zinc-500">
             Your profile is ready. Matches appear after the scoring pipeline runs.
           </p>
-          <div className="flex items-center gap-2 mt-3 text-xs text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2 mt-3 text-xs text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span className="font-medium">Profile ready for matching</span>
           </div>
         </div>
       ) : (
         <div className="mt-3 space-y-3">
-          <p className="text-sm text-zinc-500">
+          <p className="text-sm text-zinc-400">
             Complete your profile to enable matching:
           </p>
           <div className="space-y-2">
@@ -279,7 +279,7 @@ function NoMatchesCard({
           {(!profileHasFamily || !profileHasLocation) && (
             <Link
               href="/applicant/profile"
-              className="inline-flex items-center gap-1.5 mt-1 text-sm font-medium text-cyan-400 hover:text-cyan-300"
+              className="inline-flex items-center gap-1.5 mt-1 text-sm font-medium text-spf-navy hover:text-spf-navy-light"
             >
               Complete your profile <ArrowRight className="w-3.5 h-3.5" />
             </Link>
@@ -292,8 +292,8 @@ function NoMatchesCard({
 
 function ChecklistItem({ done, label }: { done: boolean; label: string }) {
   return (
-    <div className={`flex items-center gap-2 text-sm ${done ? "text-emerald-400" : "text-zinc-500"}`}>
-      {done ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4 text-amber-400" />}
+    <div className={`flex items-center gap-2 text-sm ${done ? "text-emerald-600" : "text-zinc-400"}`}>
+      {done ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4 text-amber-600" />}
       <span>{label}</span>
     </div>
   );

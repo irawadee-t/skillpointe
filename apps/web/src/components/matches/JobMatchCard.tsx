@@ -49,22 +49,22 @@ export function JobMatchCard({ match }: JobMatchCardProps) {
   return (
     <Link
       href={`/applicant/matches/${match_id}`}
-      className="bg-zinc-900 border border-zinc-800 rounded-lg p-5 hover:border-zinc-700 transition-all block group"
+      className="bg-white border border-zinc-200 rounded-lg p-5 hover:border-zinc-200 transition-all block group"
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-white text-base leading-snug">
+          <h3 className="font-semibold text-zinc-900 text-base leading-snug">
             {job_title}
           </h3>
-          <p className="text-sm text-zinc-400 mt-0.5 flex items-center gap-1">
+          <p className="text-sm text-zinc-500 mt-0.5 flex items-center gap-1">
             {employer_name}
           </p>
         </div>
 
         {/* Score */}
         {score !== null && (
-          <div className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold bg-zinc-800 text-cyan-400">
+          <div className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold bg-zinc-100 text-spf-navy">
             {score}
           </div>
         )}
@@ -77,30 +77,30 @@ export function JobMatchCard({ match }: JobMatchCardProps) {
       </div>
 
       {/* Meta row */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm text-zinc-400">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm text-zinc-500">
         {locationStr && (
           <span className="flex items-center gap-1">
-            <MapPin className="w-3.5 h-3.5 text-zinc-500" />
+            <MapPin className="w-3.5 h-3.5 text-zinc-400" />
             {locationStr}
-            {work_setting && <span className="text-zinc-500"> · {formatWorkSetting(work_setting)}</span>}
+            {work_setting && <span className="text-zinc-400"> · {formatWorkSetting(work_setting)}</span>}
           </span>
         )}
         {!locationStr && work_setting && (
           <span className="flex items-center gap-1">
-            <MapPin className="w-3.5 h-3.5 text-zinc-500" />
+            <MapPin className="w-3.5 h-3.5 text-zinc-400" />
             {formatWorkSetting(work_setting)}
           </span>
         )}
         {pay_min !== null && (
           <span className="flex items-center gap-1">
-            <DollarSign className="w-3.5 h-3.5 text-zinc-500" />
+            <DollarSign className="w-3.5 h-3.5 text-zinc-400" />
             {payStr}
           </span>
         )}
       </div>
 
       {geography_note && (
-        <p className="mt-1.5 text-xs text-zinc-500 flex items-center gap-1">
+        <p className="mt-1.5 text-xs text-zinc-400 flex items-center gap-1">
           <Info className="w-3 h-3" />
           {geography_note}
         </p>
@@ -112,7 +112,7 @@ export function JobMatchCard({ match }: JobMatchCardProps) {
           {top_strengths.slice(0, 2).map((s, i) => (
             <span
               key={`s-${i}`}
-              className="inline-flex items-center gap-1 text-xs bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-md px-2 py-0.5"
+              className="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-md px-2 py-0.5"
             >
               <CheckCircle2 className="w-3 h-3" />
               {shortRationale(s)}
@@ -121,7 +121,7 @@ export function JobMatchCard({ match }: JobMatchCardProps) {
           {top_gaps.slice(0, 2).map((g, i) => (
             <span
               key={`g-${i}`}
-              className="inline-flex items-center gap-1 text-xs bg-rose-500/10 text-rose-400 border border-rose-500/30 rounded-md px-2 py-0.5"
+              className="inline-flex items-center gap-1 text-xs bg-rose-50 text-rose-600 border border-rose-200 rounded-md px-2 py-0.5"
             >
               <AlertTriangle className="w-3 h-3" />
               {shortRationale(g)}
@@ -132,26 +132,26 @@ export function JobMatchCard({ match }: JobMatchCardProps) {
 
       {/* Next step */}
       {recommended_next_step && (
-        <p className="mt-3 text-sm text-zinc-300 leading-snug">
-          <span className="font-medium text-zinc-200">Next step:</span> {recommended_next_step}
+        <p className="mt-3 text-sm text-zinc-600 leading-snug">
+          <span className="font-medium text-zinc-700">Next step:</span> {recommended_next_step}
         </p>
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between mt-4 pt-3 border-t border-zinc-800">
-        <div className="flex items-center gap-3 text-xs text-zinc-500">
+      <div className="flex items-center justify-between mt-4 pt-3 border-t border-zinc-200">
+        <div className="flex items-center gap-3 text-xs text-zinc-400">
           {confidence_level === "low" && (
-            <span className="flex items-center gap-1 text-amber-400">
+            <span className="flex items-center gap-1 text-amber-600">
               <AlertTriangle className="w-3 h-3" /> Low confidence
             </span>
           )}
           {requires_review && (
-            <span className="flex items-center gap-1 text-zinc-400">
+            <span className="flex items-center gap-1 text-zinc-500">
               <Info className="w-3 h-3" /> Pending review
             </span>
           )}
         </div>
-        <span className="text-sm font-medium text-zinc-500 group-hover:text-cyan-400 flex items-center gap-1 transition-colors">
+        <span className="text-sm font-medium text-zinc-400 group-hover:text-spf-navy flex items-center gap-1 transition-colors">
           View details <ChevronRight className="w-4 h-4" />
         </span>
       </div>

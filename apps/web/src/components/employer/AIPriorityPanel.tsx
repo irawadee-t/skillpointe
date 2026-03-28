@@ -65,14 +65,14 @@ export function AIPriorityPanel({ jobId, jobTitle, token, isAdmin = false }: Pro
   }
 
   return (
-    <div className="bg-zinc-900 border border-cyan-500/30 bg-cyan-500/5 rounded-lg overflow-hidden">
+    <div className="bg-white border border-spf-navy/20 bg-spf-navy/10 rounded-lg overflow-hidden">
       {/* Toggle header */}
       <button
         onClick={loadPriorities}
         disabled={loading}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-cyan-500/5 transition-colors"
+        className="w-full flex items-center justify-between px-4 py-3 hover:bg-spf-navy/10 transition-colors"
       >
-        <span className="flex items-center gap-2 text-sm font-medium text-cyan-400">
+        <span className="flex items-center gap-2 text-sm font-medium text-spf-navy">
           {loading ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
@@ -80,56 +80,56 @@ export function AIPriorityPanel({ jobId, jobTitle, token, isAdmin = false }: Pro
           )}
           {loading ? "Analysing candidates…" : "AI Candidate Prioritisation"}
         </span>
-        <span className="text-zinc-500">
+        <span className="text-zinc-400">
           {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </span>
       </button>
 
       {/* Results */}
       {open && priorities !== null && (
-        <div className="border-t border-zinc-800 px-4 pb-4 pt-3 space-y-3">
+        <div className="border-t border-zinc-200 px-4 pb-4 pt-3 space-y-3">
           {!generated && (
-            <p className="text-xs text-zinc-500 italic mb-2">
+            <p className="text-xs text-zinc-400 italic mb-2">
               AI key not configured — showing score-based order only.
             </p>
           )}
           {priorities.length === 0 ? (
-            <p className="text-sm text-zinc-500">No matched candidates to prioritise.</p>
+            <p className="text-sm text-zinc-400">No matched candidates to prioritise.</p>
           ) : (
             priorities.map((c, i) => (
               <div
                 key={c.applicant_id}
-                className="bg-zinc-800/50 rounded-lg px-3 py-3 border border-zinc-700"
+                className="bg-zinc-100 rounded-lg px-3 py-3 border border-zinc-200"
               >
                 {/* Rank + name row */}
                 <div className="flex items-start gap-3">
-                  <div className="shrink-0 w-6 h-6 rounded-full bg-cyan-500 text-black text-xs font-bold flex items-center justify-center mt-0.5">
+                  <div className="shrink-0 w-6 h-6 rounded-full bg-zinc-900 text-white text-xs font-bold flex items-center justify-center mt-0.5">
                     {i + 1}
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-medium text-white">{c.name}</span>
+                      <span className="text-sm font-medium text-zinc-900">{c.name}</span>
                       {c.score !== null && (
-                        <span className="text-xs text-cyan-400 tabular-nums">
+                        <span className="text-xs text-spf-navy tabular-nums">
                           {Math.round(c.score)}/100
                         </span>
                       )}
                       {i === 0 && (
-                        <span className="inline-flex items-center gap-0.5 text-xs text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-full px-1.5 py-0.5">
+                        <span className="inline-flex items-center gap-0.5 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5">
                           Top pick
                         </span>
                       )}
                       <span
                         className={`text-xs rounded-full px-1.5 py-0.5 border ${
                           c.eligibility_status === "eligible"
-                            ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/30"
-                            : "text-amber-400 bg-amber-500/10 border-amber-500/30"
+                            ? "text-emerald-600 bg-emerald-50 border-emerald-200"
+                            : "text-amber-600 bg-amber-50 border-amber-200"
                         }`}
                       >
                         {c.eligibility_status === "eligible" ? "Eligible" : "Near fit"}
                       </span>
                     </div>
-                    <p className="text-xs text-zinc-400 mt-0.5 leading-snug">{c.reason}</p>
+                    <p className="text-xs text-zinc-500 mt-0.5 leading-snug">{c.reason}</p>
                   </div>
                 </div>
 
@@ -151,7 +151,7 @@ export function AIPriorityPanel({ jobId, jobTitle, token, isAdmin = false }: Pro
       )}
 
       {error && (
-        <p className="text-xs text-rose-400 px-4 pb-3">{error}</p>
+        <p className="text-xs text-rose-600 px-4 pb-3">{error}</p>
       )}
     </div>
   );

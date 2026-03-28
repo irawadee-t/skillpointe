@@ -140,7 +140,7 @@ export default function EditProfilePage() {
   if (loading) {
     return (
       <main className="flex items-center justify-center p-20">
-        <p className="text-zinc-400 text-sm">Loading profile...</p>
+        <p className="text-zinc-500 text-sm">Loading profile...</p>
       </main>
     );
   }
@@ -150,12 +150,12 @@ export default function EditProfilePage() {
       <div className="max-w-5xl mx-auto">
         <Link
           href="/applicant"
-          className="text-sm text-zinc-400 hover:text-white mb-6 inline-flex items-center gap-1 transition-colors"
+          className="text-sm text-zinc-500 hover:text-zinc-900 mb-6 inline-flex items-center gap-1 transition-colors"
         >
           &larr; Back to dashboard
         </Link>
 
-        <h1 className="text-2xl font-semibold tracking-tight text-white mb-6">Edit profile</h1>
+        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 mb-6">Edit profile</h1>
 
         <form onSubmit={handleSubmit} className="space-y-6">
 
@@ -223,11 +223,11 @@ export default function EditProfilePage() {
             </Field>
             <Field label="Specific career or program name">
               <Input value={form.specific_career as string} onChange={(v) => set("specific_career", v)} placeholder="e.g. A.A.S. Building Construction Technologies" />
-              <p className="text-xs text-zinc-500 mt-1">Free text — describe exactly what you study or want to do</p>
+              <p className="text-xs text-zinc-400 mt-1">Free text — describe exactly what you study or want to do</p>
             </Field>
             <Field label="Program name (as you know it)">
               <Input value={form.program_name_raw as string} onChange={(v) => set("program_name_raw", v)} placeholder="e.g. Electrician Apprentice" />
-              <p className="text-xs text-zinc-500 mt-1">Auto-matched to a job family when you save</p>
+              <p className="text-xs text-zinc-400 mt-1">Auto-matched to a job family when you save</p>
             </Field>
           </Section>
 
@@ -243,7 +243,7 @@ export default function EditProfilePage() {
             </Row>
             <Field label="Available to start work">
               <Input type="date" value={form.available_from_date as string} onChange={(v) => set("available_from_date", v)} />
-              <p className="text-xs text-zinc-500 mt-1">When can you start a new job?</p>
+              <p className="text-xs text-zinc-400 mt-1">When can you start a new job?</p>
             </Field>
             <Field label="Current wages">
               <Select value={form.current_wages as string} onChange={(v) => set("current_wages", v)} options={WAGE_RANGES.map((w) => ({ value: w.value, label: w.label }))} />
@@ -267,18 +267,18 @@ export default function EditProfilePage() {
             <Field label="Willingness to travel for work">
               <div className="space-y-2">
                 {TRAVEL_OPTIONS.map((opt) => (
-                  <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${form.travel_preference === opt.value ? "border-cyan-500 bg-cyan-500/10" : "border-zinc-700 hover:border-zinc-500"}`}>
+                  <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${form.travel_preference === opt.value ? "border-spf-navy bg-zinc-50" : "border-zinc-200 hover:border-zinc-300"}`}>
                     <input
                       type="radio"
                       name="travel_preference"
                       value={opt.value}
                       checked={form.travel_preference === opt.value}
                       onChange={() => set("travel_preference", opt.value)}
-                      className="mt-0.5 accent-cyan-500"
+                      className="mt-0.5 accent-zinc-900"
                     />
                     <div>
-                      <span className="text-sm font-medium text-white">{opt.label}</span>
-                      <p className="text-xs text-zinc-400">{opt.desc}</p>
+                      <span className="text-sm font-medium text-zinc-900">{opt.label}</span>
+                      <p className="text-xs text-zinc-500">{opt.desc}</p>
                     </div>
                   </label>
                 ))}
@@ -288,18 +288,18 @@ export default function EditProfilePage() {
             <Field label="Willingness to relocate">
               <div className="space-y-2">
                 {RELOCATION_OPTIONS.map((opt) => (
-                  <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${form.relocation_preference === opt.value ? "border-cyan-500 bg-cyan-500/10" : "border-zinc-700 hover:border-zinc-500"}`}>
+                  <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${form.relocation_preference === opt.value ? "border-spf-navy bg-zinc-50" : "border-zinc-200 hover:border-zinc-300"}`}>
                     <input
                       type="radio"
                       name="relocation_preference"
                       value={opt.value}
                       checked={form.relocation_preference === opt.value}
                       onChange={() => set("relocation_preference", opt.value)}
-                      className="mt-0.5 accent-cyan-500"
+                      className="mt-0.5 accent-zinc-900"
                     />
                     <div>
-                      <span className="text-sm font-medium text-white">{opt.label}</span>
-                      <p className="text-xs text-zinc-400">{opt.desc}</p>
+                      <span className="text-sm font-medium text-zinc-900">{opt.label}</span>
+                      <p className="text-xs text-zinc-500">{opt.desc}</p>
                     </div>
                   </label>
                 ))}
@@ -308,7 +308,7 @@ export default function EditProfilePage() {
 
             {form.relocation_preference === "specific_states" && (
               <Field label="Which states would you relocate to?">
-                <div className="grid grid-cols-5 sm:grid-cols-8 gap-1.5 max-h-48 overflow-y-auto border border-zinc-700 rounded-lg p-3">
+                <div className="grid grid-cols-5 sm:grid-cols-8 gap-1.5 max-h-48 overflow-y-auto border border-zinc-200 rounded-lg p-3">
                   {US_STATES.map((s) => {
                     const selected = (form.relocation_states as string[] || []).includes(s);
                     return (
@@ -319,7 +319,7 @@ export default function EditProfilePage() {
                           const current = (form.relocation_states as string[]) || [];
                           set("relocation_states", selected ? current.filter((x) => x !== s) : [...current, s]);
                         }}
-                        className={`text-xs py-1.5 rounded transition-colors ${selected ? "bg-cyan-500 text-black font-medium" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"}`}
+                        className={`text-xs py-1.5 rounded transition-colors ${selected ? "bg-zinc-900 text-white font-medium" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700"}`}
                       >
                         {s}
                       </button>
@@ -327,7 +327,7 @@ export default function EditProfilePage() {
                   })}
                 </div>
                 {(form.relocation_states as string[])?.length > 0 && (
-                  <p className="text-xs text-zinc-500 mt-1">
+                  <p className="text-xs text-zinc-400 mt-1">
                     Selected: {(form.relocation_states as string[]).join(", ")}
                   </p>
                 )}
@@ -347,7 +347,7 @@ export default function EditProfilePage() {
                 value={form.activities as string}
                 onChange={(e) => set("activities", e.target.value)}
                 rows={3}
-                className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-900 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500 resize-none"
+                className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy resize-none"
                 placeholder="Clubs, sports, volunteer work, SkillsUSA, FFA, etc."
               />
             </Field>
@@ -355,22 +355,22 @@ export default function EditProfilePage() {
 
           {/* ---- Submit ---- */}
           {error && (
-            <p className="text-sm text-rose-400 bg-rose-500/10 border border-rose-500/30 rounded-lg p-3">{error}</p>
+            <p className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-3">{error}</p>
           )}
           {saved && (
-            <p className="text-sm text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3">
+            <p className="text-sm text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
               Profile saved. Your program has been automatically matched to a job family.
             </p>
           )}
 
           <div className="flex gap-3">
-            <Link href="/applicant" className="flex-1 border border-zinc-700 text-zinc-300 py-2.5 rounded-full text-sm font-medium hover:border-zinc-500 hover:text-white transition-colors text-center">
+            <Link href="/applicant" className="flex-1 border border-zinc-200 text-zinc-600 py-2.5 rounded-full text-sm font-medium hover:border-zinc-300 hover:text-zinc-900 transition-colors text-center">
               Cancel
             </Link>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 bg-cyan-500 text-black py-2.5 rounded-full text-sm font-medium hover:bg-cyan-400 disabled:opacity-50 transition-colors"
+              className="flex-1 bg-zinc-900 text-white py-2.5 rounded-full text-sm font-medium hover:bg-zinc-700 disabled:opacity-50 transition-colors"
             >
               {saving ? "Saving..." : "Save changes"}
             </button>
@@ -385,8 +385,8 @@ export default function EditProfilePage() {
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 space-y-5">
-      <h2 className="font-semibold text-white">{title}</h2>
+    <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-6 space-y-5 shadow-sm">
+      <h2 className="font-semibold text-zinc-900">{title}</h2>
       {children}
     </div>
   );
@@ -399,7 +399,7 @@ function Row({ children }: { children: React.ReactNode }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      {label && <label className="block text-sm font-medium text-zinc-300 mb-1">{label}</label>}
+      {label && <label className="block text-sm font-medium text-zinc-600 mb-1">{label}</label>}
       {children}
     </div>
   );
@@ -420,7 +420,7 @@ function Input({
       step={step}
       min={min}
       max={max}
-      className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-900 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500"
+      className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
     />
   );
 }
@@ -435,7 +435,7 @@ function Select({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-900 text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500"
+      className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm bg-white text-zinc-900 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
     >
       <option value="">Select...</option>
       {options.map((o) => (
@@ -456,9 +456,9 @@ function Checkbox({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="w-4 h-4 rounded border-zinc-600 accent-cyan-500"
+        className="w-4 h-4 rounded border-zinc-300 accent-zinc-900"
       />
-      <span className="text-sm text-zinc-300">{label}</span>
+      <span className="text-sm text-zinc-600">{label}</span>
     </label>
   );
 }

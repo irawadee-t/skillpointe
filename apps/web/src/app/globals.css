@@ -2,16 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
+/* PP Neue Montreal via Fontshare */
+@import url("https://api.fontshare.com/v2/css?f[]=neue-montreal@300,400,500,700&display=swap");
+
+/* Tiempos Headline — place font files in /public/fonts/
+   Required files: TiemposHeadline-Regular.woff2, TiemposHeadline-Medium.woff2 */
+@font-face {
+  font-family: "Tiempos Headline";
+  src: url("/fonts/TiemposHeadline-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Tiempos Headline";
+  src: url("/fonts/TiemposHeadline-Medium.woff2") format("woff2");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer base {
   :root {
-    --background: #09090b;
-    --foreground: #fafafa;
+    --background: #ffffff;
+    --foreground: #111111;
   }
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
   body {
-    @apply text-white bg-zinc-950;
+    @apply text-zinc-900 bg-white;
+  }
+  h1, h2, h3 {
+    font-family: "Tiempos Headline", Georgia, "Times New Roman", serif;
   }
 }

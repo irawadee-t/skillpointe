@@ -209,20 +209,20 @@ export default async function AdminEngagementPage({ searchParams }: PageProps) {
         <div>
           <Link
             href="/admin"
-            className="text-sm text-zinc-400 hover:text-white inline-flex items-center gap-1 transition-colors"
+            className="text-sm text-zinc-500 hover:text-zinc-900 inline-flex items-center gap-1 transition-colors"
           >
             ← Back to dashboard
           </Link>
-          <h1 className="text-2xl font-semibold tracking-tight text-white mt-1">
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 mt-1">
             Platform Engagement
           </h1>
-          <p className="text-sm text-zinc-400 mt-0.5">
+          <p className="text-sm text-zinc-500 mt-0.5">
             Applicant and employer activity across the platform
           </p>
         </div>
 
         {/* Tab bar */}
-        <div className="flex border-b border-zinc-800 gap-1">
+        <div className="flex border-b border-zinc-200 gap-1">
           {(
             [
               { key: "general", label: "Overview" },
@@ -235,8 +235,8 @@ export default async function AdminEngagementPage({ searchParams }: PageProps) {
               href={`/admin/engagement?view=${key}`}
               className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors -mb-px ${
                 view === key
-                  ? "border-white text-white"
-                  : "border-transparent text-zinc-500 hover:text-zinc-300"
+                  ? "border-zinc-200 text-zinc-900"
+                  : "border-transparent text-zinc-400 hover:text-zinc-600"
               }`}
             >
               {label}
@@ -280,7 +280,7 @@ export default async function AdminEngagementPage({ searchParams }: PageProps) {
 function GeneralView({ data }: { data: GeneralData | null }) {
   if (!data) {
     return (
-      <div className="bg-rose-500/10 border border-rose-500/30 rounded-lg p-5 text-sm text-rose-400">
+      <div className="bg-rose-50 border border-rose-200 rounded-lg p-5 text-sm text-rose-600">
         <strong>Could not load engagement data.</strong> Please refresh.
       </div>
     );
@@ -300,12 +300,12 @@ function GeneralView({ data }: { data: GeneralData | null }) {
       {/* Stats grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
         {topStats.map(({ label, value, icon: Icon }) => (
-          <div key={label} className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 text-center">
-            <Icon className="w-6 h-6 mx-auto mb-2 text-zinc-500" />
-            <div className="text-3xl font-bold leading-none text-cyan-400">
+          <div key={label} className="bg-zinc-50 border border-zinc-200 rounded-lg p-4 text-center">
+            <Icon className="w-6 h-6 mx-auto mb-2 text-zinc-400" />
+            <div className="text-3xl font-bold leading-none text-spf-navy">
               {value.toLocaleString()}
             </div>
-            <div className="text-xs text-zinc-500 mt-1">{label}</div>
+            <div className="text-xs text-zinc-400 mt-1">{label}</div>
           </div>
         ))}
       </div>
@@ -313,25 +313,25 @@ function GeneralView({ data }: { data: GeneralData | null }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Events by type */}
         <section>
-          <h2 className="font-semibold text-white mb-3">Events by type</h2>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
+          <h2 className="font-semibold text-zinc-900 mb-3">Events by type</h2>
+          <div className="bg-zinc-50 border border-zinc-200 rounded-lg overflow-hidden">
             {data.events_by_type.length === 0 ? (
-              <p className="text-sm text-zinc-500 p-5">No events recorded yet.</p>
+              <p className="text-sm text-zinc-400 p-5">No events recorded yet.</p>
             ) : (
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-b border-zinc-800 bg-zinc-800/50">
-                    <th className="text-left px-4 py-2.5 text-xs font-medium text-zinc-500">Event</th>
-                    <th className="text-right px-4 py-2.5 text-xs font-medium text-zinc-500">Count</th>
+                  <tr className="border-b border-zinc-200 bg-zinc-100">
+                    <th className="text-left px-4 py-2.5 text-xs font-medium text-zinc-400">Event</th>
+                    <th className="text-right px-4 py-2.5 text-xs font-medium text-zinc-400">Count</th>
                   </tr>
                 </thead>
                 <tbody>
                   {data.events_by_type.map((e) => (
-                    <tr key={e.event_type} className="border-b border-zinc-800/50 last:border-0">
-                      <td className="px-4 py-2.5 text-zinc-300">
+                    <tr key={e.event_type} className="border-b border-zinc-200/50 last:border-0">
+                      <td className="px-4 py-2.5 text-zinc-600">
                         {EVENT_LABELS[e.event_type] ?? e.event_type}
                       </td>
-                      <td className="px-4 py-2.5 text-right font-medium tabular-nums text-cyan-400">
+                      <td className="px-4 py-2.5 text-right font-medium tabular-nums text-spf-navy">
                         {e.count.toLocaleString()}
                       </td>
                     </tr>
@@ -344,22 +344,22 @@ function GeneralView({ data }: { data: GeneralData | null }) {
 
         {/* Recent activity */}
         <section>
-          <h2 className="font-semibold text-white mb-3">Recent activity</h2>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-hidden">
+          <h2 className="font-semibold text-zinc-900 mb-3">Recent activity</h2>
+          <div className="bg-zinc-50 border border-zinc-200 rounded-lg overflow-hidden">
             {data.recent_activity.length === 0 ? (
-              <p className="text-sm text-zinc-500 p-5">No recent activity.</p>
+              <p className="text-sm text-zinc-400 p-5">No recent activity.</p>
             ) : (
-              <div className="overflow-y-auto max-h-[320px] divide-y divide-zinc-800/50">
+              <div className="overflow-y-auto max-h-[320px] divide-y divide-zinc-200/50">
                 {data.recent_activity.map((a, i) => (
                   <div key={i} className="px-4 py-2.5 flex items-start justify-between gap-3">
-                    <p className="text-sm text-zinc-200 truncate">
+                    <p className="text-sm text-zinc-700 truncate">
                       <span className="font-medium">{a.actor_name}</span>
                       {" · "}
-                      <span className="text-zinc-500">
+                      <span className="text-zinc-400">
                         {EVENT_LABELS[a.event_type] ?? a.event_type}
                       </span>
                     </p>
-                    <span className="shrink-0 text-xs text-zinc-500">
+                    <span className="shrink-0 text-xs text-zinc-400">
                       {new Date(a.created_at).toLocaleDateString()}
                     </span>
                   </div>
@@ -406,12 +406,12 @@ function ApplicantsView({
           name="q"
           defaultValue={q}
           placeholder="Search applicant name…"
-          className="border border-zinc-700 rounded-lg px-3 py-1.5 text-sm bg-zinc-900 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500 w-56"
+          className="border border-zinc-200 rounded-lg px-3 py-1.5 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy w-56"
         />
         <select
           name="sort"
           defaultValue={sort}
-          className="border border-zinc-700 rounded-lg px-3 py-1.5 text-sm bg-zinc-900 text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
+          className="border border-zinc-200 rounded-lg px-3 py-1.5 text-sm bg-white text-zinc-900 focus:outline-none focus:ring-1 focus:ring-spf-navy/20"
         >
           {cols.slice(1).map((c) => (
             <option key={c.key} value={c.key}>
@@ -421,14 +421,14 @@ function ApplicantsView({
         </select>
         <button
           type="submit"
-          className="px-4 py-1.5 bg-cyan-500 text-black text-sm rounded-full hover:bg-cyan-400 transition-colors"
+          className="px-4 py-1.5 bg-zinc-900 text-white text-sm rounded-full hover:bg-zinc-700 transition-colors"
         >
           Apply
         </button>
         {(q || sort !== "total_events") && (
           <Link
             href="/admin/engagement?view=applicants"
-            className="px-4 py-1.5 border border-zinc-700 text-sm rounded-full text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 transition-colors"
+            className="px-4 py-1.5 border border-zinc-200 text-sm rounded-full text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 transition-colors"
           >
             Reset
           </Link>
@@ -441,24 +441,24 @@ function ApplicantsView({
         <EmptyBox text="No applicants found." />
       ) : (
         <>
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-zinc-400">
             {data.total.toLocaleString()} applicant{data.total !== 1 ? "s" : ""}
           </p>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-x-auto">
+          <div className="bg-zinc-50 border border-zinc-200 rounded-lg overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-800 bg-zinc-800/50">
+                <tr className="border-b border-zinc-200 bg-zinc-100">
                   {cols.map((c) => (
                     <th
                       key={c.key}
-                      className={`px-4 py-2.5 text-xs font-medium text-zinc-500 ${
+                      className={`px-4 py-2.5 text-xs font-medium text-zinc-400 ${
                         c.key === "name" ? "text-left" : "text-right"
                       }`}
                     >
                       {c.key !== "name" ? (
                         <Link
                           href={`/admin/engagement?view=applicants&sort=${c.key}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
-                          className={`hover:text-white transition-colors ${sort === c.key ? "text-white font-semibold" : ""}`}
+                          className={`hover:text-zinc-900 transition-colors ${sort === c.key ? "text-zinc-900 font-semibold" : ""}`}
                         >
                           {c.label} {sort === c.key ? "↓" : ""}
                         </Link>
@@ -473,11 +473,11 @@ function ApplicantsView({
                 {data.rows.map((r) => (
                   <tr
                     key={r.applicant_id}
-                    className="border-b border-zinc-800/50 last:border-0 hover:bg-zinc-800/30"
+                    className="border-b border-zinc-200/50 last:border-0 hover:bg-zinc-100"
                   >
                     <td className="px-4 py-2.5">
-                      <p className="font-medium text-white">{r.name}</p>
-                      <p className="text-xs text-zinc-500">
+                      <p className="font-medium text-zinc-900">{r.name}</p>
+                      <p className="text-xs text-zinc-400">
                         {[r.program, r.state].filter(Boolean).join(" · ")}
                       </p>
                     </td>
@@ -485,7 +485,7 @@ function ApplicantsView({
                     <NumCell val={r.apply_clicks} highlight={r.apply_clicks > 0} />
                     <NumCell val={r.chat_messages} highlight={r.chat_messages > 0} />
                     <NumCell val={r.dms_sent} highlight={r.dms_sent > 0} />
-                    <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-cyan-400">
+                    <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-spf-navy">
                       {r.total_events}
                     </td>
                   </tr>
@@ -533,12 +533,12 @@ function EmployersView({
           name="q"
           defaultValue={q}
           placeholder="Search employer name…"
-          className="border border-zinc-700 rounded-lg px-3 py-1.5 text-sm bg-zinc-900 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500 w-56"
+          className="border border-zinc-200 rounded-lg px-3 py-1.5 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy w-56"
         />
         <select
           name="sort"
           defaultValue={sort}
-          className="border border-zinc-700 rounded-lg px-3 py-1.5 text-sm bg-zinc-900 text-white focus:outline-none focus:ring-1 focus:ring-cyan-500/50"
+          className="border border-zinc-200 rounded-lg px-3 py-1.5 text-sm bg-white text-zinc-900 focus:outline-none focus:ring-1 focus:ring-spf-navy/20"
         >
           {cols.slice(1).map((c) => (
             <option key={c.key} value={c.key}>
@@ -548,14 +548,14 @@ function EmployersView({
         </select>
         <button
           type="submit"
-          className="px-4 py-1.5 bg-cyan-500 text-black text-sm rounded-full hover:bg-cyan-400 transition-colors"
+          className="px-4 py-1.5 bg-zinc-900 text-white text-sm rounded-full hover:bg-zinc-700 transition-colors"
         >
           Apply
         </button>
         {(q || sort !== "total_actions") && (
           <Link
             href="/admin/engagement?view=employers"
-            className="px-4 py-1.5 border border-zinc-700 text-sm rounded-full text-zinc-400 hover:border-zinc-500 hover:text-zinc-200 transition-colors"
+            className="px-4 py-1.5 border border-zinc-200 text-sm rounded-full text-zinc-500 hover:border-zinc-300 hover:text-zinc-700 transition-colors"
           >
             Reset
           </Link>
@@ -568,24 +568,24 @@ function EmployersView({
         <EmptyBox text="No employers found." />
       ) : (
         <>
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-zinc-400">
             {data.total.toLocaleString()} employer{data.total !== 1 ? "s" : ""}
           </p>
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg overflow-x-auto">
+          <div className="bg-zinc-50 border border-zinc-200 rounded-lg overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-800 bg-zinc-800/50">
+                <tr className="border-b border-zinc-200 bg-zinc-100">
                   {cols.map((c) => (
                     <th
                       key={c.key}
-                      className={`px-4 py-2.5 text-xs font-medium text-zinc-500 ${
+                      className={`px-4 py-2.5 text-xs font-medium text-zinc-400 ${
                         c.key === "name" ? "text-left" : "text-right"
                       }`}
                     >
                       {c.key !== "name" ? (
                         <Link
                           href={`/admin/engagement?view=employers&sort=${c.key}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
-                          className={`hover:text-white transition-colors ${sort === c.key ? "text-white font-semibold" : ""}`}
+                          className={`hover:text-zinc-900 transition-colors ${sort === c.key ? "text-zinc-900 font-semibold" : ""}`}
                         >
                           {c.label} {sort === c.key ? "↓" : ""}
                         </Link>
@@ -600,14 +600,14 @@ function EmployersView({
                 {data.rows.map((r) => (
                   <tr
                     key={r.employer_id}
-                    className="border-b border-zinc-800/50 last:border-0 hover:bg-zinc-800/30"
+                    className="border-b border-zinc-200/50 last:border-0 hover:bg-zinc-100"
                   >
-                    <td className="px-4 py-2.5 font-medium text-white">{r.name}</td>
+                    <td className="px-4 py-2.5 font-medium text-zinc-900">{r.name}</td>
                     <NumCell val={r.outreach_sent} highlight={r.outreach_sent > 0} />
                     <NumCell val={r.dms_sent} highlight={r.dms_sent > 0} />
                     <NumCell val={r.hires_reported} highlight={r.hires_reported > 0} />
                     <NumCell val={r.candidates_viewed} highlight={r.candidates_viewed > 0} />
-                    <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-cyan-400">
+                    <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-spf-navy">
                       {r.total_actions}
                     </td>
                   </tr>
@@ -636,7 +636,7 @@ function NumCell({
   return (
     <td
       className={`px-4 py-2.5 text-right tabular-nums ${
-        highlight ? "text-cyan-400 font-medium" : "text-zinc-600"
+        highlight ? "text-spf-navy font-medium" : "text-zinc-400"
       }`}
     >
       {val}
@@ -667,15 +667,15 @@ function Pagination({
   return (
     <div className="flex items-center gap-3 justify-end text-sm">
       {page > 1 && (
-        <Link href={`${base}&page=${page - 1}`} className="text-zinc-400 hover:text-white transition-colors">
+        <Link href={`${base}&page=${page - 1}`} className="text-zinc-500 hover:text-zinc-900 transition-colors">
           ← Prev
         </Link>
       )}
-      <span className="text-zinc-500">
+      <span className="text-zinc-400">
         Page {page} of {totalPages}
       </span>
       {page < totalPages && (
-        <Link href={`${base}&page=${page + 1}`} className="text-zinc-400 hover:text-white transition-colors">
+        <Link href={`${base}&page=${page + 1}`} className="text-zinc-500 hover:text-zinc-900 transition-colors">
           Next →
         </Link>
       )}
@@ -685,7 +685,7 @@ function Pagination({
 
 function ErrorBox() {
   return (
-    <div className="bg-rose-500/10 border border-rose-500/30 rounded-lg p-5 text-sm text-rose-400">
+    <div className="bg-rose-50 border border-rose-200 rounded-lg p-5 text-sm text-rose-600">
       Could not load data. Please refresh.
     </div>
   );
@@ -693,7 +693,7 @@ function ErrorBox() {
 
 function EmptyBox({ text }: { text: string }) {
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-10 text-center text-sm text-zinc-500">
+    <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-10 text-center text-sm text-zinc-400">
       {text}
     </div>
   );

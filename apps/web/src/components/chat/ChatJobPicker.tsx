@@ -175,7 +175,7 @@ export function ChatJobPicker({ token }: Props) {
     <>
       <button
         onClick={handleOpen}
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-black bg-cyan-500 rounded-full px-3 py-1.5 hover:bg-cyan-400 transition-colors"
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-zinc-900 rounded-full px-3 py-1.5 hover:bg-zinc-700 transition-colors"
       >
         <Plus className="w-4 h-4" />
         New chat
@@ -183,41 +183,41 @@ export function ChatJobPicker({ token }: Props) {
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20"
           onClick={(e) => {
             if (e.target === e.currentTarget) setOpen(false);
           }}
         >
-          <div className="bg-zinc-900 rounded-xl border border-zinc-800 w-full max-w-lg flex flex-col max-h-[80vh]">
+          <div className="bg-white rounded-xl border border-zinc-200 w-full max-w-lg flex flex-col max-h-[80vh]">
             {/* Header */}
-            <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-zinc-800 shrink-0">
+            <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-zinc-200 shrink-0">
               <div>
-                <h2 className="font-semibold text-white text-base">
+                <h2 className="font-semibold text-zinc-900 text-base">
                   Choose a job to discuss
                 </h2>
-                <p className="text-xs text-zinc-500 mt-0.5">
+                <p className="text-xs text-zinc-400 mt-0.5">
                   Pick a role and I&apos;ll open with your gaps, strengths, and
                   next steps
                 </p>
               </div>
               <button
                 onClick={() => setOpen(false)}
-                className="p-1 rounded-lg hover:bg-zinc-800 text-zinc-500 hover:text-zinc-300 transition-colors"
+                className="p-1 rounded-lg hover:bg-zinc-100 text-zinc-400 hover:text-zinc-600 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Tabs */}
-            <div className="flex border-b border-zinc-800 px-5 shrink-0">
+            <div className="flex border-b border-zinc-200 px-5 shrink-0">
               {(["matches", "browse"] as const).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
                   className={`text-sm font-medium py-2.5 mr-5 border-b-2 transition-colors ${
                     activeTab === tab
-                      ? "border-cyan-500 text-white"
-                      : "border-transparent text-zinc-500 hover:text-zinc-300"
+                      ? "border-spf-navy text-zinc-900"
+                      : "border-transparent text-zinc-400 hover:text-zinc-600"
                   }`}
                 >
                   {tab === "matches" ? "Your matches" : "Browse all jobs"}
@@ -232,13 +232,13 @@ export function ChatJobPicker({ token }: Props) {
                 <>
                   {matchesLoading ? (
                     <div className="flex justify-center py-10">
-                      <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
+                      <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />
                     </div>
                   ) : (
                     <>
                       {eligible.length > 0 && (
                         <section className="mb-3">
-                          <p className="text-xs font-semibold text-emerald-400 uppercase tracking-wide mb-1.5 flex items-center gap-1 px-1">
+                          <p className="text-xs font-semibold text-emerald-600 uppercase tracking-wide mb-1.5 flex items-center gap-1 px-1">
                             <Star className="w-3 h-3" /> Eligible
                           </p>
                           {eligible.map((m) => (
@@ -257,7 +257,7 @@ export function ChatJobPicker({ token }: Props) {
 
                       {nearFit.length > 0 && (
                         <section className="mb-1">
-                          <p className="text-xs font-semibold text-amber-400 uppercase tracking-wide mb-1.5 flex items-center gap-1 px-1">
+                          <p className="text-xs font-semibold text-amber-600 uppercase tracking-wide mb-1.5 flex items-center gap-1 px-1">
                             <TrendingUp className="w-3 h-3" /> Near fit
                           </p>
                           {nearFit.map((m) => (
@@ -276,7 +276,7 @@ export function ChatJobPicker({ token }: Props) {
 
                       {eligible.length === 0 && nearFit.length === 0 && (
                         <div className="py-10 text-center">
-                          <p className="text-sm text-zinc-500">
+                          <p className="text-sm text-zinc-400">
                             No matches yet. Try browsing all jobs.
                           </p>
                         </div>
@@ -290,20 +290,20 @@ export function ChatJobPicker({ token }: Props) {
               {activeTab === "browse" && (
                 <>
                   <div className="relative mb-3">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400 pointer-events-none" />
                     <input
                       type="text"
                       value={searchQ}
                       onChange={(e) => setSearchQ(e.target.value)}
                       placeholder="Search job title…"
-                      className="w-full pl-9 pr-4 py-2 text-sm border border-zinc-700 rounded-lg bg-zinc-900 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500"
+                      className="w-full pl-9 pr-4 py-2 text-sm border border-zinc-200 rounded-lg bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
                       autoFocus
                     />
                   </div>
 
                   {browseLoading ? (
                     <div className="flex justify-center py-6">
-                      <Loader2 className="w-5 h-5 animate-spin text-zinc-500" />
+                      <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />
                     </div>
                   ) : browseResults.length > 0 ? (
                     browseResults.map((j) => (
@@ -318,7 +318,7 @@ export function ChatJobPicker({ token }: Props) {
                       />
                     ))
                   ) : (
-                    <p className="text-sm text-zinc-500 text-center py-6">
+                    <p className="text-sm text-zinc-400 text-center py-6">
                       {searchQ
                         ? "No jobs match your search."
                         : "No jobs available."}
@@ -331,7 +331,7 @@ export function ChatJobPicker({ token }: Props) {
             {/* Error footer */}
             {error && (
               <div className="px-5 pb-4 shrink-0">
-                <p className="text-xs text-rose-400">{error}</p>
+                <p className="text-xs text-rose-600">{error}</p>
               </div>
             )}
           </div>
@@ -359,22 +359,22 @@ function JobRow({ jobId, title, sub, score, loading, onSelect }: JobRowProps) {
     <button
       onClick={() => onSelect(jobId)}
       disabled={loading}
-      className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-zinc-800/50 text-left group transition-colors disabled:opacity-50"
+      className="w-full flex items-center justify-between px-3 py-2.5 rounded-lg hover:bg-zinc-100 text-left group transition-colors disabled:opacity-50"
     >
       <div className="min-w-0">
-        <p className="text-sm font-medium text-white truncate">{title}</p>
-        {sub && <p className="text-xs text-zinc-500 truncate">{sub}</p>}
+        <p className="text-sm font-medium text-zinc-900 truncate">{title}</p>
+        {sub && <p className="text-xs text-zinc-400 truncate">{sub}</p>}
       </div>
       <div className="flex items-center gap-2 ml-3 shrink-0">
         {score !== null && (
-          <span className="text-xs font-semibold text-cyan-400 tabular-nums">
+          <span className="text-xs font-semibold text-spf-navy tabular-nums">
             {Math.round(score)}
           </span>
         )}
         {loading ? (
-          <Loader2 className="w-4 h-4 animate-spin text-zinc-500" />
+          <Loader2 className="w-4 h-4 animate-spin text-zinc-400" />
         ) : (
-          <ChevronRight className="w-4 h-4 text-zinc-600 group-hover:text-zinc-400 transition-colors" />
+          <ChevronRight className="w-4 h-4 text-zinc-300 group-hover:text-zinc-500 transition-colors" />
         )}
       </div>
     </button>

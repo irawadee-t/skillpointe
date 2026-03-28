@@ -65,25 +65,25 @@ export default async function NewJobPage() {
         <div className="mb-6">
           <a
             href="/employer"
-            className="text-sm text-zinc-400 hover:text-white inline-flex items-center gap-1 transition-colors"
+            className="text-sm text-zinc-500 hover:text-zinc-900 inline-flex items-center gap-1 transition-colors"
           >
             ← Back to dashboard
           </a>
-          <h1 className="text-2xl font-semibold tracking-tight text-white mt-1">Post a new job</h1>
+          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 mt-1">Post a new job</h1>
         </div>
 
-        <form action={handleCreate} className="bg-zinc-900 border border-zinc-800 rounded-lg p-6 space-y-5">
+        <form action={handleCreate} className="bg-zinc-50 border border-zinc-200 rounded-lg p-6 space-y-5">
           <JobFormFields />
           <div className="flex gap-3 pt-2">
             <button
               type="submit"
-              className="px-5 py-2 bg-cyan-500 text-black text-sm font-medium rounded-full hover:bg-cyan-400 transition-colors"
+              className="px-5 py-2 bg-zinc-900 text-white text-sm font-medium rounded-full hover:bg-zinc-700 transition-colors"
             >
               Create job
             </button>
             <a
               href="/employer"
-              className="px-5 py-2 text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+              className="px-5 py-2 text-sm text-zinc-500 hover:text-zinc-700 transition-colors"
             >
               Cancel
             </a>
@@ -248,9 +248,9 @@ function Field({
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-zinc-300 mb-1">
+      <label className="block text-sm font-medium text-zinc-600 mb-1">
         {label}
-        {required && <span className="text-rose-400 ml-0.5">*</span>}
+        {required && <span className="text-rose-600 ml-0.5">*</span>}
       </label>
       {children}
     </div>
@@ -258,4 +258,4 @@ function Field({
 }
 
 const inputClass =
-  "w-full border border-zinc-700 rounded-lg px-3 py-2 text-sm bg-zinc-900 text-white placeholder:text-zinc-600 focus:outline-none focus:ring-1 focus:ring-cyan-500/50 focus:border-cyan-500";
+  "w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy";

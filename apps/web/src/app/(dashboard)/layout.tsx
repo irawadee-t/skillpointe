@@ -46,8 +46,8 @@ export default async function DashboardLayout({
   const navItems = NAV_ITEMS[role] ?? NAV_ITEMS.applicant;
 
   return (
-    <div className="min-h-screen bg-zinc-950">
-      <nav className="sticky top-0 z-50 bg-zinc-950/80 backdrop-blur-md border-b border-white/5 transition-all duration-300">
+    <div className="min-h-screen bg-zinc-50">
+      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-zinc-200 transition-all duration-300">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-14">
             <div className="flex items-center gap-8">
@@ -57,7 +57,7 @@ export default async function DashboardLayout({
                   alt="SkillPointe"
                   width={140}
                   height={38}
-                  className="brightness-0 invert"
+                  className="brightness-0"
                 />
               </Link>
               <div className="flex items-center gap-1">
@@ -65,20 +65,20 @@ export default async function DashboardLayout({
                   <Link
                     key={item.href}
                     href={item.href}
-                    className="relative px-3 py-1.5 text-sm text-zinc-400 hover:text-white transition-colors duration-200 group"
+                    className="relative px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-900 transition-colors duration-200 group"
                   >
                     {item.label}
-                    <span className="absolute bottom-0 left-0 right-0 h-px bg-white scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left" />
+                    <span className="absolute bottom-0 left-0 right-0 h-px bg-zinc-900 scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left" />
                   </Link>
                 ))}
               </div>
             </div>
             <div className="flex items-center gap-4">
-              <span className="text-xs text-zinc-500 hidden sm:inline">{user.email}</span>
+              <span className="text-xs text-zinc-400 hidden sm:inline">{user.email}</span>
               <Link
                 href="/api/auth/signout"
                 prefetch={false}
-                className="text-xs text-zinc-400 hover:text-white transition-colors duration-200"
+                className="text-xs text-zinc-500 hover:text-zinc-900 transition-colors duration-200"
               >
                 Sign out
               </Link>

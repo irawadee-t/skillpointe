@@ -8,6 +8,10 @@ const config: Config = {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ["Neue Montreal", "PP Neue Montreal", "Inter", "sans-serif"],
+        serif: ["Tiempos Headline", "Georgia", "Times New Roman", "serif"],
+      },
       colors: {
         spf: {
           navy:       "#28486d",

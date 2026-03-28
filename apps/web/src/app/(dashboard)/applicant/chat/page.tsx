@@ -49,8 +49,8 @@ export default async function ChatListPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-white">Career Planning Chat</h1>
-            <p className="text-sm text-zinc-400 mt-0.5">
+            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Career Planning Chat</h1>
+            <p className="text-sm text-zinc-500 mt-0.5">
               Get personalised advice based on your job matches
             </p>
           </div>
@@ -59,9 +59,9 @@ export default async function ChatListPage() {
 
         {/* Session list */}
         {sessions.length === 0 ? (
-          <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-10 text-center">
-            <MessageCircle className="w-10 h-10 text-zinc-600 mx-auto mb-3" />
-            <p className="text-zinc-300 font-medium">No conversations yet</p>
+          <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-10 text-center shadow-sm">
+            <MessageCircle className="w-10 h-10 text-zinc-300 mx-auto mb-3" />
+            <p className="text-zinc-700 font-medium">No conversations yet</p>
             <p className="text-sm text-zinc-500 mt-1">
               Start a planning chat to get personalised career guidance based on your matches.
             </p>
@@ -72,11 +72,11 @@ export default async function ChatListPage() {
               <Link
                 key={s.session_id}
                 href={`/applicant/chat/${s.session_id}`}
-                className="block bg-zinc-900 border border-zinc-800 rounded-lg p-4 hover:border-zinc-700 transition-all"
+                className="block bg-white border border-zinc-200 rounded-lg p-4 hover:border-zinc-300 transition-all shadow-sm"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-medium text-white truncate">
+                    <p className="font-medium text-zinc-900 truncate">
                       {s.title || "Planning chat"}
                     </p>
                     <p className="text-xs text-zinc-500 mt-0.5">
@@ -84,7 +84,7 @@ export default async function ChatListPage() {
                       {new Date(s.created_at).toLocaleDateString()}
                     </p>
                   </div>
-                  <MessageCircle className="w-4 h-4 text-zinc-600 shrink-0 mt-0.5" />
+                  <MessageCircle className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" />
                 </div>
               </Link>
             ))}
