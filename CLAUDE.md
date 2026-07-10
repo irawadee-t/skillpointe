@@ -40,6 +40,23 @@ cd apps/api && source .venv/bin/activate && cd ../..
 python scripts/seed_test_users.py
 ```
 
+### Demo data (recommended for reviewers)
+
+`supabase/demo-data.sql` is a jobs-catalog snapshot: 392 scraped jobs
+(GE Vernova, Southwire, Schneider Electric, Delta, …), employers, taxonomy,
+and scoring config. It contains NO applicant or auth data — test users and
+the demo applicant come from `seed_test_users.py`, and matches regenerate
+deterministically. Order matters:
+
+```bash
+supabase db reset                              # 1. schema
+psql 'postgresql://postgres:postgres@localhost:54322/postgres' \
+  --single-transaction -f supabase/demo-data.sql   # 2. job catalog
+python scripts/seed_test_users.py              # 3. test logins + demo applicant
+python scripts/recompute_matches.py            # 4. score everyone against all jobs
+                                               #    (deterministic — no API keys)
+```
+
 ### Running
 
 ```bash
