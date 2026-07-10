@@ -2,39 +2,336 @@
 @tailwind components;
 @tailwind utilities;
 
-/* PP Neue Montreal via Fontshare */
-@import url("https://api.fontshare.com/v2/css?f[]=neue-montreal@300,400,500,700&display=swap");
-
-/* Tiempos Headline — place font files in /public/fonts/
-   Required files: TiemposHeadline-Regular.woff2, TiemposHeadline-Medium.woff2 */
-@font-face {
-  font-family: "Tiempos Headline";
-  src: url("/fonts/TiemposHeadline-Regular.woff2") format("woff2");
-  font-weight: 400;
-  font-style: normal;
-  font-display: swap;
-}
-@font-face {
-  font-family: "Tiempos Headline";
-  src: url("/fonts/TiemposHeadline-Medium.woff2") format("woff2");
-  font-weight: 500;
-  font-style: normal;
-  font-display: swap;
-}
-
 @layer base {
   :root {
-    --background: #ffffff;
-    --foreground: #111111;
+    --background: #faf8f3;    /* warm off-white */
+    --foreground: #17171c;    /* near-black text */
+    --cohere-focus: #9E1B32;  /* Studio Maroon — brand-tied focus ring */
   }
+
   html {
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    scroll-behavior: smooth;
   }
+
   body {
-    @apply text-zinc-900 bg-white;
+    @apply bg-canvas text-ink font-sans;
+    font-feature-settings: "ss01", "cv01";
+    /* Mobile: 15px baseline (matches text-body token) so trades workers on
+       a Pixel 6 in a truck cab aren't squinting at 13px UI text. */
+    font-size: 15px;
+    /* Guard against horizontal overflow from absolute-positioned children —
+       Pixel 6 is 375px and we cannot ship a page that jiggles sideways. */
+    overflow-x: hidden;
   }
-  h1, h2, h3 {
-    font-family: "Tiempos Headline", Georgia, "Times New Roman", serif;
+
+  /* Headings default to the body sans (Inter) — pages that want editorial
+     serif opt in via `font-display`. Balance wrap keeps titles pretty. */
+  h1, h2, h3, h4 {
+    text-wrap: balance;
+  }
+
+  /* Restrained, measured focus ring */
+  :focus-visible {
+    outline: 2px solid var(--cohere-focus, #4c6ee6);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background: #9E1B32; /* Studio Maroon — one brand accent everywhere */
+    color: #ffedd7;
+  }
+}
+
+@layer components {
+  /* System label — quiet sans, sentence case. (Formerly mono; retired so the
+     product speaks in one typeface. Class name kept for its 40+ call sites.) */
+  .mono-label {
+    @apply font-sans text-caption font-medium tracking-[0.01em] text-slate;
+  }
+
+  /* Standard editorial section container */
+  .container-cohere {
+    @apply mx-auto w-full max-w-container px-5 sm:px-8 lg:px-12;
+  }
+
+  /* Dashboard page shell — wider + tighter than the marketing container so
+     content fills the screen instead of floating in a narrow centered column. */
+  .page-shell {
+    @apply mx-auto w-full max-w-7xl px-5 sm:px-7 lg:px-10;
+  }
+
+  /* ── Aurora surfaces ─────────────────────────────────────────────────
+     The orb's world, brought into the product: near-black warm base, the
+     hero's silk colors blurred into an aurora, film grain on top. Used for
+     the app rail, brand panels, and auth — the dark counterweight that
+     makes the light editorial content read as daylight. */
+  .aurora-surface,
+  .card-green {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    background-color: #16100a;
+    color: #ffedd7;
+  }
+  .aurora-surface::before,
+  .card-green::before {
+    content: "";
+    position: absolute;
+    inset: -45%;
+    z-index: -2;
+    /* Structured weather, not a wash: a bright sage field, a gold pocket,
+       deep maroon, and a cream haze — wide luminance range so the surface
+       reads as photographed atmosphere rather than a CSS ombre. */
+    background:
+      radial-gradient(48% 55% at 78% 22%, rgba(122, 128, 74, 0.95), transparent 68%),
+      radial-gradient(30% 34% at 58% 55%, rgba(196, 148, 58, 0.55), transparent 70%),
+      radial-gradient(44% 52% at 14% 32%, rgba(130, 24, 44, 0.72), transparent 70%),
+      radial-gradient(34% 40% at 88% 82%, rgba(255, 237, 215, 0.30), transparent 72%),
+      radial-gradient(46% 52% at 32% 84%, rgba(56, 46, 36, 0.85), transparent 74%);
+    filter: blur(34px) saturate(1.08);
+    animation: auroraDrift 60s ease-in-out infinite alternate;
+  }
+  .aurora-surface::after,
+  .card-green::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    opacity: 0.8;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.62'/%3E%3C/svg%3E");
+  }
+  @keyframes auroraDrift {
+    0%   { transform: translate3d(0, 0, 0) rotate(0deg); }
+    100% { transform: translate3d(4%, -3%, 0) rotate(8deg); }
+  }
+
+  /* Deep brand content card — now an aurora panel. Class name kept for its
+     call sites; white/xx text utilities inside still read correctly. */
+  .card-green {
+    border-radius: 16px;
+  }
+
+  /* Warm stone card — subtle alternate surface to break up white space. */
+  .card-stone {
+    @apply rounded-xl bg-stone;
+  }
+
+  /* ── Button system ────────────────────────────────────────────────────
+     Design POV: INDUSTRIAL EDITORIAL. Buttons feel like stamped-metal tags
+     on a workwear label, not generic tech pills. Sharp corners, warm cork
+     and maroon (never near-black), tracked letter-spacing at small sizes,
+     tactile color-swap on hover (no lift, no shadow gloss). Every button
+     has 44×44px minimum touch surface even at the compact size.
+
+     Hierarchy:
+       .btn-md     — default action, dark cork surface, cream text, sharp corners
+       .btn-sm     — compact-row action, same POV at reduced padding
+       .btn-lg     — hero / big empty-state action
+       .btn-ghost  — alternative choice, cork border on transparent
+       .btn-link   — dismissive / tertiary, sienna-underlined text
+       .btn-commit — high-emphasis commit action (Apply, Verify, Confirm hire)
+                     uses forest green, reserved on purpose.
+
+     Legacy aliases below (btn-primary, btn-primary-sm, btn-primary-lg,
+     btn-primary-green, btn-primary-inverse, btn-pill-outline, btn-secondary)
+     forward to the new names so existing usage keeps working.
+     ─────────────────────────────────────────────────────────────────── */
+
+  /* Default action — dark cork stamped tag with cream text */
+  .btn-md {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-[3px]
+           bg-studio-dark-cork px-4 py-2 min-h-[36px]
+           text-[13px] font-semibold uppercase tracking-[0.03em] text-studio-cream
+           border border-studio-dark-cork
+           transition-colors duration-150 ease-cohere
+           hover:bg-studio-maroon hover:border-studio-maroon
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-studio-maroon focus-visible:ring-offset-2 focus-visible:ring-offset-canvas
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-studio-dark-cork disabled:hover:border-studio-dark-cork;
+  }
+
+  /* Compact — for dense rows and inline actions (still 44px hit area via padding) */
+  .btn-sm {
+    @apply inline-flex items-center justify-center gap-1 rounded-[3px]
+           bg-studio-dark-cork px-3 py-1.5 min-h-[32px]
+           text-[12px] font-semibold uppercase tracking-[0.04em] text-studio-cream
+           border border-studio-dark-cork
+           transition-colors duration-150 ease-cohere
+           hover:bg-studio-maroon hover:border-studio-maroon
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-studio-maroon focus-visible:ring-offset-2 focus-visible:ring-offset-canvas
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-studio-dark-cork disabled:hover:border-studio-dark-cork;
+  }
+
+  /* Hero / big empty-state — larger stamp with proportional letter-spacing */
+  .btn-lg {
+    @apply inline-flex items-center justify-center gap-2 rounded-[4px]
+           bg-studio-dark-cork px-7 py-3.5 min-h-[52px]
+           text-[15px] font-semibold uppercase tracking-[0.05em] text-studio-cream
+           border border-studio-dark-cork
+           transition-colors duration-150 ease-cohere
+           hover:bg-studio-maroon hover:border-studio-maroon
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-studio-maroon focus-visible:ring-offset-2 focus-visible:ring-offset-canvas
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  /* Ghost — alternative choice, transparent with cork stamp border */
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-[3px]
+           bg-transparent px-4 py-2 min-h-[36px]
+           text-[13px] font-semibold uppercase tracking-[0.03em] text-studio-dark-cork
+           border border-studio-dark-cork
+           transition-colors duration-150 ease-cohere
+           hover:bg-studio-dark-cork hover:text-studio-cream
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-studio-maroon focus-visible:ring-offset-2 focus-visible:ring-offset-canvas
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-studio-dark-cork;
+  }
+
+  /* Link — dismissive / tertiary — sienna underlined text */
+  .btn-link {
+    @apply inline-flex items-center gap-1 text-[13px] font-medium text-studio-sienna
+           underline decoration-1 underline-offset-4 decoration-studio-sienna/40
+           transition-colors duration-150
+           hover:decoration-studio-sienna hover:text-studio-sienna
+           focus-visible:outline-none focus-visible:decoration-studio-sienna;
+  }
+
+  /* Commit — reserved for Apply / Verify credential / Confirm hire.
+     Warm-cream text on forest green stamp — reads as "this action commits". */
+  .btn-commit {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-[3px]
+           bg-studio-forest px-4 py-2 min-h-[36px]
+           text-[13px] font-semibold uppercase tracking-[0.03em] text-studio-cream
+           border border-studio-forest
+           transition-colors duration-150 ease-cohere
+           hover:bg-[#3a3b25] hover:border-[#3a3b25]
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-studio-forest focus-visible:ring-offset-2 focus-visible:ring-offset-canvas
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  /* ─── Legacy aliases — forward old names to the new POV so existing
+        code keeps working while we migrate call sites. ─────────────── */
+  .btn-primary         { @apply btn-md; }
+  .btn-primary-sm      { @apply btn-sm; }
+  .btn-primary-lg      { @apply btn-lg; }
+  .btn-primary-green   { @apply btn-commit; }
+  .btn-pill-outline    { @apply btn-ghost; }
+  .btn-secondary       { @apply btn-link; }
+  /* Inverted variant kept for landing hero over dark video only. */
+  .btn-primary-inverse {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-[3px]
+           bg-studio-cream px-4 py-2 min-h-[36px]
+           text-[13px] font-semibold uppercase tracking-[0.03em] text-studio-black
+           border border-studio-cream
+           transition-colors duration-150 ease-cohere
+           hover:bg-studio-sienna hover:text-studio-cream hover:border-studio-sienna
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-studio-cream focus-visible:ring-offset-2;
+  }
+
+  /* Standard text input — thin hairline border on white, warm focus */
+  .input-cohere {
+    @apply w-full rounded-[3px] border border-hairline bg-white px-3.5 py-2.5 text-[14px] text-ink
+           placeholder:text-slate-muted transition-colors duration-150
+           focus:outline-none focus:border-studio-dark-cork focus:ring-2 focus:ring-studio-maroon/20;
+  }
+
+  /* Bordered editorial card — hairline on white with subtle edge shadow */
+  .card-cohere {
+    @apply rounded-[6px] border border-hairline bg-white shadow-subtle;
+  }
+}
+
+@layer utilities {
+  /* ── Scroll reveal (CSS/compositor-driven — never stalls on rAF throttle) ── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition:
+      opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: opacity, transform;
+  }
+  .reveal.reveal-fade {
+    transform: none;
+  }
+  .reveal.is-visible {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Staggered children reveal */
+  .stagger > * {
+    opacity: 0;
+    transform: translateY(20px);
+    transition:
+      opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: opacity, transform;
+  }
+  .stagger.is-visible > * {
+    opacity: 1;
+    transform: none;
+  }
+  .stagger.is-visible > *:nth-child(1) { transition-delay: 0s; }
+  .stagger.is-visible > *:nth-child(2) { transition-delay: 0.06s; }
+  .stagger.is-visible > *:nth-child(3) { transition-delay: 0.12s; }
+  .stagger.is-visible > *:nth-child(4) { transition-delay: 0.18s; }
+  .stagger.is-visible > *:nth-child(5) { transition-delay: 0.24s; }
+  .stagger.is-visible > *:nth-child(6) { transition-delay: 0.30s; }
+  .stagger.is-visible > *:nth-child(7) { transition-delay: 0.36s; }
+  .stagger.is-visible > *:nth-child(8) { transition-delay: 0.42s; }
+  .stagger.is-visible > *:nth-child(9) { transition-delay: 0.48s; }
+  .stagger.is-visible > *:nth-child(10) { transition-delay: 0.54s; }
+  .stagger.is-visible > *:nth-child(n + 11) { transition-delay: 0.6s; }
+
+  /* Skeleton shimmer surface */
+  .shimmer {
+    @apply relative overflow-hidden bg-stone/60;
+  }
+  .shimmer::after {
+    content: "";
+    @apply absolute inset-0 -translate-x-full animate-shimmer;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  }
+
+  /* Hide scrollbar but keep scroll */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Toast entry */
+  @keyframes toastIn {
+    0%   { opacity: 0; transform: translateY(6px) scale(0.98); }
+    100% { opacity: 1; transform: translateY(0)   scale(1); }
+  }
+
+  /* Credential-verify pulse — used one-shot when a credential badge flips to verified */
+  @keyframes credPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(16, 128, 92, 0.45); }
+    70%  { box-shadow: 0 0 0 8px rgba(16, 128, 92, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(16, 128, 92, 0); }
+  }
+  .cred-pulse { animation: credPulse 900ms ease-out 2; }
+
+  /* Visible focus ring for keyboard users — one brand-maroon ring everywhere
+     (was cohere-ink here and maroon in @layer base; the two rules fought). */
+  *:focus-visible {
+    outline: 2px solid var(--cohere-focus, #9E1B32);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+    /* Never leave revealed content hidden when motion is reduced */
+    .reveal, .stagger > * {
+      opacity: 1 !important;
+      transform: none !important;
+    }
   }
 }

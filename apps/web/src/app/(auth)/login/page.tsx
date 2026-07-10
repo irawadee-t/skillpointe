@@ -2,14 +2,26 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
+import { MonoLabel, Field } from "@/components/ui";
+
+// Dev-only quick-fill credentials. The import lives inside a NODE_ENV branch so
+// Next.js's dead-code elimination strips the module (and its plaintext creds)
+// from production bundles. See apps/web/src/lib/dev/testAccounts.ts.
+const IS_DEV = process.env.NODE_ENV === "development";
+type DevAccount = { label: string; email: string; password: string };
+const DEV_ACCOUNTS: readonly DevAccount[] = IS_DEV
+  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+  ? (require("@/lib/dev/testAccounts").DEV_ACCOUNTS as readonly DevAccount[])
+  : [];
 
 const ROLE_HOME: Record<string, string> = {
   applicant: "/applicant",
   employer: "/employer",
   admin: "/admin",
+  institution: "/institution",
 };
 
 export default function LoginPage() {
@@ -21,13 +33,21 @@ export default function LoginPage() {
 }
 
 function LoginForm() {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  // Prefill with the applicant test account in dev — one less friction step.
+  const _prefill = IS_DEV ? DEV_ACCOUNTS[1] : undefined;
+  const [email, setEmail] = useState(_prefill?.email ?? "");
+  const [password, setPassword] = useState(_prefill?.password ?? "");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Guard: if IS_DEV changes between server + client (shouldn't, but hydration
+  // safety), clear the prefill.
+  useEffect(() => {
+    if (!IS_DEV) { setEmail(""); setPassword(""); }
+  }, []);
 
   const nextPath = searchParams.get("next");
 
@@ -74,78 +94,89 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm bg-white border border-zinc-200 rounded-2xl p-8 shadow-sm">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 mb-1">Sign in</h1>
-        <p className="text-sm text-zinc-500 mb-6">SkillPointe Match</p>
+    <div>
+      <MonoLabel className="mb-4 block">Welcome back</MonoLabel>
+      <h1 className="font-display text-card text-cohere-ink">Sign in</h1>
+      <p className="mt-2 text-body text-slate">Continue to SKILLED Match.</p>
 
-        {searchParams.get("error") === "auth_callback_failed" && (
-          <p className="mb-4 text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded p-3">
-            Authentication failed. Please try again.
+      {searchParams.get("error") === "auth_callback_failed" && (
+        <p className="mt-6 rounded-sm border border-error-red/20 bg-error-red/5 p-3 text-caption text-error-red">
+          Authentication failed. Please try again.
+        </p>
+      )}
+
+      <form onSubmit={handleLogin} className="mt-8 space-y-5">
+        <Field label="Email">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoComplete="email"
+            className="input-cohere"
+          />
+        </Field>
+
+        <Field label="Password">
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            autoComplete="current-password"
+            className="input-cohere"
+          />
+        </Field>
+
+        {error && (
+          <p className="rounded-sm border border-error-red/20 bg-error-red/5 p-3 text-caption text-error-red">
+            {error}
           </p>
         )}
 
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium uppercase tracking-wide text-zinc-400 mb-1">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
-            />
+        <button type="submit" disabled={loading} className="btn-primary w-full">
+          {loading ? "Signing in…" : "Sign in"}
+        </button>
+
+        {IS_DEV && (
+          <div className="rounded-md border border-dashed border-hairline bg-parchment/50 p-3">
+            <p className="text-micro font-medium uppercase tracking-[0.06em] text-slate-muted">
+              Dev quick-fill
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {DEV_ACCOUNTS.map((a) => (
+                <button
+                  key={a.email}
+                  type="button"
+                  onClick={() => { setEmail(a.email); setPassword(a.password); }}
+                  className="rounded-full border border-hairline bg-white px-2.5 py-1 text-[12px] text-slate transition-colors hover:border-studio-maroon hover:text-studio-maroon"
+                >
+                  {a.label}
+                </button>
+              ))}
+            </div>
           </div>
+        )}
+      </form>
 
-          <div>
-            <label className="block text-xs font-medium uppercase tracking-wide text-zinc-400 mb-1">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              autoComplete="current-password"
-              className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
-            />
-          </div>
-
-          {error && (
-            <p className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded p-3">{error}</p>
-          )}
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-zinc-900 text-white py-2.5 rounded-full text-sm font-medium hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {loading ? "Signing in…" : "Sign in"}
-          </button>
-        </form>
-
-        <div className="mt-6 text-sm space-y-2 text-zinc-500">
-          <p>
-            New applicant?{" "}
-            <Link href="/signup" className="text-spf-navy hover:text-spf-navy-light underline font-medium">
-              Create account
-            </Link>
-          </p>
-          <p>
-            <Link href="/forgot-password" className="text-zinc-400 hover:text-zinc-600 underline">
-              Forgot password?
-            </Link>
-          </p>
-        </div>
-
-        <p className="mt-6 text-xs text-zinc-400">
-          Employers and admins are added by invitation only. Contact SkillPointe
-          if you need access.
+      <div className="mt-8 space-y-2 text-caption text-slate">
+        <p>
+          New applicant?{" "}
+          <Link href="/signup" className="font-medium text-cohere-blue underline underline-offset-4">
+            Create account
+          </Link>
+        </p>
+        <p>
+          <Link href="/forgot-password" className="text-slate-muted underline underline-offset-4 hover:text-ink">
+            Forgot password?
+          </Link>
         </p>
       </div>
+
+      <p className="mt-8 border-t border-hairline pt-6 text-micro text-slate-muted">
+        Employers and admins are added by invitation only. Contact SKILLED Nation if
+        you need access.
+      </p>
     </div>
   );
 }

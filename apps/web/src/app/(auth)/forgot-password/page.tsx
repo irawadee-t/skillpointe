@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
+import { MonoLabel, Field } from "@/components/ui";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -17,12 +18,9 @@ export default function ForgotPasswordPage() {
     setError(null);
 
     const supabase = createClient();
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(
-      email,
-      {
-        redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
-      }
-    );
+    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+    });
 
     setLoading(false);
 
@@ -36,66 +34,56 @@ export default function ForgotPasswordPage() {
 
   if (sent) {
     return (
-      <div className="flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-sm bg-white border border-zinc-200 rounded-2xl p-8 shadow-sm text-center">
-          <h2 className="text-xl font-semibold mb-3 text-zinc-900">Check your email</h2>
-          <p className="text-zinc-500 text-sm">
-            If <strong className="text-zinc-900">{email}</strong> has an account, you will receive a
-            password reset link shortly.
-          </p>
-          <Link
-            href="/login"
-            className="mt-6 inline-block text-spf-navy hover:text-spf-navy-light underline text-sm"
-          >
-            Back to login
-          </Link>
-        </div>
+      <div className="text-center">
+        <MonoLabel className="mb-4 block">Reset requested</MonoLabel>
+        <h2 className="font-display text-card text-cohere-ink">Check your email</h2>
+        <p className="mt-3 text-body text-slate">
+          If <strong className="text-ink">{email}</strong> has an account, a password
+          reset link is on its way.
+        </p>
+        <Link href="/login" className="btn-secondary mt-8 inline-flex">
+          Back to sign in
+        </Link>
       </div>
     );
   }
 
   return (
-    <div className="flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm bg-white border border-zinc-200 rounded-2xl p-8 shadow-sm">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 mb-1">Reset password</h1>
-        <p className="text-sm text-zinc-500 mb-6">
-          Enter your email and we will send a reset link.
-        </p>
+    <div>
+      <MonoLabel className="mb-4 block">Account recovery</MonoLabel>
+      <h1 className="font-display text-card text-cohere-ink">Reset password</h1>
+      <p className="mt-2 text-body text-slate">
+        Enter your email and we&apos;ll send a reset link.
+      </p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium uppercase tracking-wide text-zinc-400 mb-1">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
-            />
-          </div>
+      <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+        <Field label="Email">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoComplete="email"
+            className="input-cohere"
+          />
+        </Field>
 
-          {error && (
-            <p className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded p-3">{error}</p>
-          )}
+        {error && (
+          <p className="rounded-sm border border-error-red/20 bg-error-red/5 p-3 text-caption text-error-red">
+            {error}
+          </p>
+        )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-zinc-900 text-white py-2.5 rounded-full text-sm font-medium hover:bg-zinc-700 disabled:opacity-50 transition-colors"
-          >
-            {loading ? "Sending…" : "Send reset link"}
-          </button>
-        </form>
+        <button type="submit" disabled={loading} className="btn-primary w-full">
+          {loading ? "Sending…" : "Send reset link"}
+        </button>
+      </form>
 
-        <p className="mt-6 text-sm text-zinc-500">
-          <Link href="/login" className="text-zinc-400 hover:text-zinc-600 underline">
-            Back to login
-          </Link>
-        </p>
-      </div>
+      <p className="mt-8 text-caption text-slate">
+        <Link href="/login" className="text-slate-muted underline underline-offset-4 hover:text-ink">
+          Back to sign in
+        </Link>
+      </p>
     </div>
   );
 }

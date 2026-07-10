@@ -14,9 +14,9 @@ import {
   MapPin,
   BarChart3,
   Database,
-  Activity,
 } from "lucide-react";
 import type { AdminDashboard } from "@/lib/api/admin";
+import { PageHeader, MonoLabel, Reveal, Stagger, StaggerItem } from "@/components/ui";
 
 interface Props {
   data: AdminDashboard | null;
@@ -33,14 +33,14 @@ function StatCard({
   icon: React.ElementType;
 }) {
   return (
-    <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-5">
+    <div className="rounded-md bg-cohere-green p-5 text-white transition-transform duration-300 ease-cohere hover:-translate-y-1">
       <div className="flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-zinc-100">
-          <Icon className="w-5 h-5 text-zinc-500" />
+        <div className="p-2 rounded-sm bg-white/10">
+          <Icon className="w-5 h-5 text-white/80" />
         </div>
         <div>
-          <div className="text-2xl font-bold text-spf-navy">{value}</div>
-          <div className="text-xs text-zinc-400 font-medium uppercase tracking-wide mt-0.5">{label}</div>
+          <div className="font-display text-feature text-white tabular-nums leading-none">{value}</div>
+          <MonoLabel className="mt-1.5 block text-white/55">{label}</MonoLabel>
         </div>
       </div>
     </div>
@@ -70,14 +70,14 @@ function BarChart({
         const pct = (val / max) * 100;
         return (
           <div key={i} className="flex items-center gap-3">
-            <div className="w-28 text-xs text-zinc-500 truncate text-right font-medium">{label}</div>
-            <div className="flex-1 h-2 bg-zinc-100 rounded-sm overflow-hidden">
+            <div className="w-28 text-caption text-slate truncate text-right font-medium">{label}</div>
+            <div className="flex-1 h-2 bg-stone rounded-sm overflow-hidden">
               <div
-                className="h-full bg-gradient-to-r from-spf-navy to-blue-600 rounded-sm transition-all duration-700"
+                className="h-full bg-studio-dark-cork rounded-sm transition-all duration-700"
                 style={{ width: `${Math.max(pct, 2)}%` }}
               />
             </div>
-            <div className="w-10 text-xs text-zinc-400 font-medium">{val}</div>
+            <div className="w-10 text-caption text-slate-muted font-medium tabular-nums">{val}</div>
           </div>
         );
       })}
@@ -92,7 +92,7 @@ export function AdminDashboardClient({ data, error }: Props) {
     return (
       <main className="p-8">
         <div className="max-w-5xl mx-auto">
-          <div className="bg-rose-50 border border-rose-200 rounded-lg p-6 text-rose-600">
+          <div className="bg-studio-maroon/10 border border-studio-maroon-soft rounded-md p-6 text-cohere-ink">
             {error || "Failed to load dashboard data."}
           </div>
         </div>
@@ -121,63 +121,68 @@ export function AdminDashboardClient({ data, error }: Props) {
   const toggle = (s: string) => setExpandedSection(expandedSection === s ? null : s);
 
   return (
-    <main className="p-6 md:p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
+    <main className="py-8">
+      <div className="page-shell space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Admin Dashboard</h1>
-            <p className="text-sm text-zinc-500 mt-1">SkillPointe Match platform overview</p>
-          </div>
-        </div>
+        <PageHeader
+          eyebrow="Platform overview"
+          title="Admin Dashboard"
+          lead="SKILLED Match platform analytics at a glance."
+        />
 
         {/* Top-level stats */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <StatCard label="Applicants" value={ov.total_applicants} icon={Users} />
-          <StatCard label="Active jobs" value={ov.total_active_jobs} icon={Briefcase} />
-          <StatCard label="Employers" value={ov.total_employers} icon={Building2} />
-          <StatCard label="Actionable matches" value={actionable} icon={Target} />
-          <StatCard label="Avg matches / applicant" value={avgMatchesPerApplicant} icon={BarChart3} />
-        </div>
+        <Stagger className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          {[
+            { label: "Applicants", value: ov.total_applicants, icon: Users },
+            { label: "Active jobs", value: ov.total_active_jobs, icon: Briefcase },
+            { label: "Employers", value: ov.total_employers, icon: Building2 },
+            { label: "Actionable matches", value: actionable, icon: Target },
+            { label: "Avg matches / applicant", value: avgMatchesPerApplicant, icon: BarChart3 },
+          ].map((s) => (
+            <StaggerItem key={s.label}>
+              <StatCard label={s.label} value={s.value} icon={s.icon} />
+            </StaggerItem>
+          ))}
+        </Stagger>
 
         {/* Match quality */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-5">
-            <div className="flex items-center gap-2 mb-1">
-              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-              <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Eligible</span>
+        <Stagger className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <StaggerItem className="border border-border-light rounded-md bg-white p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <CheckCircle2 className="w-4 h-4 text-cohere-green" />
+              <MonoLabel>Eligible</MonoLabel>
             </div>
-            <div className="text-3xl font-bold text-emerald-600">{eligPct}%</div>
-            <div className="text-xs text-zinc-400 mt-1">{ov.eligible_matches.toLocaleString()} matches &middot; {matchRate}% match rate</div>
-          </div>
-          <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-5">
-            <div className="flex items-center gap-2 mb-1">
-              <AlertTriangle className="w-4 h-4 text-amber-400" />
-              <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Near fit</span>
+            <div className="font-display text-card text-cohere-green tabular-nums leading-none">{eligPct}%</div>
+            <div className="text-caption text-slate mt-2">{ov.eligible_matches.toLocaleString()} matches &middot; {matchRate}% match rate</div>
+          </StaggerItem>
+          <StaggerItem className="border border-border-light rounded-md bg-white p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <AlertTriangle className="w-4 h-4 text-studio-maroon" />
+              <MonoLabel>Near fit</MonoLabel>
             </div>
-            <div className="text-3xl font-bold text-amber-400">{nearPct}%</div>
-            <div className="text-xs text-zinc-400 mt-1">{ov.near_fit_matches.toLocaleString()} close matches worth surfacing</div>
-          </div>
-          <div className="bg-zinc-100 border border-zinc-200 rounded-lg p-5">
-            <div className="flex items-center gap-2 mb-1">
-              <XCircle className="w-4 h-4 text-zinc-400" />
-              <span className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Ineligible</span>
+            <div className="font-display text-card text-studio-maroon tabular-nums leading-none">{nearPct}%</div>
+            <div className="text-caption text-slate mt-2">{ov.near_fit_matches.toLocaleString()} close matches worth surfacing</div>
+          </StaggerItem>
+          <StaggerItem className="border border-border-light rounded-md bg-stone p-5">
+            <div className="flex items-center gap-2 mb-2">
+              <XCircle className="w-4 h-4 text-slate-muted" />
+              <MonoLabel>Ineligible</MonoLabel>
             </div>
-            <div className="text-3xl font-bold text-zinc-400">{ineligPct}%</div>
-            <div className="text-xs text-zinc-400 mt-1">{ov.ineligible_matches.toLocaleString()} pairs filtered out</div>
-          </div>
-        </div>
+            <div className="font-display text-card text-slate-muted tabular-nums leading-none">{ineligPct}%</div>
+            <div className="text-caption text-slate mt-2">{ov.ineligible_matches.toLocaleString()} pairs filtered out</div>
+          </StaggerItem>
+        </Stagger>
 
         {/* Charts row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Jobs by trade family */}
-          <section className="bg-zinc-50 border border-zinc-200 rounded-lg p-5">
+          <Reveal as="section" className="border border-border-light rounded-md bg-white p-5">
             <button onClick={() => toggle("family")} className="flex items-center justify-between w-full text-left">
               <div className="flex items-center gap-2">
-                <BarChart3 className="w-4 h-4 text-zinc-500" />
-                <h2 className="font-semibold text-zinc-900">Jobs by Trade Family</h2>
+                <BarChart3 className="w-4 h-4 text-slate" />
+                <h2 className="text-feature font-display text-cohere-ink">Jobs by Trade Family</h2>
               </div>
-              {expandedSection === "family" ? <ChevronUp className="w-4 h-4 text-zinc-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />}
+              {expandedSection === "family" ? <ChevronUp className="w-4 h-4 text-slate-muted" /> : <ChevronDown className="w-4 h-4 text-slate-muted" />}
             </button>
             <div className={`mt-4 ${expandedSection === "family" ? "" : "max-h-64 overflow-hidden"}`}>
               <BarChart
@@ -186,16 +191,16 @@ export function AdminDashboardClient({ data, error }: Props) {
                 valueKey="count"
               />
             </div>
-          </section>
+          </Reveal>
 
           {/* Jobs by source */}
-          <section className="bg-zinc-50 border border-zinc-200 rounded-lg p-5">
+          <Reveal as="section" delay={0.05} className="border border-border-light rounded-md bg-white p-5">
             <button onClick={() => toggle("source")} className="flex items-center justify-between w-full text-left">
               <div className="flex items-center gap-2">
-                <Database className="w-4 h-4 text-zinc-500" />
-                <h2 className="font-semibold text-zinc-900">Jobs by Source</h2>
+                <Database className="w-4 h-4 text-slate" />
+                <h2 className="text-feature font-display text-cohere-ink">Jobs by Source</h2>
               </div>
-              {expandedSection === "source" ? <ChevronUp className="w-4 h-4 text-zinc-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />}
+              {expandedSection === "source" ? <ChevronUp className="w-4 h-4 text-slate-muted" /> : <ChevronDown className="w-4 h-4 text-slate-muted" />}
             </button>
             <div className={`mt-4 ${expandedSection === "source" ? "" : "max-h-64 overflow-hidden"}`}>
               <BarChart
@@ -204,67 +209,67 @@ export function AdminDashboardClient({ data, error }: Props) {
                 valueKey="count"
               />
             </div>
-          </section>
+          </Reveal>
         </div>
 
         {/* Job distribution map placeholder + stats */}
-        <section className="bg-zinc-50 border border-zinc-200 rounded-lg p-5">
+        <Reveal as="section" className="border border-border-light rounded-md bg-white p-5">
           <div className="flex items-center gap-2 mb-4">
-            <MapPin className="w-4 h-4 text-zinc-500" />
-            <h2 className="font-semibold text-zinc-900">Job Distribution by State</h2>
+            <MapPin className="w-4 h-4 text-slate" />
+            <h2 className="text-feature font-display text-cohere-ink">Job Distribution by State</h2>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2">
             {data.jobs_by_state.slice(0, 16).map((s) => (
-              <div key={s.state} className="bg-zinc-100 rounded-lg p-2 text-center">
-                <div className="text-lg font-bold text-spf-navy">{s.count}</div>
-                <div className="text-xs text-zinc-400 font-medium">{s.state}</div>
+              <div key={s.state} className="bg-stone rounded-sm p-2 text-center">
+                <div className="text-body-lg font-display text-cohere-ink tabular-nums">{s.count}</div>
+                <MonoLabel className="block">{s.state}</MonoLabel>
               </div>
             ))}
           </div>
-          <p className="text-xs text-zinc-400 mt-3">
+          <p className="text-caption text-slate-muted mt-3">
             Interactive map available in the Map tab
           </p>
-        </section>
+        </Reveal>
 
         {/* Experience levels */}
-        <section className="bg-zinc-50 border border-zinc-200 rounded-lg p-5">
+        <Reveal as="section" className="border border-border-light rounded-md bg-white p-5">
           <div className="flex items-center gap-2 mb-4">
-            <Target className="w-4 h-4 text-zinc-500" />
-            <h2 className="font-semibold text-zinc-900">Experience Levels</h2>
+            <Target className="w-4 h-4 text-slate" />
+            <h2 className="text-feature font-display text-cohere-ink">Experience Levels</h2>
           </div>
           <div className="flex flex-wrap gap-3">
             {data.experience_levels.map((e) => (
-              <div key={e.level} className="border border-zinc-200 rounded-lg px-4 py-2 bg-zinc-100">
-                <div className="text-xl font-bold text-spf-navy">{e.count}</div>
-                <div className="text-xs font-medium text-zinc-400 capitalize">{e.level.replace("_", " ")}</div>
+              <div key={e.level} className="border border-border-light rounded-sm px-4 py-2 bg-stone">
+                <div className="text-body-lg font-display text-cohere-ink tabular-nums">{e.count}</div>
+                <div className="text-caption font-medium text-slate capitalize">{e.level.replace("_", " ")}</div>
               </div>
             ))}
           </div>
-        </section>
+        </Reveal>
 
         {/* Data quality */}
-        <section className="bg-zinc-50 border border-zinc-200 rounded-lg p-5">
+        <Reveal as="section" className="border border-border-light rounded-md bg-white p-5">
           <div className="flex items-center gap-2 mb-4">
-            <AlertTriangle className="w-4 h-4 text-amber-400" />
-            <h2 className="font-semibold text-zinc-900">Data Quality</h2>
+            <AlertTriangle className="w-4 h-4 text-studio-maroon" />
+            <h2 className="text-feature font-display text-cohere-ink">Data Quality</h2>
           </div>
           <div className="space-y-3">
             {data.data_quality.map((dq) => (
               <div key={dq.metric} className="flex items-center gap-4">
-                <div className="w-48 text-sm text-zinc-600">{dq.metric}</div>
-                <div className="flex-1 h-2 bg-zinc-100 rounded-sm overflow-hidden">
+                <div className="w-48 text-caption text-slate">{dq.metric}</div>
+                <div className="flex-1 h-2 bg-stone rounded-sm overflow-hidden">
                   <div
-                    className={`h-full rounded-sm transition-all duration-700 ${dq.pct > 20 ? "bg-rose-500" : dq.pct > 5 ? "bg-amber-500" : "bg-emerald-500"}`}
+                    className={`h-full rounded-sm transition-all duration-700 ${dq.pct > 20 ? "bg-cohere-coral" : dq.pct > 5 ? "bg-amber-500" : "bg-cohere-green"}`}
                     style={{ width: `${Math.max(dq.pct, 1)}%` }}
                   />
                 </div>
-                <div className="w-20 text-right text-sm text-zinc-400">
+                <div className="w-20 text-right text-caption text-slate-muted tabular-nums">
                   {dq.value}/{dq.total} ({dq.pct}%)
                 </div>
               </div>
             ))}
           </div>
-        </section>
+        </Reveal>
       </div>
     </main>
   );

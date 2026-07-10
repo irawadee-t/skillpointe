@@ -47,6 +47,18 @@ class BallJobsAdapter(BaseAdapter):
 
                 city, state = parse_location(location_str)
 
+                # US-only filter. Ball's careers site mixes Danish (DK),
+                # Brazilian (BR), and other non-US listings into the same
+                # paginated search. parse_location only resolves real US state
+                # abbreviations to `state`; anything else stays None. We use
+                # the raw string as a final safety check.
+                loc_raw = (location_str or "").upper()
+                if not state or any(non_us in loc_raw for non_us in
+                                    (", DK", ", BR", ", DE", ", FR", ", IT",
+                                     ", ES", ", NL", ", PL", ", CZ", ", CN",
+                                     ", IN", ", MX", ", AR", ", VN")):
+                    continue
+
                 listings.append({
                     "title": title,
                     "url": href,

@@ -54,3 +54,6 @@ data/
 coverage/
 .coverage
 htmlcov/
+
+# Personal Claude Code config (launch/permissions are per-machine)
+.claude/

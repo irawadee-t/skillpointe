@@ -1,0 +1,39 @@
+<!-- @dsCard group="Screens · Admin" -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Admin Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--green:#003c33;--ink:#17171c;--body:#212121;--slate:#52525b;--coral:#ff7759;--hair:#d9d9dd;--stone:#eeece7}
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:var(--body);font-family:Inter,system-ui,sans-serif;line-height:1.5}
+  .wrap{max-width:1180px;margin:0 auto;padding:32px}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--slate)}
+  h1{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:34px;letter-spacing:-.02em;color:var(--ink);margin:.3em 0 0}
+  .role{display:inline-block;margin-left:10px;font-family:'JetBrains Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:.04em;background:var(--green);color:#fff;border-radius:999px;padding:4px 12px;vertical-align:middle}
+  .purpose{font-size:18px;color:var(--slate);margin:14px 0 0;max-width:760px}
+  .grid{display:grid;grid-template-columns:1fr;gap:28px;margin-top:28px}
+  @media(min-width:900px){.grid{grid-template-columns:1.55fr 1fr}}
+  .shot{border:1px solid var(--hair);border-radius:16px;overflow:hidden}
+  .shot img{display:block;width:100%}
+  .meta{align-self:start}
+  .panel{background:var(--green);color:#fff;border-radius:16px;padding:22px}
+  .panel h2{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:15px;text-transform:uppercase;letter-spacing:.06em;color:rgba(255,255,255,.6);margin:0 0 10px}
+  .panel p{margin:0;font-size:15px;color:rgba(255,255,255,.85)}
+  .comps{margin-top:18px;border:1px solid var(--hair);border-radius:16px;padding:22px}
+  .comps h2{font-family:'JetBrains Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--slate);margin:0 0 12px}
+  .comps ul{margin:0;padding-left:18px}.comps li{margin:5px 0;font-size:15px}
+</style></head>
+<body><div class="wrap">
+  <div class="eyebrow">SkillPointe Match · Screen</div>
+  <h1>Admin Dashboard<span class="role">Admin</span></h1>
+  <p class="purpose">Platform analytics at a glance.</p>
+  <div class="grid">
+    <div class="shot"><img src="./30-admin-dashboard.png" alt="Admin Dashboard screenshot"></div>
+    <div class="meta">
+      <div class="panel"><h2>Layout</h2><p>PageHeader → row of 5 GREEN KPI cards (Applicants · Active jobs · Employers · Actionable matches · Avg/applicant) → match-quality cards (eligible green / near-fit coral / ineligible stone) → bar charts (jobs by trade family, by source) → distribution by state grid → experience levels → data-quality bars.</p></div>
+      <div class="comps"><h2>Key components</h2><ul><li>PageHeader</li><li>MetricCard (green)</li><li>Match-quality cards</li><li>BarChart</li><li>state grid</li><li>data-quality bars</li></ul></div>
+    </div>
+  </div>
+</div></body></html>

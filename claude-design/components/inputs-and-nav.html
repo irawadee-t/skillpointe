@@ -1,0 +1,44 @@
+<!-- @dsCard group="Components" -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inputs, Forms &amp; Navigation</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#17171c;--body:#212121;--slate:#52525b;--smut:#6b6b76;--hair:#d9d9dd;--green:#003c33}
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:var(--body);font-family:Inter,system-ui,sans-serif}
+  .wrap{max-width:1000px;margin:0 auto;padding:36px}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--slate)}
+  h1{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:34px;letter-spacing:-.02em;color:var(--ink);margin:.3em 0 .2em}
+  p.lead{color:var(--slate);font-size:17px;max-width:700px;margin:0 0 26px}
+  h2{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:18px;color:var(--ink);margin:28px 0 14px}
+  .field{max-width:420px;margin-bottom:16px}
+  .field label{display:block;font-family:'JetBrains Mono',monospace;font-size:12px;font-weight:500;text-transform:uppercase;letter-spacing:.04em;color:var(--smut);margin-bottom:8px}
+  .field input,.field select{width:100%;border:1px solid var(--hair);border-radius:8px;background:#fff;padding:12px 16px;font-family:Inter,sans-serif;font-size:16px;color:var(--ink)}
+  .field input:focus{outline:none;border-color:#9b60aa;box-shadow:0 0 0 3px rgba(155,96,170,.18)}
+  /* nav */
+  .nav{border:1px solid var(--hair);border-radius:14px;display:flex;align-items:center;justify-content:space-between;padding:0 22px;height:64px}
+  .nav .logo{font-family:'Space Grotesk',sans-serif;font-weight:700;color:var(--ink)}
+  .nav .links{display:flex;gap:26px}
+  .nav a{font-size:14px;color:var(--smut);text-decoration:none}
+  .nav a.active{color:var(--ink);border-bottom:2px solid var(--ink);padding-bottom:4px}
+  .nav .pill{background:var(--ink);color:#fff;border-radius:999px;padding:9px 18px;font-size:14px;font-weight:500}
+</style></head>
+<body><div class="wrap">
+  <div class="eyebrow">SkillPointe Match · Components</div>
+  <h1>Inputs, Forms &amp; Navigation</h1>
+  <p class="lead">Rectangular inputs with thin grey borders and a violet focus ring; uppercase mono field labels. The dashboard nav is a three-zone bar (logo · centered links with animated active underline · account / CTA).</p>
+
+  <h2>Form fields — .input-cohere + Field</h2>
+  <div class="field"><label>Email</label><input type="email" placeholder="jane@example.com"></div>
+  <div class="field"><label>Job family</label><select><option>welding</option><option>electrical</option><option>hvac</option></select></div>
+
+  <h2>Dashboard nav (three-zone)</h2>
+  <div class="nav">
+    <div style="display:flex;align-items:center;gap:32px">
+      <span class="logo">SkillPointe</span>
+      <div class="links"><a class="active">Dashboard</a><a>Matches</a><a>Jobs</a><a>Plan</a><a>Messages</a></div>
+    </div>
+    <div style="display:flex;align-items:center;gap:18px"><span style="font-size:12px;color:var(--smut);font-family:'JetBrains Mono',monospace">you@example.com</span><span class="pill">Create account</span></div>
+  </div>
+</div></body></html>

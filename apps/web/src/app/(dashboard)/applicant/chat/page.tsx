@@ -4,12 +4,13 @@
  * Shows existing chat sessions and a button to start a new one.
  * Server component; creation is a client-side action via ChatStartButton.
  */
-import Link from "next/link";
 import { redirect } from "next/navigation";
 import { MessageCircle } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
 import { ChatJobPicker } from "@/components/chat/ChatJobPicker";
+import { PageHeader, Card, Stagger, StaggerItem } from "@/components/ui";
+import { formatRelative } from "@/lib/time";
 
 interface SessionRow {
   session_id: string;
@@ -44,51 +45,45 @@ export default async function ChatListPage() {
   const sessions = await fetchSessions(session.access_token);
 
   return (
-    <main className="p-6 md:p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Career Planning Chat</h1>
-            <p className="text-sm text-zinc-500 mt-0.5">
-              Get personalised advice based on your job matches
-            </p>
-          </div>
-          <ChatJobPicker token={session.access_token} />
-        </div>
+    <main className="py-8">
+      <div className="page-shell space-y-6">
+        <PageHeader
+          eyebrow="Planning"
+          title="Career planning chat"
+          lead="Get personalized advice based on your job matches."
+          actions={<ChatJobPicker token={session.access_token} />}
+        />
 
         {/* Session list */}
         {sessions.length === 0 ? (
-          <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-10 text-center shadow-sm">
-            <MessageCircle className="w-10 h-10 text-zinc-300 mx-auto mb-3" />
-            <p className="text-zinc-700 font-medium">No conversations yet</p>
-            <p className="text-sm text-zinc-500 mt-1">
-              Start a planning chat to get personalised career guidance based on your matches.
+          <div className="bg-stone border border-transparent rounded-md p-12 text-center">
+            <MessageCircle className="w-10 h-10 text-slate mx-auto mb-3" />
+            <p className="font-display text-feature text-cohere-ink">No conversations yet</p>
+            <p className="text-body text-slate mt-1">
+              Start a planning chat to get personalized career guidance based on your matches.
             </p>
           </div>
         ) : (
-          <div className="space-y-2">
+          <Stagger className="space-y-2.5">
             {sessions.map((s) => (
-              <Link
-                key={s.session_id}
-                href={`/applicant/chat/${s.session_id}`}
-                className="block bg-white border border-zinc-200 rounded-lg p-4 hover:border-zinc-300 transition-all shadow-sm"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-medium text-zinc-900 truncate">
-                      {s.title || "Planning chat"}
-                    </p>
-                    <p className="text-xs text-zinc-500 mt-0.5">
-                      {s.message_count} message{s.message_count !== 1 ? "s" : ""} ·{" "}
-                      {new Date(s.created_at).toLocaleDateString()}
-                    </p>
+              <StaggerItem key={s.session_id}>
+                <Card interactive href={`/applicant/chat/${s.session_id}`} className="p-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-cohere-ink truncate">
+                        {s.title || "Planning chat"}
+                      </p>
+                      <p className="text-caption text-slate mt-0.5">
+                        {s.message_count} message{s.message_count !== 1 ? "s" : ""},{" "}
+                        {formatRelative(s.created_at)}
+                      </p>
+                    </div>
+                    <MessageCircle className="w-4 h-4 text-slate shrink-0 mt-0.5" />
                   </div>
-                  <MessageCircle className="w-4 h-4 text-zinc-400 shrink-0 mt-0.5" />
-                </div>
-              </Link>
+                </Card>
+              </StaggerItem>
             ))}
-          </div>
+          </Stagger>
         )}
       </div>
     </main>

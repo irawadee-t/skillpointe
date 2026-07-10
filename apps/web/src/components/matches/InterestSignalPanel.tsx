@@ -16,11 +16,9 @@
 import { useState } from "react";
 import {
   CheckCircle2,
-  ExternalLink,
   ThumbsDown,
   ThumbsUp,
   Loader2,
-  ClipboardList,
 } from "lucide-react";
 
 interface InterestSignalPanelProps {
@@ -82,85 +80,65 @@ export function InterestSignalPanel({
       value: "interested",
       label: hasUrl ? "Interested" : "Planning to apply",
       icon: ThumbsUp,
-      activeClass: "bg-spf-navy/10 border-spf-navy text-spf-navy",
+      activeClass: "bg-parchment border-studio-maroon text-studio-maroon",
     },
     {
       value: "applied",
       label: hasUrl ? "Applied externally" : "I've applied",
       icon: CheckCircle2,
-      activeClass: "bg-emerald-50 border-emerald-500 text-emerald-600",
+      activeClass: "border-cohere-green text-cohere-green",
     },
     {
       value: "not_interested",
       label: "Not interested",
       icon: ThumbsDown,
-      activeClass: "bg-zinc-100 border-zinc-300 text-zinc-500",
+      activeClass: "border-cohere-ink text-cohere-ink",
     },
   ];
 
+  // Show a soft nudge after Apply-externally click if the user has NOT set a signal.
+  // We optimistically auto-set "applied", but if the network write fails or the
+  // user closes the tab first, we still ask them to confirm on return.
+  const needsNudge = hasUrl && current === null;
+
   return (
-    <div className="space-y-3">
-      {/* Apply externally link — only shown when a URL exists */}
-      {sourceUrl && (
-        <a
-          href={sourceUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-full hover:bg-zinc-700 transition-colors"
-          onClick={() => {
-            if (current !== "applied") handleSelect("applied");
-          }}
-        >
-          <ExternalLink className="w-4 h-4" />
-          Apply externally
-        </a>
-      )}
+    <div className="space-y-1.5">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span className="text-caption text-slate-muted">
+          {hasUrl ? "Your interest" : "Your status"}
+        </span>
 
-      {/* Self-reported status — always visible; more prominent when no URL */}
-      <div>
-        {!hasUrl && (
-          <div className="flex items-center gap-1.5 mb-2 text-xs text-zinc-400">
-            <ClipboardList className="w-3.5 h-3.5" />
-            <span>Update your application status:</span>
-          </div>
-        )}
-        {hasUrl && (
-          <p className="text-xs text-zinc-400 mb-2">Your interest level:</p>
-        )}
-
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5">
           {LEVELS.map(({ value, label, icon: Icon, activeClass }) => (
             <button
               key={value}
               onClick={() => handleSelect(value)}
               disabled={loading}
-              className={`inline-flex items-center gap-1.5 text-sm border rounded-full px-3 py-1.5 transition-all ${
+              className={`inline-flex items-center gap-1 rounded-full border bg-white px-2.5 py-1 text-[12px] transition-colors ${
                 current === value
                   ? activeClass
-                  : "border-zinc-200 text-zinc-500 hover:border-zinc-300 hover:text-zinc-700"
+                  : "border-hairline text-slate hover:border-cohere-ink hover:text-cohere-ink"
               }`}
             >
               {loading && current === value ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                <Loader2 className="h-3 w-3 animate-spin" />
               ) : (
-                <Icon className="w-3.5 h-3.5" />
+                <Icon className="h-3 w-3" />
               )}
               {label}
             </button>
           ))}
         </div>
 
-        {current && (
-          <p className="mt-1.5 text-xs text-zinc-400">
-            Saved:{" "}
-            <span className="font-medium text-zinc-600">
-              {LEVELS.find((l) => l.value === current)?.label ?? current}
-            </span>
-          </p>
-        )}
-
-        {error && <p className="mt-1.5 text-xs text-rose-600">{error}</p>}
+        {error && <span className="text-[12px] text-error-red">{error}</span>}
       </div>
+
+      {/* Soft nudge until they pick — quiet, useful, then gone */}
+      {needsNudge && (
+        <p className="text-micro text-slate-muted">
+          Pick one — it sharpens what we show you next.
+        </p>
+      )}
     </div>
   );
 }

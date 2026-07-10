@@ -1,0 +1,66 @@
+<!-- @dsCard group="Foundations" -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spacing, Radius &amp; Elevation</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#17171c;--body:#212121;--slate:#52525b;--hair:#d9d9dd;--green:#003c33;--stone:#eeece7}
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:var(--body);font-family:Inter,system-ui,sans-serif}
+  .wrap{max-width:1000px;margin:0 auto;padding:36px}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--slate)}
+  h1{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:34px;letter-spacing:-.02em;color:var(--ink);margin:.3em 0 .2em}
+  p.lead{color:var(--slate);font-size:17px;max-width:680px;margin:0 0 26px}
+  h2{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:20px;color:var(--ink);margin:30px 0 14px}
+  .scale{display:flex;flex-direction:column;gap:8px}
+  .s{display:flex;align-items:center;gap:14px}
+  .s .bar{height:14px;background:var(--green);border-radius:3px}
+  .s .n{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--slate);width:60px}
+  .radii{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px}
+  .r{border:1px solid var(--hair);padding:14px;border-radius:12px}
+  .r .demo{height:60px;background:var(--stone);border:1px solid var(--hair)}
+  .r .n{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--slate);margin-top:10px}
+  .elev{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+  .e{border-radius:16px;padding:18px;font-size:14px}
+  .e .t{font-weight:600;color:var(--ink);margin-bottom:4px}
+  .flat{border:1px solid #e5e7eb;background:#fff}
+  .bord{border:1px solid var(--hair);background:#fff}
+  .greenc{background:var(--green);color:#fff}.greenc .t{color:#fff}
+  .greenc small{color:rgba(255,255,255,.7)}
+</style></head>
+<body><div class="wrap">
+  <div class="eyebrow">SkillPointe Match · Foundations</div>
+  <h1>Spacing, Radius &amp; Elevation</h1>
+  <p class="lead">8px base with generous vertical breathing room. The system is mostly flat — depth comes from surface alternation (white / stone / green), thin borders and rounded corners, not drop shadows.</p>
+
+  <h2>Spacing scale (8px base)</h2>
+  <div class="scale">
+    <div class="s"><span class="n">4</span><div class="bar" style="width:4px"></div></div>
+    <div class="s"><span class="n">8</span><div class="bar" style="width:8px"></div></div>
+    <div class="s"><span class="n">12</span><div class="bar" style="width:12px"></div></div>
+    <div class="s"><span class="n">16</span><div class="bar" style="width:16px"></div></div>
+    <div class="s"><span class="n">24</span><div class="bar" style="width:24px"></div></div>
+    <div class="s"><span class="n">32</span><div class="bar" style="width:32px"></div></div>
+    <div class="s"><span class="n">40</span><div class="bar" style="width:40px"></div></div>
+    <div class="s"><span class="n">56</span><div class="bar" style="width:56px"></div></div>
+    <div class="s"><span class="n">64</span><div class="bar" style="width:64px"></div></div>
+    <div class="s"><span class="n">80</span><div class="bar" style="width:80px"></div></div>
+  </div>
+
+  <h2>Radius scale</h2>
+  <div class="radii">
+    <div class="r"><div class="demo" style="border-radius:4px"></div><div class="n">xs · 4px</div></div>
+    <div class="r"><div class="demo" style="border-radius:8px"></div><div class="n">sm · 8px (chips, small cards)</div></div>
+    <div class="r"><div class="demo" style="border-radius:16px"></div><div class="n">md · 16px (cards)</div></div>
+    <div class="r"><div class="demo" style="border-radius:22px"></div><div class="n">lg · 22px (media)</div></div>
+    <div class="r"><div class="demo" style="border-radius:30px"></div><div class="n">xl · 30px (filter pills)</div></div>
+    <div class="r"><div class="demo" style="border-radius:999px;height:40px"></div><div class="n">pill · 9999 (CTAs)</div></div>
+  </div>
+
+  <h2>Elevation / depth</h2>
+  <div class="elev">
+    <div class="e flat"><div class="t">Flat</div><small>White or dark field, no shadow — hero copy, lists, editorial surfaces.</small></div>
+    <div class="e bord"><div class="t">Bordered</div><small>1px hairline — research rows, forms, cards.</small></div>
+    <div class="e greenc"><div class="t">Dark brand field</div><small>Deep green / navy full-width band or KPI card — white text.</small></div>
+  </div>
+</div></body></html>

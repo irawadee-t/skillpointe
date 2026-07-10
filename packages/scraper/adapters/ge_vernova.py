@@ -61,10 +61,13 @@ class GEVernovaAdapter(BaseAdapter):
         state = normalize_state(loc.get("stateAbbr") or loc.get("state"))
         is_remote = loc.get("isRemote", False) or listing.get("isRemote", False)
 
-        slug = listing.get("slug", "")
+        # Detail URL — the listing payload exposes `originalURL` as a relative
+        # path like "borescope-technician/job/R5046265". Older `slug` + `sourceID`
+        # builder produced 404s.
+        original_url = listing.get("originalURL", "")
         source_id = listing.get("sourceID", "")
-        if slug:
-            source_url = f"{self.base_url}/{slug}/job/{source_id}"
+        if original_url:
+            source_url = f"{self.base_url}/{original_url.lstrip('/')}"
         else:
             source_url = f"{self.base_url}/jobs/{source_id}"
 
@@ -86,6 +89,11 @@ class GEVernovaAdapter(BaseAdapter):
 
         work_setting = "remote" if is_remote else "on_site"
 
+        # Fetch the full description from the detail page (not present in the
+        # pre-loaded JSON). Without this every GE Vernova row landed with a
+        # NULL description, which the matching engine can't work with.
+        description = self.fetch_description(source_url) if source_url else None
+
         return ScrapedJob(
             title=title,
             employer_name=self.site_name,
@@ -94,6 +102,7 @@ class GEVernovaAdapter(BaseAdapter):
             city=city,
             state=state,
             country="US",
+            description=description,
             posted_date=posted_date,
             employment_type=emp_type,
             work_setting=work_setting,

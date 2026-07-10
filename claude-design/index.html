@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SkillPointe Match — Design System Bundle</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#17171c;--body:#212121;--slate:#52525b;--smut:#6b6b76;--hair:#d9d9dd;--green:#003c33;--stone:#eeece7;--coral:#ff7759}
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:var(--body);font-family:Inter,system-ui,sans-serif;line-height:1.5}
+  .hero{background:var(--green);color:#fff;padding:56px 36px}
+  .hero .in{max-width:1100px;margin:0 auto}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--coral)}
+  h1{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:48px;letter-spacing:-.03em;margin:.25em 0 .15em}
+  .hero p{font-size:18px;color:rgba(255,255,255,.78);max-width:680px;margin:0}
+  .wrap{max-width:1100px;margin:0 auto;padding:36px}
+  h2{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:22px;color:var(--ink);margin:36px 0 14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}
+  a.card{display:block;border:1px solid var(--hair);border-radius:12px;padding:16px;text-decoration:none;color:var(--ink);transition:transform .2s,border-color .2s}
+  a.card:hover{transform:translateY(-3px);border-color:var(--ink)}
+  a.card .k{font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--smut)}
+  a.card .n{font-family:'Space Grotesk',sans-serif;font-size:17px;margin-top:4px}
+</style></head>
+<body>
+  <div class="hero"><div class="in">
+    <div class="eyebrow">Design System Bundle</div>
+    <h1>SkillPointe Match</h1>
+    <p>The whole site captured for a redesign: foundations, components, every screen (real screenshots + annotations), and the architecture / flows / data model. Built in the Cohere editorial design language.</p>
+  </div></div>
+  <div class="wrap">
+    <h2>Foundations</h2>
+    <div class="grid">
+      <a class="card" href="foundations/colors.html"><div class="k">Foundations</div><div class="n">Color</div></a>
+      <a class="card" href="foundations/typography.html"><div class="k">Foundations</div><div class="n">Typography</div></a>
+      <a class="card" href="foundations/spacing-radius.html"><div class="k">Foundations</div><div class="n">Spacing · Radius · Elevation</div></a>
+    </div>
+
+    <h2>Components</h2>
+    <div class="grid">
+      <a class="card" href="components/buttons.html"><div class="k">Components</div><div class="n">Buttons</div></a>
+      <a class="card" href="components/cards.html"><div class="k">Components</div><div class="n">Cards &amp; Metric Cards</div></a>
+      <a class="card" href="components/chips-and-labels.html"><div class="k">Components</div><div class="n">Chips · Labels · Badges</div></a>
+      <a class="card" href="components/inputs-and-nav.html"><div class="k">Components</div><div class="n">Inputs · Forms · Nav</div></a>
+    </div>
+
+    <h2>Architecture</h2>
+    <div class="grid">
+      <a class="card" href="architecture/01-overview.html"><div class="k">Architecture</div><div class="n">Information Architecture</div></a>
+      <a class="card" href="architecture/02-flows.html"><div class="k">Architecture</div><div class="n">User Flows</div></a>
+      <a class="card" href="architecture/03-data-model.html"><div class="k">Architecture</div><div class="n">Data Model</div></a>
+      <a class="card" href="architecture/04-design-language.html"><div class="k">Architecture</div><div class="n">Design Language</div></a>
+    </div>
+
+    <h2>Screens (20)</h2>
+    <div class="grid">
+      <a class="card" href="screens/01-landing.html"><div class="k">Public</div><div class="n">Landing</div></a>
+      <a class="card" href="screens/02-login.html"><div class="k">Public</div><div class="n">Sign in</div></a>
+      <a class="card" href="screens/03-signup.html"><div class="k">Public</div><div class="n">Create account</div></a>
+      <a class="card" href="screens/10-applicant-setup.html"><div class="k">Applicant</div><div class="n">Setup</div></a>
+      <a class="card" href="screens/11-applicant-matches.html"><div class="k">Applicant</div><div class="n">Matches</div></a>
+      <a class="card" href="screens/12-applicant-jobs.html"><div class="k">Applicant</div><div class="n">Jobs Browse</div></a>
+      <a class="card" href="screens/13-applicant-profile.html"><div class="k">Applicant</div><div class="n">Profile</div></a>
+      <a class="card" href="screens/14-applicant-chat.html"><div class="k">Applicant</div><div class="n">Planning Chat</div></a>
+      <a class="card" href="screens/15-applicant-messages.html"><div class="k">Applicant</div><div class="n">Messages</div></a>
+      <a class="card" href="screens/20-employer-dashboard.html"><div class="k">Employer</div><div class="n">Dashboard</div></a>
+      <a class="card" href="screens/21-employer-analytics.html"><div class="k">Employer</div><div class="n">Analytics</div></a>
+      <a class="card" href="screens/22-employer-job-new.html"><div class="k">Employer</div><div class="n">Post a Job</div></a>
+      <a class="card" href="screens/23-employer-messages.html"><div class="k">Employer</div><div class="n">Messages</div></a>
+      <a class="card" href="screens/30-admin-dashboard.html"><div class="k">Admin</div><div class="n">Dashboard</div></a>
+      <a class="card" href="screens/31-admin-applicants.html"><div class="k">Admin</div><div class="n">Applicants</div></a>
+      <a class="card" href="screens/32-admin-employers.html"><div class="k">Admin</div><div class="n">Employers</div></a>
+      <a class="card" href="screens/33-admin-employer-detail.html"><div class="k">Admin</div><div class="n">Employer Detail</div></a>
+      <a class="card" href="screens/34-admin-engagement.html"><div class="k">Admin</div><div class="n">Engagement</div></a>
+      <a class="card" href="screens/35-admin-map.html"><div class="k">Admin</div><div class="n">Job Map</div></a>
+      <a class="card" href="screens/36-admin-test-matches.html"><div class="k">Admin</div><div class="n">Test Matches</div></a>
+    </div>
+  </div>
+</body></html>

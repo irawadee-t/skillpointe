@@ -1,0 +1,41 @@
+<!-- @dsCard group="Components" -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Buttons</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#17171c;--body:#212121;--slate:#52525b;--hair:#d9d9dd;--green:#003c33;--stone:#eeece7;--blue:#1863dc}
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:var(--body);font-family:Inter,system-ui,sans-serif}
+  .wrap{max-width:1000px;margin:0 auto;padding:36px}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--slate)}
+  h1{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:34px;letter-spacing:-.02em;color:var(--ink);margin:.3em 0 .2em}
+  p.lead{color:var(--slate);font-size:17px;max-width:680px;margin:0 0 26px}
+  .row{display:flex;flex-wrap:wrap;gap:16px;align-items:center;padding:22px;border:1px solid var(--hair);border-radius:16px;margin-bottom:16px}
+  .row.dark{background:var(--green)}
+  .cap{font-family:'JetBrains Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--slate);width:100%;margin-bottom:-4px}
+  .row.dark .cap{color:rgba(255,255,255,.6)}
+  .btn{font-family:Inter,sans-serif;font-size:14px;font-weight:500;border:0;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+  .primary{background:var(--ink);color:#fff;border-radius:999px;padding:12px 24px}
+  .inverse{background:#fff;color:var(--ink);border-radius:999px;padding:12px 24px}
+  .secondary{background:none;color:var(--body);text-decoration:underline;text-underline-offset:4px}
+  .outline{background:none;color:var(--body);border:1px solid rgba(23,23,28,.25);border-radius:30px;padding:8px 16px}
+</style></head>
+<body><div class="wrap">
+  <div class="eyebrow">SkillPointe Match · Components</div>
+  <h1>Buttons</h1>
+  <p class="lead">Pill CTAs in near-black (or white on dark); most secondary actions are underlined text links; outlined pills are taxonomy / filter controls.</p>
+
+  <div class="row"><span class="cap">On light surface</span>
+    <button class="btn primary">Get started →</button>
+    <button class="btn secondary">Sign in to your account</button>
+    <button class="btn outline">All trades</button>
+  </div>
+  <div class="row dark"><span class="cap">On dark / green surface</span>
+    <button class="btn inverse">Request a demo →</button>
+    <button class="btn secondary" style="color:#fff">Learn more</button>
+  </div>
+  <div class="row"><span class="cap">Tokens</span>
+    <span style="font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--slate)">.btn-primary · .btn-primary-inverse · .btn-secondary · .btn-pill-outline &nbsp;|&nbsp; 14px / 500 · padding 12&times;24 · radius pill</span>
+  </div>
+</div></body></html>

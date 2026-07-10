@@ -18,6 +18,7 @@ const ROLE_HOME: Record<string, string> = {
   applicant: "/applicant",
   employer: "/employer",
   admin: "/admin",
+  institution: "/institution",
 };
 
 export async function GET(request: Request) {

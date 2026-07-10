@@ -5,6 +5,10 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
+import { PreferencesPanel } from "@/components/applicant/PreferencesPanel";
+import { ResumeUploader } from "@/components/applicant/ResumeUploader";
+import { useAutosave } from "@/lib/useAutosave";
+import { SaveIndicator } from "@/components/ui/SaveIndicator";
 import {
   US_STATES,
   CAREER_PATHS,
@@ -27,6 +31,28 @@ export default function EditProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [form, setForm] = useState<FormState>({});
+
+  // Autosave: after the first load, silently PATCH ~800ms after every edit.
+  // Skips onboarding_complete so we don't accidentally finalize onboarding here.
+  const autosave = useAutosave(loading ? null : form, 800, async (payload) => {
+    if (!payload) return;
+    const supabase = createClient();
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+    const clean: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(payload)) {
+      if (v === "" || v === null || v === undefined) continue;
+      clean[k] = v;
+    }
+    if (typeof clean.gpa === "string" && clean.gpa) clean.gpa = parseFloat(clean.gpa as string) || undefined;
+    if (clean.travel_preference)      clean.willing_to_travel   = clean.travel_preference !== "no_travel";
+    if (clean.relocation_preference)  clean.willing_to_relocate = clean.relocation_preference !== "stay_current";
+    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/applicant/me/profile`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(clean),
+    });
+  });
 
   useEffect(() => {
     async function load() {
@@ -138,24 +164,54 @@ export default function EditProfilePage() {
   }
 
   if (loading) {
+    // Skeleton loader (item 19) — same shell as the loaded form so the layout
+    // doesn't jump when data arrives. Uses hairline-toned pulse blocks.
     return (
-      <main className="flex items-center justify-center p-20">
-        <p className="text-zinc-500 text-sm">Loading profile...</p>
+      <main className="py-8">
+        <div className="mx-auto w-full max-w-3xl px-5">
+          <div className="mb-6 h-4 w-32 animate-pulse rounded bg-hairline" />
+          <div className="mb-6 flex items-center justify-between">
+            <div className="h-8 w-40 animate-pulse rounded bg-hairline" />
+            <div className="h-4 w-24 animate-pulse rounded bg-hairline" />
+          </div>
+          <div className="mb-6 h-24 animate-pulse rounded-xl bg-hairline/60" />
+          <div className="space-y-6">
+            {[0, 1, 2, 3].map((i) => (
+              <div key={i} className="space-y-3 rounded-md border border-border-light bg-white p-6">
+                <div className="h-5 w-40 animate-pulse rounded bg-hairline" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="h-9 animate-pulse rounded bg-hairline/70" />
+                  <div className="h-9 animate-pulse rounded bg-hairline/70" />
+                </div>
+                <div className="h-9 animate-pulse rounded bg-hairline/70" />
+              </div>
+            ))}
+          </div>
+        </div>
       </main>
     );
   }
 
   return (
-    <main className="p-6 md:p-8">
-      <div className="max-w-5xl mx-auto">
+    <main className="py-8">
+      <div className="mx-auto w-full max-w-3xl px-5">
         <Link
           href="/applicant"
-          className="text-sm text-zinc-500 hover:text-zinc-900 mb-6 inline-flex items-center gap-1 transition-colors"
+          className="text-body text-slate hover:text-cohere-ink mb-6 inline-flex items-center gap-1 transition-colors"
         >
           &larr; Back to dashboard
         </Link>
 
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 mb-6">Edit profile</h1>
+        {/* Sticky header — keeps SaveIndicator visible as the applicant scrolls
+            through the long autosaved form so they never wonder if changes stuck. */}
+        <div className="sticky top-0 z-20 -mx-5 mb-6 flex items-center justify-between gap-3 border-b border-hairline bg-canvas/95 px-5 py-3 backdrop-blur supports-[backdrop-filter]:bg-canvas/80">
+          <h1 className="font-display text-card sm:text-heading text-cohere-ink">Edit profile</h1>
+          <SaveIndicator status={autosave.status} lastSavedAt={autosave.lastSavedAt} />
+        </div>
+
+        {/* Shortcut: upload a resume to auto-populate the fields below. Rendered
+            above the manual form so it's the first thing a returning worker sees. */}
+        <ResumeAutoFillShortcut onFilled={(fields) => setForm((prev) => ({ ...prev, ...fields }))} />
 
         <form onSubmit={handleSubmit} className="space-y-6">
 
@@ -223,11 +279,11 @@ export default function EditProfilePage() {
             </Field>
             <Field label="Specific career or program name">
               <Input value={form.specific_career as string} onChange={(v) => set("specific_career", v)} placeholder="e.g. A.A.S. Building Construction Technologies" />
-              <p className="text-xs text-zinc-400 mt-1">Free text — describe exactly what you study or want to do</p>
+              <p className="text-micro text-slate-muted mt-1">Free text — describe exactly what you study or want to do</p>
             </Field>
             <Field label="Program name (as you know it)">
               <Input value={form.program_name_raw as string} onChange={(v) => set("program_name_raw", v)} placeholder="e.g. Electrician Apprentice" />
-              <p className="text-xs text-zinc-400 mt-1">Auto-matched to a job family when you save</p>
+              <p className="text-micro text-slate-muted mt-1">Auto-matched to a job family when you save</p>
             </Field>
           </Section>
 
@@ -243,7 +299,7 @@ export default function EditProfilePage() {
             </Row>
             <Field label="Available to start work">
               <Input type="date" value={form.available_from_date as string} onChange={(v) => set("available_from_date", v)} />
-              <p className="text-xs text-zinc-400 mt-1">When can you start a new job?</p>
+              <p className="text-micro text-slate-muted mt-1">When can you start a new job?</p>
             </Field>
             <Field label="Current wages">
               <Select value={form.current_wages as string} onChange={(v) => set("current_wages", v)} options={WAGE_RANGES.map((w) => ({ value: w.value, label: w.label }))} />
@@ -267,18 +323,18 @@ export default function EditProfilePage() {
             <Field label="Willingness to travel for work">
               <div className="space-y-2">
                 {TRAVEL_OPTIONS.map((opt) => (
-                  <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${form.travel_preference === opt.value ? "border-spf-navy bg-zinc-50" : "border-zinc-200 hover:border-zinc-300"}`}>
+                  <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-sm border cursor-pointer transition-colors ${form.travel_preference === opt.value ? "border-cohere-ink bg-stone" : "border-hairline hover:border-cohere-ink"}`}>
                     <input
                       type="radio"
                       name="travel_preference"
                       value={opt.value}
                       checked={form.travel_preference === opt.value}
                       onChange={() => set("travel_preference", opt.value)}
-                      className="mt-0.5 accent-zinc-900"
+                      className="mt-0.5 accent-cohere-ink"
                     />
                     <div>
-                      <span className="text-sm font-medium text-zinc-900">{opt.label}</span>
-                      <p className="text-xs text-zinc-500">{opt.desc}</p>
+                      <span className="text-body font-medium text-cohere-ink">{opt.label}</span>
+                      <p className="text-caption text-slate">{opt.desc}</p>
                     </div>
                   </label>
                 ))}
@@ -288,18 +344,18 @@ export default function EditProfilePage() {
             <Field label="Willingness to relocate">
               <div className="space-y-2">
                 {RELOCATION_OPTIONS.map((opt) => (
-                  <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${form.relocation_preference === opt.value ? "border-spf-navy bg-zinc-50" : "border-zinc-200 hover:border-zinc-300"}`}>
+                  <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-sm border cursor-pointer transition-colors ${form.relocation_preference === opt.value ? "border-cohere-ink bg-stone" : "border-hairline hover:border-cohere-ink"}`}>
                     <input
                       type="radio"
                       name="relocation_preference"
                       value={opt.value}
                       checked={form.relocation_preference === opt.value}
                       onChange={() => set("relocation_preference", opt.value)}
-                      className="mt-0.5 accent-zinc-900"
+                      className="mt-0.5 accent-cohere-ink"
                     />
                     <div>
-                      <span className="text-sm font-medium text-zinc-900">{opt.label}</span>
-                      <p className="text-xs text-zinc-500">{opt.desc}</p>
+                      <span className="text-body font-medium text-cohere-ink">{opt.label}</span>
+                      <p className="text-caption text-slate">{opt.desc}</p>
                     </div>
                   </label>
                 ))}
@@ -308,7 +364,7 @@ export default function EditProfilePage() {
 
             {form.relocation_preference === "specific_states" && (
               <Field label="Which states would you relocate to?">
-                <div className="grid grid-cols-5 sm:grid-cols-8 gap-1.5 max-h-48 overflow-y-auto border border-zinc-200 rounded-lg p-3">
+                <div className="grid grid-cols-5 sm:grid-cols-8 gap-1.5 max-h-48 overflow-y-auto border border-hairline rounded-sm p-3">
                   {US_STATES.map((s) => {
                     const selected = (form.relocation_states as string[] || []).includes(s);
                     return (
@@ -319,7 +375,7 @@ export default function EditProfilePage() {
                           const current = (form.relocation_states as string[]) || [];
                           set("relocation_states", selected ? current.filter((x) => x !== s) : [...current, s]);
                         }}
-                        className={`text-xs py-1.5 rounded transition-colors ${selected ? "bg-zinc-900 text-white font-medium" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-zinc-700"}`}
+                        className={`text-micro py-1.5 rounded-sm transition-colors ${selected ? "bg-studio-dark-cork text-white font-medium" : "bg-stone text-slate hover:bg-hairline hover:text-ink"}`}
                       >
                         {s}
                       </button>
@@ -327,7 +383,7 @@ export default function EditProfilePage() {
                   })}
                 </div>
                 {(form.relocation_states as string[])?.length > 0 && (
-                  <p className="text-xs text-zinc-400 mt-1">
+                  <p className="text-micro text-slate-muted mt-1">
                     Selected: {(form.relocation_states as string[]).join(", ")}
                   </p>
                 )}
@@ -347,30 +403,34 @@ export default function EditProfilePage() {
                 value={form.activities as string}
                 onChange={(e) => set("activities", e.target.value)}
                 rows={3}
-                className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy resize-none"
+                className="input-cohere resize-none"
                 placeholder="Clubs, sports, volunteer work, SkillsUSA, FFA, etc."
               />
             </Field>
           </Section>
 
+          <Section title="Notifications & language">
+            <PreferencesPanelWrapper />
+          </Section>
+
           {/* ---- Submit ---- */}
           {error && (
-            <p className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded-lg p-3">{error}</p>
+            <p className="text-body text-error-red bg-cohere-coral/10 border border-cohere-coral-soft rounded-md p-3">{error}</p>
           )}
           {saved && (
-            <p className="text-sm text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg p-3">
+            <p className="text-body text-cohere-green bg-wash-green border border-cohere-green/20 rounded-md p-3">
               Profile saved. Your program has been automatically matched to a job family.
             </p>
           )}
 
           <div className="flex gap-3">
-            <Link href="/applicant" className="flex-1 border border-zinc-200 text-zinc-600 py-2.5 rounded-full text-sm font-medium hover:border-zinc-300 hover:text-zinc-900 transition-colors text-center">
+            <Link href="/applicant" className="btn-pill-outline flex-1 text-center">
               Cancel
             </Link>
             <button
               type="submit"
               disabled={saving}
-              className="flex-1 bg-zinc-900 text-white py-2.5 rounded-full text-sm font-medium hover:bg-zinc-700 disabled:opacity-50 transition-colors"
+              className="btn-primary flex-1 disabled:opacity-50"
             >
               {saving ? "Saving..." : "Save changes"}
             </button>
@@ -383,10 +443,66 @@ export default function EditProfilePage() {
 
 /* ---- Reusable sub-components ---- */
 
+/**
+ * Collapsible shortcut for auto-populating the profile from a resume upload.
+ * Keeps the profile page clean by default — one row with an icon and CTA — then
+ * expands the full ResumeUploader in place when the applicant taps "Upload."
+ */
+function ResumeAutoFillShortcut({ onFilled }: { onFilled: (fields: Record<string, unknown>) => void }) {
+  const [open, setOpen] = useState(false);
+  const [token, setToken] = useState<string | null>(null);
+
+  useEffect(() => {
+    createClient().auth.getSession().then(({ data }) => setToken(data.session?.access_token ?? null));
+  }, []);
+
+  if (open && token) {
+    return (
+      <section className="mb-6">
+        <ResumeUploader token={token} onApplied={(fields) => { onFilled(fields); setOpen(false); }} />
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          className="mt-2 text-caption text-slate hover:text-cohere-ink"
+        >
+          Cancel
+        </button>
+      </section>
+    );
+  }
+
+  return (
+    <section
+      className="mb-6 flex flex-col gap-3 rounded-xl border border-hairline bg-white p-5 sm:flex-row sm:items-center sm:justify-between"
+    >
+      <div className="min-w-0">
+        <h2 className="font-display text-feature text-cohere-ink">Have a resume already?</h2>
+        <p className="mt-1 text-caption text-slate">Drop it here and we'll pre-fill what we can read. You review every field before anything saves.</p>
+      </div>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="btn-pill-outline shrink-0"
+      >
+        Upload resume
+      </button>
+    </section>
+  );
+}
+
+function PreferencesPanelWrapper() {
+  const [token, setToken] = useState<string | null>(null);
+  useEffect(() => {
+    createClient().auth.getSession().then(({ data }) => setToken(data.session?.access_token ?? null));
+  }, []);
+  if (!token) return <p className="text-caption text-slate-muted">Loading…</p>;
+  return <PreferencesPanel token={token} />;
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-6 space-y-5 shadow-sm">
-      <h2 className="font-semibold text-zinc-900">{title}</h2>
+    <div className="bg-white border border-border-light rounded-md p-6 space-y-5">
+      <h2 className="font-display text-feature text-cohere-ink">{title}</h2>
       {children}
     </div>
   );
@@ -399,7 +515,7 @@ function Row({ children }: { children: React.ReactNode }) {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      {label && <label className="block text-sm font-medium text-zinc-600 mb-1">{label}</label>}
+      {label && <label className="block text-micro font-medium tracking-wide text-slate mb-2">{label}</label>}
       {children}
     </div>
   );
@@ -420,7 +536,7 @@ function Input({
       step={step}
       min={min}
       max={max}
-      className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
+      className="input-cohere"
     />
   );
 }
@@ -435,7 +551,7 @@ function Select({
     <select
       value={value}
       onChange={(e) => onChange(e.target.value)}
-      className="w-full border border-zinc-200 rounded-lg px-3 py-2 text-sm bg-white text-zinc-900 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
+      className="input-cohere"
     >
       <option value="">Select...</option>
       {options.map((o) => (
@@ -456,9 +572,9 @@ function Checkbox({
         type="checkbox"
         checked={checked}
         onChange={(e) => onChange(e.target.checked)}
-        className="w-4 h-4 rounded border-zinc-300 accent-zinc-900"
+        className="w-4 h-4 rounded-sm border-hairline accent-cohere-ink"
       />
-      <span className="text-sm text-zinc-600">{label}</span>
+      <span className="text-body text-slate">{label}</span>
     </label>
   );
 }

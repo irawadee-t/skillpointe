@@ -28,7 +28,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from pydantic import BaseModel as _BaseModel
 
-from app.auth.dependencies import require_employer_or_admin
+from app.auth.dependencies import require_employer_only, require_employer_or_admin
 from app.auth.schemas import CurrentUser
 from app.db import get_db
 from app.schemas.employer import (
@@ -38,6 +38,7 @@ from app.schemas.employer import (
     EmployerJobsListResponse,
     JobCreateRequest,
     JobCreateResponse,
+    JobDetail,
     JobUpdateRequest,
     RankedApplicantsResponse,
 )
@@ -47,6 +48,106 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/employer", tags=["employer"])
 
 _MAX_APPLICANTS = 200
+
+
+# ---------------------------------------------------------------------------
+# POST /employer/me/company/create — self-serve employer onboarding
+# ---------------------------------------------------------------------------
+
+class CompanyCreateRequest(_BaseModel):
+    name: str
+    industry: str | None = None
+    city: str | None = None
+    state: str | None = None
+    website: str | None = None
+    description: str | None = None
+    # Optional contact fields captured from Step 2 (stored on the contact row's title
+    # slot where useful; email/phone live on auth.users and account settings).
+    contact_title: str | None = None
+
+
+class CompanyCreateResponse(_BaseModel):
+    employer_id: str
+    name: str
+
+
+@router.post(
+    "/me/company/create",
+    response_model=CompanyCreateResponse,
+    status_code=201,
+)
+async def create_my_company(
+    body: CompanyCreateRequest,
+    # Admins never onboard as an employer themselves; this endpoint links the
+    # caller's user_id to a new employer_contacts row.
+    current_user: Annotated[CurrentUser, Depends(require_employer_only)],
+) -> CompanyCreateResponse:
+    """
+    Self-serve employer company creation.
+
+    Creates an employers row and links the current user via employer_contacts.
+    Idempotent-ish: if the user already has a linked employer, returns 409 so
+    the client can redirect back to the dashboard.
+
+    Wizard fields:
+      Step 1 — name, industry, city, state, website, description
+      Step 2 — contact_title (hiring lead title)
+      Step 3 — no fields; user either clicks "Post job" (routes to /employer/jobs/new)
+               or "Skip for now" (routes to /employer).
+    """
+    if not body.name or not body.name.strip():
+        raise HTTPException(status_code=422, detail="Company name is required.")
+
+    description = body.description
+    if description and len(description) > 400:
+        description = description[:400]
+
+    async with get_db() as conn:
+        existing = await conn.fetchval(
+            "SELECT employer_id FROM public.employer_contacts WHERE user_id = $1 LIMIT 1",
+            current_user.user_id,
+        )
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="You're already linked to a company.",
+            )
+
+        emp_row = await conn.fetchrow(
+            """
+            INSERT INTO public.employers
+              (name, industry, city, state, website, description, source)
+            VALUES ($1, $2, $3, $4, $5, $6, 'self_serve_onboarding')
+            RETURNING id::text, name
+            """,
+            body.name.strip(),
+            body.industry,
+            body.city,
+            body.state,
+            body.website,
+            description,
+        )
+
+        await conn.execute(
+            """
+            INSERT INTO public.employer_contacts
+              (user_id, employer_id, is_primary, title)
+            VALUES ($1, $2::uuid, TRUE, $3)
+            ON CONFLICT (user_id) DO UPDATE
+              SET employer_id = EXCLUDED.employer_id,
+                  is_primary  = EXCLUDED.is_primary,
+                  title       = COALESCE(EXCLUDED.title, public.employer_contacts.title),
+                  updated_at  = NOW()
+            """,
+            current_user.user_id,
+            emp_row["id"],
+            body.contact_title,
+        )
+
+    return CompanyCreateResponse(
+        employer_id=emp_row["id"],
+        name=emp_row["name"],
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -177,13 +278,78 @@ async def list_my_jobs(
 
 
 # ---------------------------------------------------------------------------
+# GET /employer/me/jobs/{job_id}
+# ---------------------------------------------------------------------------
+
+@router.get("/me/jobs/{job_id}", response_model=JobDetail)
+async def get_job_detail(
+    job_id: str,
+    current_user: Annotated[CurrentUser, Depends(require_employer_or_admin)],
+) -> JobDetail:
+    """
+    Return full detail for a single job — used to pre-fill the edit form.
+    Employers may only fetch jobs they own. Admin can fetch any job.
+    """
+    async with get_db() as conn:
+        is_admin = current_user.is_admin
+        if is_admin:
+            row = await conn.fetchrow(
+                """
+                SELECT id::text, title_raw, city, state,
+                    work_setting::text, travel_requirement,
+                    pay_min, pay_max, pay_type,
+                    description_raw, requirements_raw, experience_level,
+                    is_active
+                FROM public.jobs
+                WHERE id = $1::uuid
+                """,
+                job_id,
+            )
+        else:
+            employer_id = await _resolve_employer_id(conn, current_user.user_id)
+            row = await conn.fetchrow(
+                """
+                SELECT id::text, title_raw, city, state,
+                    work_setting::text, travel_requirement,
+                    pay_min, pay_max, pay_type,
+                    description_raw, requirements_raw, experience_level,
+                    is_active
+                FROM public.jobs
+                WHERE id = $1::uuid AND employer_id = $2
+                """,
+                job_id,
+                employer_id,
+            )
+
+        if not row:
+            raise HTTPException(status_code=404, detail="Job not found")
+
+    return JobDetail(
+        job_id=row["id"],
+        title_raw=row["title_raw"],
+        city=row["city"],
+        state=row["state"],
+        work_setting=row["work_setting"],
+        travel_requirement=row["travel_requirement"],
+        pay_min=float(row["pay_min"]) if row["pay_min"] is not None else None,
+        pay_max=float(row["pay_max"]) if row["pay_max"] is not None else None,
+        pay_type=row["pay_type"],
+        description_raw=row["description_raw"],
+        requirements_raw=row["requirements_raw"],
+        experience_level=row["experience_level"],
+        is_active=bool(row["is_active"]),
+    )
+
+
+# ---------------------------------------------------------------------------
 # POST /employer/me/jobs
 # ---------------------------------------------------------------------------
 
 @router.post("/me/jobs", response_model=JobCreateResponse, status_code=201)
 async def create_job(
     request: JobCreateRequest,
-    current_user: Annotated[CurrentUser, Depends(require_employer_or_admin)],
+    # Admin cannot post jobs on behalf of an employer.
+    current_user: Annotated[CurrentUser, Depends(require_employer_only)],
 ) -> JobCreateResponse:
     """
     Create a new job posting for this employer.
@@ -254,7 +420,8 @@ async def create_job(
 async def update_job(
     job_id: str,
     request: JobUpdateRequest,
-    current_user: Annotated[CurrentUser, Depends(require_employer_or_admin)],
+    # Admin cannot edit an employer's job posting.
+    current_user: Annotated[CurrentUser, Depends(require_employer_only)],
 ) -> JobCreateResponse:
     """
     Update an existing job. Only provided (non-None) fields are updated.
@@ -321,6 +488,12 @@ async def update_job(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Job not found or does not belong to your account.",
         )
+
+    # Fire-and-forget recompute — a title/description/req/pay/location edit
+    # can change ranking, so keep matches in sync without blocking the response.
+    import asyncio as _asyncio
+    from app.worker.scheduler import trigger_recompute_for_job
+    _asyncio.create_task(trigger_recompute_for_job(row["id"]))
 
     return JobCreateResponse(
         job_id=row["id"],
@@ -732,19 +905,12 @@ async def draft_outreach(
 @router.post("/me/outreach/send", response_model=OutreachSendResponse, status_code=201)
 async def send_outreach(
     body: OutreachSendRequest,
-    current_user: Annotated[CurrentUser, Depends(require_employer_or_admin)],
+    # Admin must not send outreach on behalf of an employer — CLAUDE.md guardrail.
+    current_user: Annotated[CurrentUser, Depends(require_employer_only)],
 ) -> OutreachSendResponse:
     """Record that an outreach message was sent to a candidate."""
     async with get_db() as conn:
-        is_admin = current_user.is_admin
-        employer_id = None if is_admin else await _resolve_employer_id(conn, current_user.user_id)
-
-        if is_admin:
-            emp_id_row = await conn.fetchval(
-                "SELECT employer_id FROM public.jobs WHERE id = $1::uuid", body.job_id
-            )
-            employer_id = emp_id_row
-
+        employer_id = await _resolve_employer_id(conn, current_user.user_id)
         if not employer_id:
             raise HTTPException(status_code=404, detail="Employer not found")
 
@@ -785,6 +951,94 @@ async def send_outreach(
 
 
 # ---------------------------------------------------------------------------
+# GET /employer/me/outreach/history — prior outreach to a candidate for a job
+# ---------------------------------------------------------------------------
+
+class OutreachHistoryItem(_BaseModel):
+    outreach_id: str
+    sent_at: str | None
+    subject: str | None
+
+
+class OutreachHistoryResponse(_BaseModel):
+    items: list[OutreachHistoryItem]
+
+
+@router.get("/me/outreach/history", response_model=OutreachHistoryResponse)
+async def get_outreach_history(
+    current_user: Annotated[CurrentUser, Depends(require_employer_or_admin)],
+    applicant_id: str = Query(..., description="Applicant to check history for"),
+    job_id: str | None = Query(None, description="Optional job filter"),
+) -> OutreachHistoryResponse:
+    """Return prior outreach records to a candidate — most recent first."""
+    async with get_db() as conn:
+        is_admin = current_user.is_admin
+        employer_id = None if is_admin else await _resolve_employer_id(conn, current_user.user_id)
+
+        if is_admin and job_id:
+            emp_id = await conn.fetchval(
+                "SELECT employer_id FROM public.jobs WHERE id = $1::uuid", job_id
+            )
+            employer_id = emp_id
+
+        if not employer_id:
+            return OutreachHistoryResponse(items=[])
+
+        if job_id:
+            rows = await conn.fetch(
+                """
+                SELECT id::text AS outreach_id, sent_at::text, subject
+                FROM public.employer_outreach
+                WHERE employer_id = $1 AND applicant_id = $2::uuid AND job_id = $3::uuid
+                  AND status = 'sent'
+                ORDER BY sent_at DESC NULLS LAST LIMIT 20
+                """,
+                employer_id, applicant_id, job_id,
+            )
+        else:
+            rows = await conn.fetch(
+                """
+                SELECT id::text AS outreach_id, sent_at::text, subject
+                FROM public.employer_outreach
+                WHERE employer_id = $1 AND applicant_id = $2::uuid AND status = 'sent'
+                ORDER BY sent_at DESC NULLS LAST LIMIT 20
+                """,
+                employer_id, applicant_id,
+            )
+
+    return OutreachHistoryResponse(
+        items=[
+            OutreachHistoryItem(
+                outreach_id=r["outreach_id"],
+                sent_at=r["sent_at"],
+                subject=r["subject"],
+            )
+            for r in rows
+        ]
+    )
+
+
+# ---------------------------------------------------------------------------
+# DELETE /employer/me/outreach/{outreach_id} — undo a recent send
+# ---------------------------------------------------------------------------
+
+@router.delete("/me/outreach/{outreach_id}")
+async def delete_outreach(
+    outreach_id: str,
+    # Admin must not undo an employer's outreach — CLAUDE.md guardrail.
+    current_user: Annotated[CurrentUser, Depends(require_employer_only)],
+) -> dict:
+    """Delete an outreach record — used by the 10-second undo toast."""
+    async with get_db() as conn:
+        employer_id = await _resolve_employer_id(conn, current_user.user_id)
+        await conn.execute(
+            "DELETE FROM public.employer_outreach WHERE id = $1::uuid AND employer_id = $2",
+            outreach_id, employer_id,
+        )
+    return {"ok": True}
+
+
+# ---------------------------------------------------------------------------
 # POST /employer/me/jobs/{job_id}/candidates/{applicant_id}/hire
 # ---------------------------------------------------------------------------
 
@@ -810,7 +1064,8 @@ async def report_hire_outcome(
     job_id: str,
     applicant_id: str,
     body: HireOutcomeRequest,
-    current_user: Annotated[CurrentUser, Depends(require_employer_or_admin)],
+    # Admin must not report hires on behalf of an employer — CLAUDE.md guardrail.
+    current_user: Annotated[CurrentUser, Depends(require_employer_only)],
 ) -> HireOutcomeResponse:
     """
     Report a hire outcome (hired / declined / withdrew) for a candidate.
@@ -826,26 +1081,16 @@ async def report_hire_outcome(
     from datetime import date as _date
 
     async with get_db() as conn:
-        is_admin = current_user.is_admin
-        employer_id = None if is_admin else await _resolve_employer_id(conn, current_user.user_id)
-
-        # Verify job belongs to employer (or is admin)
-        if is_admin:
-            emp_id = await conn.fetchval(
-                "SELECT employer_id FROM public.jobs WHERE id = $1::uuid", job_id
-            )
-            employer_id = emp_id
-
+        employer_id = await _resolve_employer_id(conn, current_user.user_id)
         if not employer_id:
-            raise HTTPException(status_code=404, detail="Job not found")
+            raise HTTPException(status_code=404, detail="Employer not found")
 
-        if not is_admin:
-            owns = await conn.fetchval(
-                "SELECT id FROM public.jobs WHERE id = $1::uuid AND employer_id = $2",
-                job_id, employer_id,
-            )
-            if not owns:
-                raise HTTPException(status_code=404, detail="Job not found")
+        owns = await conn.fetchval(
+            "SELECT id FROM public.jobs WHERE id = $1::uuid AND employer_id = $2",
+            job_id, employer_id,
+        )
+        if not owns:
+            raise HTTPException(status_code=404, detail="Job not found")
 
         hire_date = None
         if body.hire_date:
@@ -988,6 +1233,99 @@ async def get_employer_analytics(
             }
             for r in recent_rows
         ],
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /employer/me/analytics/insights  (time-to-fill, quality, wage benchmark, AI)
+# ---------------------------------------------------------------------------
+
+class EmployerInsights(_BaseModel):
+    hires: int
+    time_to_fill_days: int | None
+    median_wage: int | None
+    platform_median_wage: int | None
+    wage_vs_platform_pct: int | None
+    avg_match_fit: float | None
+    strong_matches: int
+    surfaced: int
+    narrative: str
+    narrative_source: str
+
+
+@router.get("/me/analytics/insights", response_model=EmployerInsights)
+async def get_employer_insights(
+    current_user: Annotated[CurrentUser, Depends(require_employer_or_admin)],
+) -> EmployerInsights:
+    """Hiring intelligence: time-to-fill, match quality, wage benchmarking vs the
+    platform median, and an AI-written insight (template fallback)."""
+    from app.skilled_pro.ai import generate_employer_insights
+
+    async with get_db() as conn:
+        employer_id = await _resolve_employer_id(conn, current_user.user_id)
+
+        ttf = await conn.fetchval(
+            """
+            SELECT percentile_disc(0.5) WITHIN GROUP (
+                ORDER BY (ho.hire_date - j.created_at::date))
+            FROM public.hire_outcomes ho JOIN public.jobs j ON j.id = ho.job_id
+            WHERE ho.employer_id = $1 AND ho.outcome_type IN ('placed','hired')
+              AND ho.hire_date IS NOT NULL
+            """,
+            employer_id,
+        )
+        hires = await conn.fetchval(
+            "SELECT count(*) FROM public.hire_outcomes "
+            "WHERE employer_id = $1 AND outcome_type IN ('placed','hired')",
+            employer_id,
+        )
+        median_wage = await conn.fetchval(
+            "SELECT percentile_disc(0.5) WITHIN GROUP (ORDER BY reported_wage_annual) "
+            "FROM public.hire_outcomes WHERE employer_id = $1 AND reported_wage_annual IS NOT NULL",
+            employer_id,
+        )
+        platform_wage = await conn.fetchval(
+            "SELECT percentile_disc(0.5) WITHIN GROUP (ORDER BY reported_wage_annual) "
+            "FROM public.hire_outcomes WHERE reported_wage_annual IS NOT NULL"
+        )
+        fit = await conn.fetchrow(
+            """
+            SELECT avg(m.base_fit_score) / 100.0 AS avg_fit,
+                   count(*) FILTER (WHERE m.base_fit_score >= 70) AS strong,
+                   count(*) AS surfaced
+            FROM public.matches m JOIN public.jobs j ON j.id = m.job_id
+            WHERE j.employer_id = $1
+            """,
+            employer_id,
+        )
+
+    ttf_days = int(ttf) if ttf is not None else None
+    mw = int(median_wage) if median_wage is not None else None
+    pm = int(platform_wage) if platform_wage is not None else None
+    wage_delta = round((mw - pm) / pm * 100) if (mw and pm) else None
+    avg_fit = round(float(fit["avg_fit"]), 3) if fit and fit["avg_fit"] is not None else None
+
+    numbers = {
+        "hires": int(hires or 0),
+        "time_to_fill_days": ttf_days,
+        "median_wage": mw,
+        "platform_median_wage": pm,
+        "avg_match_fit": avg_fit,
+        "strong_matches": int(fit["strong"]) if fit else 0,
+    }
+    narrative, source = await generate_employer_insights(numbers)
+
+    return EmployerInsights(
+        hires=int(hires or 0),
+        time_to_fill_days=ttf_days,
+        median_wage=mw,
+        platform_median_wage=pm,
+        wage_vs_platform_pct=wage_delta,
+        avg_match_fit=avg_fit,
+        strong_matches=int(fit["strong"]) if fit else 0,
+        surfaced=int(fit["surfaced"]) if fit else 0,
+        narrative=narrative,
+        narrative_source=source,
     )
 
 

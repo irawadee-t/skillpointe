@@ -1,0 +1,62 @@
+<!-- @dsCard group="Foundations" -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Colors</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#17171c;--body:#212121;--slate:#52525b;--hair:#d9d9dd}
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:var(--body);font-family:Inter,system-ui,sans-serif}
+  .wrap{max-width:1100px;margin:0 auto;padding:36px}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--slate)}
+  h1{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:34px;letter-spacing:-.02em;color:var(--ink);margin:.3em 0 .2em}
+  p.lead{color:var(--slate);font-size:17px;max-width:680px;margin:0 0 28px}
+  h2{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:20px;color:var(--ink);margin:32px 0 14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
+  .sw{border:1px solid var(--hair);border-radius:12px;overflow:hidden}
+  .chip{height:78px}
+  .lab{padding:10px 12px}
+  .nm{font-size:14px;font-weight:600;color:var(--ink)}
+  .hex{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--slate);margin-top:2px}
+  .use{font-size:12px;color:var(--slate);margin-top:4px;line-height:1.4}
+</style></head>
+<body><div class="wrap">
+  <div class="eyebrow">SkillPointe Match · Foundations</div>
+  <h1>Color</h1>
+  <p class="lead">White editorial canvas as the default surface, interrupted by full-width deep-green / navy bands. Color arrives through brand fields and small coral / blue accents — the UI shell stays restrained. Deep green (#003c33) is the signature brand surface, now used boldly on KPI cards and hero panels.</p>
+
+  <h2>Brand &amp; accent</h2>
+  <div class="grid">
+    <div class="sw"><div class="chip" style="background:#000"></div><div class="lab"><div class="nm">Cohere Black</div><div class="hex">#000000</div><div class="use">Announcement bar, max-contrast text</div></div></div>
+    <div class="sw"><div class="chip" style="background:#17171c"></div><div class="lab"><div class="nm">Near-Black / Ink</div><div class="hex">#17171c</div><div class="use">Primary pill CTAs, dark footer, deep cards</div></div></div>
+    <div class="sw"><div class="chip" style="background:#003c33"></div><div class="lab"><div class="nm">Deep Enterprise Green</div><div class="hex">#003c33</div><div class="use">Brand bands, KPI cards, hero panels</div></div></div>
+    <div class="sw"><div class="chip" style="background:#071829"></div><div class="lab"><div class="nm">Dark Navy</div><div class="hex">#071829</div><div class="use">Alt dark band (security/finance)</div></div></div>
+    <div class="sw"><div class="chip" style="background:#1863dc"></div><div class="lab"><div class="nm">Action Blue</div><div class="hex">#1863dc</div><div class="use">Editorial links, pagination</div></div></div>
+    <div class="sw"><div class="chip" style="background:#ff7759"></div><div class="lab"><div class="nm">Coral</div><div class="hex">#ff7759</div><div class="use">Taxonomy chips, near-fit markers, accents</div></div></div>
+    <div class="sw"><div class="chip" style="background:#ffad9b"></div><div class="lab"><div class="nm">Soft Coral</div><div class="hex">#ffad9b</div><div class="use">Pale chip borders</div></div></div>
+  </div>
+
+  <h2>Surface</h2>
+  <div class="grid">
+    <div class="sw"><div class="chip" style="background:#fff;border-bottom:1px solid #d9d9dd"></div><div class="lab"><div class="nm">Canvas White</div><div class="hex">#ffffff</div><div class="use">Dominant page / card surface</div></div></div>
+    <div class="sw"><div class="chip" style="background:#eeece7"></div><div class="lab"><div class="nm">Soft Stone</div><div class="hex">#eeece7</div><div class="use">Warm neutral cards / panels</div></div></div>
+    <div class="sw"><div class="chip" style="background:#edfce9"></div><div class="lab"><div class="nm">Pale Green Wash</div><div class="hex">#edfce9</div><div class="use">Eligible / success tints</div></div></div>
+    <div class="sw"><div class="chip" style="background:#f1f5ff"></div><div class="lab"><div class="nm">Pale Blue Wash</div><div class="hex">#f1f5ff</div><div class="use">Info / AI-panel surface</div></div></div>
+  </div>
+
+  <h2>Text &amp; rules</h2>
+  <div class="grid">
+    <div class="sw"><div class="chip" style="background:#212121"></div><div class="lab"><div class="nm">Ink (body)</div><div class="hex">#212121</div><div class="use">Default body text</div></div></div>
+    <div class="sw"><div class="chip" style="background:#52525b"></div><div class="lab"><div class="nm">Slate (secondary)</div><div class="hex">#52525b</div><div class="use">Meta / secondary — darkened for legibility</div></div></div>
+    <div class="sw"><div class="chip" style="background:#6b6b76"></div><div class="lab"><div class="nm">Slate Muted</div><div class="hex">#6b6b76</div><div class="use">Tertiary labels / placeholders only</div></div></div>
+    <div class="sw"><div class="chip" style="background:#d9d9dd"></div><div class="lab"><div class="nm">Hairline</div><div class="hex">#d9d9dd</div><div class="use">List rules, dividers</div></div></div>
+    <div class="sw"><div class="chip" style="background:#e5e7eb"></div><div class="lab"><div class="nm">Border Light</div><div class="hex">#e5e7eb</div><div class="use">Card borders</div></div></div>
+  </div>
+
+  <h2>Semantic</h2>
+  <div class="grid">
+    <div class="sw"><div class="chip" style="background:#4c6ee6"></div><div class="lab"><div class="nm">Focus Blue</div><div class="hex">#4c6ee6</div><div class="use">Keyboard focus ring</div></div></div>
+    <div class="sw"><div class="chip" style="background:#9b60aa"></div><div class="lab"><div class="nm">Focus Violet</div><div class="hex">#9b60aa</div><div class="use">Text-input focus border</div></div></div>
+    <div class="sw"><div class="chip" style="background:#b30000"></div><div class="lab"><div class="nm">Error Red</div><div class="hex">#b30000</div><div class="use">Validation / error text</div></div></div>
+  </div>
+</div></body></html>

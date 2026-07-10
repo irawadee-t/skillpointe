@@ -38,12 +38,12 @@ export default async function EmployerConversationPage({ params }: PageProps) {
   const conv = await fetchConversation(conversationId, session.access_token);
   if (!conv) {
     return (
-      <main className="p-6 md:p-8">
-        <div className="max-w-5xl mx-auto">
-          <Link href="/employer/messages" className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors">
+      <main className="py-8">
+        <div className="mx-auto w-full max-w-3xl px-5">
+          <Link href="/employer/messages" className="mono-label inline-flex items-center gap-1 text-slate hover:text-ink transition-colors">
             ← Back to messages
           </Link>
-          <div className="mt-6 bg-rose-50 border border-rose-200 rounded-lg p-5 text-sm text-rose-600">
+          <div className="mt-6 rounded-md border border-error-red/30 bg-rose-50 p-5 text-body text-error-red">
             Conversation not found.
           </div>
         </div>
@@ -52,15 +52,19 @@ export default async function EmployerConversationPage({ params }: PageProps) {
   }
 
   return (
-    <main className="p-6 md:p-8">
-      <div className="max-w-5xl mx-auto flex flex-col" style={{ height: "calc(100vh - 10rem)" }}>
-        <Link
-          href="/employer/messages"
-          className="text-sm text-zinc-500 hover:text-zinc-900 inline-flex items-center gap-1 mb-4 shrink-0 transition-colors"
-        >
-          ← Back to messages
-        </Link>
-        <div className="bg-white border border-zinc-200 rounded-lg p-5 flex flex-col flex-1 overflow-hidden">
+    <main className="py-8">
+      <div className="sticky top-0 z-30 -mx-5 border-b border-hairline bg-canvas/95 px-5 py-3 backdrop-blur">
+        <div className="mx-auto w-full max-w-3xl">
+          <Link
+            href="/employer/messages"
+            className="mono-label inline-flex items-center gap-1 text-slate hover:text-ink transition-colors"
+          >
+            ← Back to messages
+          </Link>
+        </div>
+      </div>
+      <div className="mx-auto w-full max-w-3xl px-5 pt-4 flex flex-col" style={{ height: "calc(100vh - 10rem)" }}>
+        <div className="rounded-md border border-border-light bg-white p-5 flex flex-col flex-1 overflow-hidden">
           <MessageThread
             conversationId={conversationId}
             otherPartyName={conv.other_party_name}

@@ -9,7 +9,9 @@
  */
 
 import { useState } from "react";
-import { Sparkles, Loader2, ChevronDown, ChevronUp } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { Sparkles, Loader2, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
+import { easeCohere } from "@/lib/motion";
 import { CandidateActions } from "./CandidateActions";
 
 interface PriorityCandidate {
@@ -65,14 +67,14 @@ export function AIPriorityPanel({ jobId, jobTitle, token, isAdmin = false }: Pro
   }
 
   return (
-    <div className="bg-white border border-spf-navy/20 bg-spf-navy/10 rounded-lg overflow-hidden">
+    <div className="card-green overflow-hidden">
       {/* Toggle header */}
       <button
         onClick={loadPriorities}
         disabled={loading}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-spf-navy/10 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/5 transition-colors"
       >
-        <span className="flex items-center gap-2 text-sm font-medium text-spf-navy">
+        <span className="flex items-center gap-2 text-body-lg font-semibold text-white">
           {loading ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
@@ -80,78 +82,97 @@ export function AIPriorityPanel({ jobId, jobTitle, token, isAdmin = false }: Pro
           )}
           {loading ? "Analysing candidates…" : "AI Candidate Prioritisation"}
         </span>
-        <span className="text-zinc-400">
+        <span className="text-white/70">
           {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </span>
       </button>
 
       {/* Results */}
-      {open && priorities !== null && (
-        <div className="border-t border-zinc-200 px-4 pb-4 pt-3 space-y-3">
-          {!generated && (
-            <p className="text-xs text-zinc-400 italic mb-2">
-              AI key not configured — showing score-based order only.
-            </p>
-          )}
-          {priorities.length === 0 ? (
-            <p className="text-sm text-zinc-400">No matched candidates to prioritise.</p>
-          ) : (
-            priorities.map((c, i) => (
-              <div
-                key={c.applicant_id}
-                className="bg-zinc-100 rounded-lg px-3 py-3 border border-zinc-200"
-              >
-                {/* Rank + name row */}
-                <div className="flex items-start gap-3">
-                  <div className="shrink-0 w-6 h-6 rounded-full bg-zinc-900 text-white text-xs font-bold flex items-center justify-center mt-0.5">
-                    {i + 1}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-medium text-zinc-900">{c.name}</span>
-                      {c.score !== null && (
-                        <span className="text-xs text-spf-navy tabular-nums">
-                          {Math.round(c.score)}/100
-                        </span>
-                      )}
-                      {i === 0 && (
-                        <span className="inline-flex items-center gap-0.5 text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-1.5 py-0.5">
-                          Top pick
-                        </span>
-                      )}
-                      <span
-                        className={`text-xs rounded-full px-1.5 py-0.5 border ${
-                          c.eligibility_status === "eligible"
-                            ? "text-emerald-600 bg-emerald-50 border-emerald-200"
-                            : "text-amber-600 bg-amber-50 border-amber-200"
-                        }`}
-                      >
-                        {c.eligibility_status === "eligible" ? "Eligible" : "Near fit"}
-                      </span>
-                    </div>
-                    <p className="text-xs text-zinc-500 mt-0.5 leading-snug">{c.reason}</p>
+      <AnimatePresence initial={false}>
+        {open && priorities !== null && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: easeCohere }}
+            className="overflow-hidden"
+          >
+            <div className="border-t border-white/15 px-5 pb-5 pt-4 space-y-3">
+              {!generated && (
+                <div className="mb-2 flex items-start gap-2 rounded-md border border-amber-400/60 bg-amber-50 px-3 py-2.5 text-caption text-amber-900">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                  <div>
+                    <p className="font-medium">AI ranking is offline — showing raw score ranking.</p>
+                    <p className="mt-0.5 text-micro text-amber-800">
+                      Ask admin to configure <code>OPENAI_API_KEY</code>.
+                    </p>
                   </div>
                 </div>
+              )}
+              {priorities.length === 0 ? (
+                <p className="text-body text-white/80">No matched candidates to prioritize.</p>
+              ) : (
+                priorities.map((c, i) => (
+                  <motion.div
+                    key={c.applicant_id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.3, ease: easeCohere, delay: i * 0.04 }}
+                    className="bg-white rounded-md px-4 py-4 border border-border-light"
+                  >
+                    {/* Rank + name row */}
+                    <div className="flex items-start gap-3">
+                      <div className="shrink-0 w-6 h-6 rounded-full bg-cohere-green text-white text-micro font-bold flex items-center justify-center mt-0.5 tabular-nums">
+                        {i + 1}
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-body font-semibold text-cohere-ink">{c.name}</span>
+                          {c.score !== null && (
+                            <span className="text-caption font-medium text-cohere-green tabular-nums">
+                              {Math.round(c.score)}/100
+                            </span>
+                          )}
+                          {i === 0 && (
+                            <span className="inline-flex items-center gap-0.5 text-micro text-studio-maroon bg-studio-maroon/10 border border-studio-maroon-soft rounded-sm px-1.5 py-0.5">
+                              Top pick
+                            </span>
+                          )}
+                          <span
+                            className={`text-micro rounded-sm px-1.5 py-0.5 border ${
+                              c.eligibility_status === "eligible"
+                                ? "text-cohere-green bg-wash-green border-cohere-green/20"
+                                : "text-studio-maroon bg-studio-maroon/10 border-studio-maroon-soft"
+                            }`}
+                          >
+                            {c.eligibility_status === "eligible" ? "Eligible" : "Near fit"}
+                          </span>
+                        </div>
+                        <p className="text-body text-slate mt-1 leading-snug">{c.reason}</p>
+                      </div>
+                    </div>
 
-                {/* Action buttons — hidden for admin */}
-                {!isAdmin && (
-                  <CandidateActions
-                    matchId={c.match_id}
-                    applicantId={c.applicant_id}
-                    jobId={jobId}
-                    applicantName={c.name}
-                    jobTitle={jobTitle}
-                    token={token}
-                  />
-                )}
-              </div>
-            ))
-          )}
-        </div>
-      )}
+                    {/* Action buttons — hidden for admin */}
+                    {!isAdmin && (
+                      <CandidateActions
+                        matchId={c.match_id}
+                        applicantId={c.applicant_id}
+                        jobId={jobId}
+                        applicantName={c.name}
+                        jobTitle={jobTitle}
+                        token={token}
+                      />
+                    )}
+                  </motion.div>
+                ))
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {error && (
-        <p className="text-xs text-rose-600 px-4 pb-3">{error}</p>
+        <p className="text-caption text-error-red px-5 pb-4">{error}</p>
       )}
     </div>
   );

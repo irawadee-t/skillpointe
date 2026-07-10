@@ -6,11 +6,14 @@
  */
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Mail, MapPin, Briefcase, Calendar, ArrowUpRight } from "lucide-react";
+import { MessageSquare, MapPin, Briefcase, Calendar, ArrowUpRight } from "lucide-react";
 
 import { fetchAdminApplicants } from "@/lib/api/admin";
 import { ApiError } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/server";
+import { PageHeader, Reveal, Stagger, StaggerItem, Breadcrumb } from "@/components/ui";
+import { PagerJump } from "@/components/admin/PagerJump";
+import { cn } from "@/lib/utils";
 
 interface PageProps {
   searchParams: Promise<{
@@ -42,7 +45,7 @@ export default async function AdminApplicantsPage({ searchParams }: PageProps) {
   } catch (e) {
     return (
       <main className="p-6 md:p-8">
-        <div className="max-w-5xl mx-auto bg-rose-50 border border-rose-200 rounded-lg p-5 text-sm text-rose-600">
+        <div className="max-w-5xl mx-auto bg-cohere-coral/10 border border-cohere-coral-soft rounded-md p-5 text-caption text-cohere-ink">
           {e instanceof ApiError ? `API error ${e.status}` : "Could not reach the API — please refresh."}
         </div>
       </main>
@@ -52,105 +55,111 @@ export default async function AdminApplicantsPage({ searchParams }: PageProps) {
   const hasFilters = !!(sp.q || sp.state || sp.job_family);
 
   return (
-    <main className="p-6 md:p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
+    <main className="py-8">
+      <div className="page-shell space-y-6">
+        <Breadcrumb items={[{ label: "Admin", href: "/admin" }, { label: "Applicants" }]} />
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Applicants</h1>
-            <p className="text-sm text-zinc-500 mt-0.5">{data.total} total</p>
-          </div>
-          <Link href="/admin" className="text-sm text-zinc-500 hover:text-zinc-900 transition-colors">
-            ← Dashboard
-          </Link>
-        </div>
+        <PageHeader
+          eyebrow="Directory"
+          title="Applicants"
+          lead={`${data.total} total`}
+          actions={
+            <Link href="/admin" className="btn-secondary">
+              ← Dashboard
+            </Link>
+          }
+        />
 
         {/* Filter bar */}
-        <form method="GET" action="/admin/applicants" className="bg-zinc-50 border border-zinc-200 rounded-lg p-4">
-          <div className="flex flex-wrap gap-3 items-end">
-            <div className="flex-1 min-w-[180px]">
-              <label className="block text-xs text-zinc-400 mb-1">Search name / email</label>
-              <input
-                name="q"
-                type="text"
-                defaultValue={sp.q ?? ""}
-                placeholder="Jane Doe or jane@…"
-                className="w-full border border-zinc-200 rounded-md px-3 py-1.5 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
-              />
+        <Reveal>
+          <form method="GET" action="/admin/applicants" className="border border-border-light rounded-md bg-white p-4">
+            <div className="flex flex-wrap gap-3 items-end">
+              <div className="flex-1 min-w-[180px]">
+                <label className="mono-label mb-1.5 block">Search name / email</label>
+                <input
+                  name="q"
+                  type="text"
+                  defaultValue={sp.q ?? ""}
+                  placeholder="Jane Doe or jane@…"
+                  className="input-cohere px-3 py-1.5 text-caption"
+                />
+              </div>
+              <div className="min-w-[90px]">
+                <label className="mono-label mb-1.5 block">State</label>
+                <input
+                  name="state"
+                  type="text"
+                  maxLength={2}
+                  defaultValue={sp.state ?? ""}
+                  placeholder="TX"
+                  className="input-cohere px-3 py-1.5 text-caption"
+                />
+              </div>
+              <div className="min-w-[160px]">
+                <label className="mono-label mb-1.5 block">Job family</label>
+                <input
+                  name="job_family"
+                  type="text"
+                  defaultValue={sp.job_family ?? ""}
+                  placeholder="welding, hvac…"
+                  className="input-cohere px-3 py-1.5 text-caption"
+                />
+              </div>
+              <button type="submit" className="btn-primary px-5 py-2 text-button">
+                Search
+              </button>
+              {hasFilters && (
+                <Link href="/admin/applicants" className="btn-pill-outline">
+                  Clear
+                </Link>
+              )}
             </div>
-            <div className="min-w-[90px]">
-              <label className="block text-xs text-zinc-400 mb-1">State</label>
-              <input
-                name="state"
-                type="text"
-                maxLength={2}
-                defaultValue={sp.state ?? ""}
-                placeholder="TX"
-                className="w-full border border-zinc-200 rounded-md px-3 py-1.5 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 uppercase focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
-              />
-            </div>
-            <div className="min-w-[160px]">
-              <label className="block text-xs text-zinc-400 mb-1">Job family</label>
-              <input
-                name="job_family"
-                type="text"
-                defaultValue={sp.job_family ?? ""}
-                placeholder="welding, hvac…"
-                className="w-full border border-zinc-200 rounded-md px-3 py-1.5 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
-              />
-            </div>
-            <button
-              type="submit"
-              className="px-4 py-1.5 bg-zinc-900 text-white text-sm font-medium rounded-full hover:bg-zinc-700 transition-colors"
-            >
-              Search
-            </button>
-            {hasFilters && (
-              <Link
-                href="/admin/applicants"
-                className="px-3 py-1.5 text-sm text-zinc-500 border border-zinc-200 rounded-full hover:border-zinc-300 hover:text-zinc-700 transition-colors"
-              >
-                Clear
-              </Link>
-            )}
-          </div>
-        </form>
+          </form>
+        </Reveal>
 
         {/* Results */}
         {data.applicants.length === 0 ? (
-          <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-8 text-center">
-            <p className="text-zinc-600 font-medium">No applicants found</p>
+          <div className="border border-border-light rounded-md bg-white p-8 text-center">
+            <p className="text-ink font-medium">No applicants found</p>
             {hasFilters && (
-              <p className="text-sm text-zinc-400 mt-1">Try adjusting your filters.</p>
+              <p className="text-caption text-slate-muted mt-1">Try adjusting your filters.</p>
             )}
           </div>
         ) : (
-          <div className="space-y-3">
+          <Stagger className="space-y-3">
             {data.applicants.map((a) => {
               const fullName = [a.first_name, a.last_name].filter(Boolean).join(" ") || "Unnamed";
               const location = [a.city, a.state].filter(Boolean).join(", ");
               return (
-                <div
+                <StaggerItem
                   key={a.id}
-                  className="bg-zinc-50 border border-zinc-200 rounded-lg p-5 hover:border-zinc-300 transition-colors"
+                  className="group relative rounded-md border border-hairline bg-white px-5 py-4 shadow-subtle transition-shadow hover:shadow-medium"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <h3 className="font-semibold text-zinc-900">{fullName}</h3>
-                        {a.profile_completeness >= 80 && (
-                          <span className="text-xs text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
-                            {a.profile_completeness}% complete
-                          </span>
-                        )}
-                        {a.profile_completeness < 80 && a.profile_completeness > 0 && (
-                          <span className="text-xs text-zinc-500 bg-zinc-100 border border-zinc-200 rounded-full px-2 py-0.5">
-                            {a.profile_completeness}% complete
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <h3 className="text-body-lg font-medium text-cohere-ink">{fullName}</h3>
+                        {a.profile_completeness > 0 && (
+                          <span
+                            className="inline-flex items-center gap-1.5 text-micro text-slate"
+                            title="Based on profile fields, credentials, résumé, and program info."
+                          >
+                            <span className="relative inline-block h-1 w-16 overflow-hidden rounded-full bg-hairline">
+                              <span
+                                className={cn(
+                                  "absolute inset-y-0 left-0 rounded-full",
+                                  a.profile_completeness >= 80 ? "bg-cohere-green" : "bg-slate-muted",
+                                )}
+                                style={{ width: `${Math.min(100, a.profile_completeness)}%` }}
+                              />
+                            </span>
+                            <span className="tabular-nums font-medium">{a.profile_completeness}%</span>
+                            <span className="text-slate-muted">complete</span>
                           </span>
                         )}
                       </div>
 
-                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-zinc-500">
+                      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-caption text-slate">
                         {location && (
                           <span className="flex items-center gap-1">
                             <MapPin className="w-3.5 h-3.5" /> {location}
@@ -169,72 +178,76 @@ export default async function AdminApplicantsPage({ searchParams }: PageProps) {
                           </span>
                         )}
                         {a.willing_to_relocate && (
-                          <span className="flex items-center gap-1 text-zinc-500">
+                          <span className="flex items-center gap-1 text-slate">
                             <ArrowUpRight className="w-3.5 h-3.5" /> Open to relocate
                           </span>
                         )}
                       </div>
                     </div>
 
-                    {/* Match stats */}
-                    <div className="shrink-0 flex gap-3 text-right">
-                      <div>
-                        <div className="text-lg font-bold text-emerald-600 leading-none">{a.eligible_count}</div>
-                        <div className="text-xs text-zinc-400 mt-0.5">eligible</div>
-                      </div>
-                      <div>
-                        <div className="text-lg font-bold text-amber-400 leading-none">{a.near_fit_count}</div>
-                        <div className="text-xs text-zinc-400 mt-0.5">near fit</div>
-                      </div>
+                    {/* Match stats — compact inline, no mono labels */}
+                    <div className="shrink-0 flex items-baseline gap-3 text-caption text-slate whitespace-nowrap">
+                      <span>
+                        <span className="tabular-nums font-medium text-cohere-ink">{a.eligible_count}</span>
+                        <span className="ml-1 text-slate-muted">eligible</span>
+                      </span>
+                      <span aria-hidden className="text-slate-muted">—</span>
+                      <span>
+                        <span className="tabular-nums font-medium text-cohere-ink">{a.near_fit_count}</span>
+                        <span className="ml-1 text-slate-muted">near fit</span>
+                      </span>
                     </div>
                   </div>
 
                   {/* Contact row */}
                   {a.email && (
-                    <div className="mt-3 pt-3 border-t border-zinc-200 flex items-center gap-4">
-                      <span className="text-sm text-zinc-400 font-mono">{a.email}</span>
-                      <a
-                        href={`mailto:${a.email}`}
-                        className="inline-flex items-center gap-1 text-sm font-medium text-spf-navy hover:text-spf-navy-light transition-colors"
+                    <div className="mt-3 flex items-center gap-4">
+                      <span className="text-caption text-slate">{a.email}</span>
+                      <Link
+                        href={`/admin/messages/compose?applicant_id=${a.id}`}
+                        className="inline-flex items-center gap-1 text-caption font-medium text-studio-maroon hover:underline transition-colors"
                       >
-                        <Mail className="w-3.5 h-3.5" /> Send email
-                      </a>
+                        <MessageSquare className="w-3.5 h-3.5" /> Send message
+                      </Link>
                     </div>
                   )}
-                  {!a.email && (
-                    <div className="mt-3 pt-3 border-t border-zinc-200">
-                      <span className="text-xs text-zinc-400 italic">No email on file</span>
-                    </div>
-                  )}
-                </div>
+                </StaggerItem>
               );
             })}
-          </div>
+          </Stagger>
         )}
 
         {/* Pagination */}
         {data.total > 50 && (
-          <div className="flex items-center justify-between text-sm text-zinc-400">
+          <div className="flex flex-wrap items-center justify-between gap-3 text-caption text-slate-muted">
             <span>
               Showing {(page - 1) * 50 + 1}–{Math.min(page * 50, data.total)} of {data.total}
             </span>
-            <div className="flex gap-2">
-              {page > 1 && (
-                <Link
-                  href={`/admin/applicants?${new URLSearchParams({ ...sp, page: String(page - 1) })}`}
-                  className="px-3 py-1 border border-zinc-200 rounded-full hover:border-zinc-300 hover:text-zinc-600 transition-colors"
-                >
-                  Previous
-                </Link>
-              )}
-              {page * 50 < data.total && (
-                <Link
-                  href={`/admin/applicants?${new URLSearchParams({ ...sp, page: String(page + 1) })}`}
-                  className="px-3 py-1 border border-zinc-200 rounded-full hover:border-zinc-300 hover:text-zinc-600 transition-colors"
-                >
-                  Next
-                </Link>
-              )}
+            <div className="flex items-center gap-3">
+              <PagerJump
+                basePath="/admin/applicants"
+                params={sp as Record<string, string | undefined>}
+                page={page}
+                totalPages={Math.max(1, Math.ceil(data.total / 50))}
+              />
+              <div className="flex gap-2">
+                {page > 1 && (
+                  <Link
+                    href={`/admin/applicants?${new URLSearchParams({ ...sp, page: String(page - 1) })}`}
+                    className="btn-pill-outline"
+                  >
+                    Previous
+                  </Link>
+                )}
+                {page * 50 < data.total && (
+                  <Link
+                    href={`/admin/applicants?${new URLSearchParams({ ...sp, page: String(page + 1) })}`}
+                    className="btn-pill-outline"
+                  >
+                    Next
+                  </Link>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -242,3 +255,4 @@ export default async function AdminApplicantsPage({ searchParams }: PageProps) {
     </main>
   );
 }
+

@@ -14,6 +14,10 @@ import {
 import { fetchMyMatches, fetchMyProfile } from "@/lib/api/applicant";
 import { ApiError } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/server";
+import { PageHeader, MonoLabel, MetricCard, Reveal, Stagger, StaggerItem } from "@/components/ui";
+import { WelcomeCard } from "@/components/applicant/WelcomeCard";
+import { CoachMarkTour } from "@/components/applicant/CoachMarkTour";
+import { ApiUnreachable } from "@/components/applicant/ApiUnreachable";
 
 export default async function ApplicantDashboard() {
   const supabase = await createClient();
@@ -31,41 +35,62 @@ export default async function ApplicantDashboard() {
   });
 
   if (profileMissing) redirect("/applicant/setup");
-  if (!profile) return (
-    <main className="p-6 md:p-8">
-      <div className="max-w-5xl mx-auto bg-rose-50 border border-rose-200 rounded-lg p-5 text-sm text-rose-600">
-        <strong>Could not reach the API.</strong> The backend may be starting up — please refresh in a moment.
-      </div>
-    </main>
-  );
+  if (!profile) return <ApiUnreachable />;
 
   const matches = await fetchMyMatches(token).catch(() => null);
 
-  return (
-    <main className="p-6 md:p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
-            {profile?.first_name ? `Welcome back, ${profile.first_name}` : "Dashboard"}
-          </h1>
-          <Link
-            href="/applicant/profile"
-            className="text-sm font-medium text-zinc-500 hover:text-zinc-900 transition-colors flex items-center gap-1"
-          >
-            Edit profile <ChevronRight className="w-4 h-4" />
-          </Link>
-        </div>
+  const nextStep = deriveNextStep(profile);
+  const completeness = profile?.profile_completeness ?? 0;
+  const showFinishSetup = completeness < 50;
 
-        {/* Profile card */}
+  return (
+    <main className="py-8">
+      <div className="page-shell space-y-6">
+        <CoachMarkTour displayName={profile ? `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() : null} />
+
+        {/* Finish setup banner — auto-hides at completeness >= 50 */}
+        {showFinishSetup && (
+          <Reveal
+            as="section"
+            className="rounded-md border border-hairline bg-parchment p-6"
+          >
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-3">
+                <div className="min-w-0">
+                  <p className="font-display text-feature text-cohere-ink leading-tight">
+                    Finish setting up
+                  </p>
+                  <p className="mt-1 text-body text-slate">
+                    About three minutes. Then your ranked matches start arriving.
+                  </p>
+                </div>
+              </div>
+              <Link href="/applicant/setup" className="btn-lg shrink-0 self-start sm:self-auto">
+                Start setup <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+          </Reveal>
+        )}
+
+        <WelcomeCard
+          displayName={profile ? `${profile.first_name ?? ""} ${profile.last_name ?? ""}`.trim() : null}
+          completeness={profile?.profile_completeness ?? 0}
+          nextStep={nextStep}
+          matchCount={(matches?.eligible_matches?.length ?? 0) + (matches?.near_fit_matches?.length ?? 0)}
+          applicationCount={undefined}
+          viewedRecently={undefined}
+        />
+
+        {/* Profile card — deep-green hero panel */}
         {profile && (
-          <section className="bg-zinc-50 border border-zinc-200 rounded-lg overflow-hidden shadow-sm">
-            <div className="px-6 py-4 border-b border-zinc-200 flex items-center justify-between">
-              <h2 className="font-semibold text-zinc-900 text-sm">Profile overview</h2>
+          <Reveal as="section" className="card-green overflow-hidden">
+            <div className="px-6 py-4 border-b border-white/15 flex items-center justify-between">
+              <MonoLabel className="text-white/70">Profile overview</MonoLabel>{/* Item 14: standardized on "Profile overview" */}
               <CompletenessBar score={profile.profile_completeness} />
             </div>
             <div className="px-6 py-5 grid grid-cols-1 sm:grid-cols-2 gap-5">
               <ProfileItem
-                icon={<Briefcase className="w-4 h-4 text-zinc-500" />}
+                icon={<Briefcase className="w-4 h-4 text-white/80" />}
                 label="Program"
                 value={profile.canonical_job_family_code
                   ? `${profile.program_name_raw ?? ""} (${profile.canonical_job_family_code})`
@@ -73,24 +98,24 @@ export default async function ApplicantDashboard() {
                 fallback="Not set"
               />
               <ProfileItem
-                icon={<MapPin className="w-4 h-4 text-zinc-500" />}
+                icon={<MapPin className="w-4 h-4 text-white/80" />}
                 label="Location"
                 value={[profile.city, profile.state].filter(Boolean).join(", ") || null}
                 fallback="Not set"
               />
               <ProfileItem
-                icon={<Calendar className="w-4 h-4 text-zinc-500" />}
+                icon={<Calendar className="w-4 h-4 text-white/80" />}
                 label="Available from"
                 value={profile.available_from_date ?? profile.expected_completion_date ?? null}
                 fallback="Not set"
               />
               <ProfileItem
-                icon={<User className="w-4 h-4 text-zinc-500" />}
+                icon={<User className="w-4 h-4 text-white/80" />}
                 label="Preferences"
                 value={[
                   profile.willing_to_relocate ? "Open to relocate" : null,
                   profile.willing_to_travel ? "Open to travel" : null,
-                ].filter(Boolean).join(" · ") || "Not specified"}
+                ].filter(Boolean).join(", ") || "Not specified"}
               />
             </div>
 
@@ -98,34 +123,34 @@ export default async function ApplicantDashboard() {
             {(!profile.canonical_job_family_code ||
               (!profile.available_from_date && !profile.expected_completion_date) ||
               !profile.city) && (
-              <div className="px-6 py-4 bg-zinc-100 border-t border-zinc-200 space-y-2">
+              <div className="px-6 py-4 bg-white/5 border-t border-white/15 space-y-2">
                 {!profile.canonical_job_family_code && (
                   <AlertRow>
-                    Your program hasn&apos;t been matched to a job family.{" "}
-                    <Link href="/applicant/profile" className="underline font-medium text-spf-navy">Update profile</Link> to auto-match.
+                    Add your program info and roughly 20 more matches open up.{" "}
+                    <Link href="/applicant/profile" className="underline font-medium text-white">Update profile</Link>.
                   </AlertRow>
                 )}
                 {!profile.available_from_date && !profile.expected_completion_date && (
                   <AlertRow>
-                    No availability date set.{" "}
-                    <Link href="/applicant/profile" className="underline font-medium text-spf-navy">Set your dates</Link> for better timing matches.
+                    Add your availability date so employers know when you can start — near-fit matches drop without it.{" "}
+                    <Link href="/applicant/profile" className="underline font-medium text-white">Set your dates</Link>.
                   </AlertRow>
                 )}
                 {!profile.city && (
                   <AlertRow>
-                    No city set.{" "}
-                    <Link href="/applicant/profile" className="underline font-medium text-spf-navy">Add your location</Link> for geography matching.
+                    Add your city to see jobs within commute range — right now you&apos;re missing local matches.{" "}
+                    <Link href="/applicant/profile" className="underline font-medium text-white">Add your location</Link>.
                   </AlertRow>
                 )}
               </div>
             )}
-          </section>
+          </Reveal>
         )}
 
         {/* Matches */}
         {matches && (
-          <section>
-            <h2 className="font-semibold text-zinc-900 mb-4 text-sm">Match summary</h2>
+          <Reveal as="section" delay={0.05}>
+            <MonoLabel className="mb-4 block">Match summary</MonoLabel>
 
             {!matches.has_matches ? (
               <NoMatchesCard
@@ -134,33 +159,37 @@ export default async function ApplicantDashboard() {
               />
             ) : (
               <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <StatCard
-                    count={matches.total_eligible}
-                    label="Eligible matches"
-                    description="You meet the key requirements"
-                    variant="eligible"
-                    href="/applicant/matches"
-                  />
-                  <StatCard
-                    count={matches.total_near_fit}
-                    label="Near-fit matches"
-                    description="Close — one or two addressable gaps"
-                    variant="near_fit"
-                    href="/applicant/matches#near-fit"
-                  />
-                </div>
+                <Stagger className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <StaggerItem>
+                    <StatCard
+                      count={matches.total_eligible}
+                      label="Eligible matches"
+                      description="You meet the key requirements"
+                      variant="eligible"
+                      href="/applicant/matches"
+                    />
+                  </StaggerItem>
+                  <StaggerItem>
+                    <StatCard
+                      count={matches.total_near_fit}
+                      label="Near-fit matches"
+                      description="Close — one or two addressable gaps"
+                      variant="near_fit"
+                      href="/applicant/matches#near-fit"
+                    />
+                  </StaggerItem>
+                </Stagger>
                 <div className="mt-4">
                   <Link
                     href="/applicant/matches"
-                    className="inline-flex items-center gap-1.5 text-sm font-medium text-spf-navy hover:text-spf-navy-light transition-colors"
+                    className="inline-flex items-center gap-1.5 text-body font-medium text-cohere-green hover:text-cohere-ink transition-colors"
                   >
                     View all ranked jobs <ArrowRight className="w-4 h-4" />
                   </Link>
                 </div>
               </>
             )}
-          </section>
+          </Reveal>
         )}
       </div>
     </main>
@@ -180,10 +209,10 @@ function ProfileItem({
 }) {
   return (
     <div className="flex items-start gap-3">
-      <div className="mt-0.5 p-1.5 bg-zinc-100 rounded-md">{icon}</div>
+      <div className="mt-0.5 p-1.5 bg-white/10 rounded-sm">{icon}</div>
       <div className="min-w-0">
-        <dt className="text-xs font-medium text-zinc-400 uppercase tracking-widest">{label}</dt>
-        <dd className={`mt-0.5 text-sm ${value ? "text-zinc-900" : "text-zinc-400 italic"}`}>
+        <dt className="text-caption font-medium text-white/65">{label}</dt>
+        <dd className={`mt-0.5 text-body ${value ? "text-white" : "text-white/50 italic"}`}>
           {value ?? fallback}
         </dd>
       </div>
@@ -191,22 +220,32 @@ function ProfileItem({
   );
 }
 
+function deriveNextStep(profile: Awaited<ReturnType<typeof fetchMyProfile>>): { label: string; href: string; unlockHint?: string } | null {
+  if (!profile) return { label: "Finish setting up your profile", href: "/applicant/setup" };
+  if (!profile.state)             return { label: "Add your state",             href: "/applicant/profile", unlockHint: "Unlocks jobs near you." };
+  if (!profile.city)              return { label: "Add your city",              href: "/applicant/profile", unlockHint: "Sharpens your matches by drive time." };
+  if (!profile.program_name_raw)  return { label: "Add your trade or program",  href: "/applicant/profile", unlockHint: "Anchors your matches to the right jobs." };
+  if (!profile.canonical_job_family_code) return { label: "Confirm your trade family", href: "/applicant/profile", unlockHint: "Improves match quality." };
+  if ((profile.profile_completeness ?? 0) < 80) return { label: "Fill in the rest of your profile", href: "/applicant/profile", unlockHint: "Completing your profile shows employers you're serious." };
+  return { label: "See your matches", href: "/applicant/matches" };
+}
+
 function CompletenessBar({ score }: { score: number }) {
-  const color = score >= 80 ? "bg-gradient-to-r from-spf-navy to-blue-600" : score >= 50 ? "bg-amber-500" : "bg-zinc-200";
+  const color = score >= 80 ? "bg-white" : score >= 50 ? "bg-cohere-coral" : "bg-white/30";
   return (
     <div className="flex items-center gap-2">
-      <div className="w-24 h-1.5 bg-zinc-100 rounded-full overflow-hidden">
+      <div className="w-24 h-1.5 bg-white/15 rounded-full overflow-hidden">
         <div className={`h-full rounded-full ${color} transition-all duration-700`} style={{ width: `${score}%` }} />
       </div>
-      <span className="text-xs text-zinc-500 tabular-nums">{score}%</span>
+      <span className="text-caption text-white tabular-nums">{score}%</span>
     </div>
   );
 }
 
 function AlertRow({ children }: { children: React.ReactNode }) {
   return (
-    <p className="flex items-start gap-2 text-xs text-zinc-400">
-      <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-amber-600" />
+    <p className="flex items-start gap-2 text-caption text-white/80">
+      <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0 text-cohere-coral" />
       <span>{children}</span>
     </p>
   );
@@ -225,21 +264,15 @@ function StatCard({
   variant: "eligible" | "near_fit";
   href: string;
 }) {
-  const accent = variant === "eligible"
-    ? "border-l-emerald-500"
-    : "border-l-amber-500";
-
   return (
-    <Link
-      href={href}
-      className={`bg-zinc-50 border border-zinc-200 border-l-4 ${accent} rounded-lg p-5 hover:border-zinc-200 transition-colors block group shadow-sm`}
-    >
-      <div className={`text-3xl font-bold tabular-nums ${variant === "eligible" ? "text-emerald-600" : "text-amber-600"}`}>{count}</div>
-      <div className="text-sm font-semibold text-zinc-900 mt-1">{label}</div>
-      <div className="text-xs text-zinc-400 mt-0.5">{description}</div>
-      <div className="mt-3 text-xs font-medium text-zinc-500 group-hover:text-spf-navy flex items-center gap-1 transition-colors">
-        View details <ChevronRight className="w-3 h-3" />
-      </div>
+    <Link href={href} className="block group h-full">
+      <MetricCard
+        label={label}
+        value={count}
+        sub={description}
+        tone={variant === "eligible" ? "green" : "stone"}
+        className="h-full"
+      />
     </Link>
   );
 }
@@ -254,23 +287,23 @@ function NoMatchesCard({
   const allReady = profileHasFamily && profileHasLocation;
 
   return (
-    <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-6 shadow-sm">
-      <p className="text-zinc-900 font-semibold">No matches yet</p>
+    <div className="bg-stone border border-transparent rounded-md p-6">
+      <p className="font-display text-feature text-cohere-ink">No matches yet</p>
 
       {allReady ? (
         <div className="mt-3">
-          <p className="text-sm text-zinc-500">
+          <p className="text-body text-slate">
             Your profile is ready. Matches appear after the scoring pipeline runs.
           </p>
-          <div className="flex items-center gap-2 mt-3 text-xs text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2 mt-3 text-caption text-cohere-green bg-wash-green border border-cohere-green/20 rounded-sm px-3 py-2">
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span className="font-medium">Profile ready for matching</span>
           </div>
         </div>
       ) : (
         <div className="mt-3 space-y-3">
-          <p className="text-sm text-zinc-400">
-            Complete your profile to enable matching:
+          <p className="text-body text-slate">
+            Finish your profile to see jobs you&apos;re ready to apply to.
           </p>
           <div className="space-y-2">
             <ChecklistItem done={profileHasFamily} label={profileHasFamily ? "Program matched to job family" : "Program not matched to job family"} />
@@ -279,7 +312,7 @@ function NoMatchesCard({
           {(!profileHasFamily || !profileHasLocation) && (
             <Link
               href="/applicant/profile"
-              className="inline-flex items-center gap-1.5 mt-1 text-sm font-medium text-spf-navy hover:text-spf-navy-light"
+              className="inline-flex items-center gap-1.5 mt-1 text-body font-medium text-cohere-green hover:text-cohere-ink transition-colors"
             >
               Complete your profile <ArrowRight className="w-3.5 h-3.5" />
             </Link>
@@ -292,8 +325,8 @@ function NoMatchesCard({
 
 function ChecklistItem({ done, label }: { done: boolean; label: string }) {
   return (
-    <div className={`flex items-center gap-2 text-sm ${done ? "text-emerald-600" : "text-zinc-400"}`}>
-      {done ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4 text-amber-600" />}
+    <div className={`flex items-center gap-2 text-body ${done ? "text-cohere-green" : "text-slate"}`}>
+      {done ? <CheckCircle2 className="w-4 h-4" /> : <AlertCircle className="w-4 h-4 text-cohere-coral" />}
       <span>{label}</span>
     </div>
   );

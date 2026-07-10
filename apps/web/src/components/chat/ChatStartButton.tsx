@@ -47,7 +47,7 @@ export function ChatStartButton({ token }: ChatStartButtonProps) {
       <button
         onClick={handleStart}
         disabled={loading}
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-white bg-zinc-900 rounded-full px-3 py-1.5 hover:bg-zinc-700 disabled:opacity-50 transition-colors"
+        className="btn-primary inline-flex items-center gap-1.5 disabled:opacity-50"
       >
         {loading ? (
           <Loader2 className="w-4 h-4 animate-spin" />
@@ -56,7 +56,7 @@ export function ChatStartButton({ token }: ChatStartButtonProps) {
         )}
         {loading ? "Starting…" : "New chat"}
       </button>
-      {error && <p className="text-xs text-rose-600 mt-1">{error}</p>}
+      {error && <p className="text-micro text-error-red mt-1">{error}</p>}
     </div>
   );
 }

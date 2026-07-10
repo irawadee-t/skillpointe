@@ -1,0 +1,97 @@
+<!-- @dsCard group="Architecture" -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architecture &amp; Information Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#17171c;--body:#212121;--slate:#52525b;--smut:#6b6b76;--hair:#d9d9dd;--green:#003c33;--stone:#eeece7;--coral:#ff7759;--blue:#1863dc}
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:var(--body);font-family:Inter,system-ui,sans-serif;line-height:1.55}
+  .wrap{max-width:1100px;margin:0 auto;padding:36px}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--slate)}
+  h1{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:36px;letter-spacing:-.02em;color:var(--ink);margin:.3em 0 .2em}
+  p.lead{color:var(--slate);font-size:18px;max-width:760px;margin:0 0 28px}
+  h2{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:22px;color:var(--ink);margin:34px 0 14px}
+  .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+  .col{border:1px solid var(--hair);border-radius:16px;overflow:hidden}
+  .col header{padding:14px 18px;color:#fff}
+  .col.applicant header{background:var(--green)}
+  .col.employer header{background:#071829}
+  .col.admin header{background:var(--ink)}
+  .col header .r{font-family:'JetBrains Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:.04em;opacity:.7}
+  .col header .n{font-family:'Space Grotesk',sans-serif;font-size:20px;margin-top:2px}
+  .col ul{list-style:none;margin:0;padding:10px 0}
+  .col li{padding:7px 18px;font-size:14px;border-top:1px solid #f0f0f0;display:flex;justify-content:space-between;gap:10px}
+  .col li:first-child{border-top:0}
+  .col li code{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--smut)}
+  .layers{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+  .layer{border:1px solid var(--hair);border-radius:14px;padding:18px}
+  .layer .t{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:16px;color:var(--ink)}
+  .layer .d{font-size:14px;color:var(--slate);margin-top:6px}
+  .layer .tag{font-family:'JetBrains Mono',monospace;font-size:11px;text-transform:uppercase;color:var(--coral);letter-spacing:.04em}
+  .note{background:var(--stone);border-radius:14px;padding:16px 18px;font-size:14px;color:var(--slate);margin-top:14px}
+</style></head>
+<body><div class="wrap">
+  <div class="eyebrow">SkillPointe Match · Architecture</div>
+  <h1>Information Architecture</h1>
+  <p class="lead">A three-role labor-market recommendation platform — Admin (SkillPointe staff), Applicant (scholar/trainee), and Employer. The product is <strong>continuous ranking + explanation</strong> of skilled-trades jobs, not batch matching. Public marketing &amp; auth shell wraps three role-gated dashboard areas.</p>
+
+  <h2>Public &amp; auth</h2>
+  <div class="col" style="max-width:560px">
+    <header style="background:#000"><div class="r">Public</div><div class="n">Marketing &amp; Auth</div></header>
+    <ul>
+      <li>Landing <code>/</code></li>
+      <li>Sign in <code>/login</code></li>
+      <li>Create account (applicants) <code>/signup</code></li>
+      <li>Forgot / reset password <code>/forgot-password · /reset-password</code></li>
+    </ul>
+  </div>
+
+  <h2>Role areas &amp; navigation</h2>
+  <div class="cols">
+    <div class="col applicant">
+      <header><div class="r">Role</div><div class="n">Applicant</div></header>
+      <ul>
+        <li>Dashboard <code>/applicant</code></li>
+        <li>Matches (ranked) <code>/applicant/matches</code></li>
+        <li>Match detail <code>/applicant/matches/[id]</code></li>
+        <li>Jobs browse <code>/applicant/jobs</code></li>
+        <li>Planning chat <code>/applicant/chat</code></li>
+        <li>Messages <code>/applicant/messages</code></li>
+        <li>Profile / Setup <code>/applicant/profile · /setup</code></li>
+      </ul>
+    </div>
+    <div class="col employer">
+      <header><div class="r">Role</div><div class="n">Employer</div></header>
+      <ul>
+        <li>Dashboard + jobs <code>/employer</code></li>
+        <li>Post a job <code>/employer/jobs/new</code></li>
+        <li>Edit job <code>/employer/jobs/[id]/edit</code></li>
+        <li>Ranked applicants <code>/employer/jobs/[id]/applicants</code></li>
+        <li>Analytics <code>/employer/analytics</code></li>
+        <li>Messages <code>/employer/messages</code></li>
+      </ul>
+    </div>
+    <div class="col admin">
+      <header><div class="r">Role</div><div class="n">Admin</div></header>
+      <ul>
+        <li>Dashboard <code>/admin</code></li>
+        <li>Job map <code>/admin/map</code></li>
+        <li>Applicants directory <code>/admin/applicants</code></li>
+        <li>Employers directory <code>/admin/employers</code></li>
+        <li>Employer detail <code>/admin/employers/[id]</code></li>
+        <li>Engagement analytics <code>/admin/engagement</code></li>
+        <li>Test matches (tool) <code>/admin/test-matches</code></li>
+      </ul>
+    </div>
+  </div>
+  <div class="note"><strong>Permissions:</strong> Supabase Auth + app roles in <code>user_profiles</code>. Employers see only their own jobs/candidates. Admin may <em>view</em> employer pages read-only but never acts as an employer (no outreach/message/hire UI for admin).</div>
+
+  <h2>The matching pipeline (product core)</h2>
+  <div class="layers">
+    <div class="layer"><div class="tag">Layer 1 · deterministic</div><div class="t">Base fit estimation</div><div class="d">5 hard gates (job family, credentials, readiness, geography, minimums) + 9 weighted dimensions, blended 75% structured / 25% semantic. A failed gate caps the score.</div></div>
+    <div class="layer"><div class="tag">Layer 2 · policy</div><div class="t">Policy reranking</div><div class="d">Adjusts ordering / visibility only. Stored separately as policy_adjusted_score — never merged into base fit.</div></div>
+    <div class="layer"><div class="tag">Layer 3 · LLM</div><div class="t">Interpretation</div><div class="d">Extraction, verification, explanation, planning chat, AI candidate prioritisation. Supports the ranking, never overrides it.</div></div>
+  </div>
+  <div class="note">UI principle: hard-gate failures and gaps are <strong>surfaced, never hidden</strong> inside an opaque score. Geography is first-class across gates, scoring, and explanation.</div>
+</div></body></html>

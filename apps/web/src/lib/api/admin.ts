@@ -75,6 +75,38 @@ export interface ClusterJob {
   source_url: string | null;
 }
 
+export interface PlatformOverview {
+  platform: { users: number; applicants: number; employers: number; institutions: number; partners: number };
+  acquisition: {
+    new_applicants_7d: number; new_applicants_30d: number;
+    new_jobs_7d: number; new_jobs_30d: number;
+    new_credentials_7d: number; new_credentials_30d: number;
+  };
+  verification: {
+    credentials_total: number; self_reported: number; institution_verified: number;
+    skilled_verified: number; verified_rate: number; needs_review: number;
+  };
+  consent: { sharing_with_employers: number; total_with_settings: number };
+  matching: {
+    total: number; eligible: number; near_fit: number; ineligible: number;
+    avg_fit: number; strong: number; applicants_matched: number;
+  };
+  marketplace: { active_jobs: number; discoverable_workers: number; top_trades: { name: string; count: number }[] };
+  engagement: { total: number; total_7d: number; by_type: { type: string; count: number; last_7d: number }[] };
+  outcomes: { placements: number; median_wage: number | null };
+  skilled_id: { partners: number; active: number; queries_total: number; queries_7d: number };
+  sync: { outbox_total: number; outbox_unpublished: number; inbox_applied: number };
+  funnel: { key: string; label: string; count: number }[];
+  alerts: {
+    review_queue: number; unmatched_learners: number; jobs_no_candidates: number;
+    verified_not_sharing: number; sync_pending: number;
+  };
+}
+
+export async function fetchAdminOverview(token: string): Promise<PlatformOverview> {
+  return apiFetch<PlatformOverview>("/admin/analytics/overview", token);
+}
+
 export async function fetchAdminDashboard(token: string): Promise<AdminDashboard> {
   return apiFetch<AdminDashboard>("/admin/analytics/dashboard", token);
 }
@@ -198,5 +230,86 @@ export async function fetchClusterJobs(city: string, state: string, token: strin
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
   });
   if (!res.ok) throw new Error(`Failed to fetch cluster jobs: ${res.status}`);
+  return res.json();
+}
+
+
+// ---------------------------------------------------------------------------
+// Test mode: applicant switcher
+// ---------------------------------------------------------------------------
+
+export interface TestApplicantListItem {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  state: string | null;
+  program: string | null;
+  family_code: string | null;
+  eligible_count: number;
+  near_fit_count: number;
+}
+
+export interface TestApplicantProfile {
+  applicant_id: string;
+  first_name: string | null;
+  last_name: string | null;
+  program: string | null;
+  family_code: string | null;
+  city: string | null;
+  state: string | null;
+  region: string | null;
+  expected_completion_date: string | null;
+  travel_preference: string | null;
+  relocation_preference: string | null;
+}
+
+export interface TestMatchSummary {
+  match_id: string;
+  job_id: string;
+  job_title: string;
+  employer_name: string;
+  job_city: string | null;
+  job_state: string | null;
+  work_setting: string | null;
+  eligibility_status: string;
+  match_label: string | null;
+  policy_adjusted_score: number | null;
+  top_strengths: string[];
+  top_gaps: string[];
+  recommended_next_step: string | null;
+  source_url: string | null;
+  family_code: string | null;
+  description_raw: string | null;
+  requirements_raw: string | null;
+  experience_level: string | null;
+  confidence_level: string | null;
+}
+
+export interface TestApplicantMatches {
+  profile: TestApplicantProfile;
+  eligible_matches: TestMatchSummary[];
+  near_fit_matches: TestMatchSummary[];
+  total_eligible: number;
+  total_near_fit: number;
+}
+
+export async function fetchTestApplicants(token: string): Promise<TestApplicantListItem[]> {
+  const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  const res = await fetch(`${base}/admin/test/applicants`, {
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+  });
+  if (!res.ok) throw new Error(`Failed to fetch test applicants: ${res.status}`);
+  return res.json();
+}
+
+export async function fetchTestApplicantMatches(
+  applicantId: string,
+  token: string,
+): Promise<TestApplicantMatches> {
+  const base = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  const res = await fetch(`${base}/admin/test/applicants/${applicantId}/matches`, {
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+  });
+  if (!res.ok) throw new Error(`Failed to fetch test matches: ${res.status}`);
   return res.json();
 }

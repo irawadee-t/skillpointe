@@ -1,0 +1,52 @@
+<!-- @dsCard group="Architecture" -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design Language &amp; Principles</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#17171c;--body:#212121;--slate:#52525b;--smut:#6b6b76;--hair:#d9d9dd;--green:#003c33;--stone:#eeece7;--coral:#ff7759}
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:var(--body);font-family:Inter,system-ui,sans-serif;line-height:1.55}
+  .wrap{max-width:1000px;margin:0 auto;padding:36px}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--slate)}
+  h1{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:36px;letter-spacing:-.02em;color:var(--ink);margin:.3em 0 .2em}
+  p.lead{color:var(--slate);font-size:18px;max-width:760px;margin:0 0 28px}
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:720px){.two{grid-template-columns:1fr}}
+  .box{border:1px solid var(--hair);border-radius:16px;padding:20px}
+  .box h2{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:18px;margin:0 0 12px}
+  .do h2{color:var(--green)} .dont h2{color:var(--coral)}
+  ul{margin:0;padding-left:18px}li{margin:8px 0;font-size:15px}
+  .princ{border:1px solid var(--hair);border-radius:16px;padding:20px;margin-bottom:16px}
+  .princ .t{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:16px;color:var(--ink)}
+  .princ .d{font-size:15px;color:var(--slate);margin-top:4px}
+</style></head>
+<body><div class="wrap">
+  <div class="eyebrow">SkillPointe Match · Architecture</div>
+  <h1>Design Language</h1>
+  <p class="lead">Cohere-style editorial restraint: austere black-and-white UI, large carved type, flat bordered cards, and bursts of deep-green brand field. Color arrives through brand surfaces and small coral/blue accents — not decorative chrome.</p>
+
+  <div class="princ"><div class="t">Editorial restraint</div><div class="d">White canvas is the default; deep green / navy appear as full-width bands and bold cards. One oversized headline per view, then calm 16–24px copy.</div></div>
+  <div class="princ"><div class="t">Flat, not floaty</div><div class="d">Depth = surface alternation (white / stone / green) + thin hairlines + rounded corners. No heavy drop shadows.</div></div>
+  <div class="princ"><div class="t">Readable first</div><div class="d">Secondary text is slate #52525b (not whisper-grey); primary info ≥ 16px; mono labels 13px medium. Numbers are big display tabular-nums.</div></div>
+  <div class="princ"><div class="t">Honest ranking</div><div class="d">Hard-gate failures and gaps are surfaced, never hidden in an opaque score. Geography is always visible.</div></div>
+
+  <div class="two">
+    <div class="box do"><h2>Do</h2><ul>
+      <li>Use deep green (#003c33) boldly on KPI cards &amp; hero/summary panels — white text.</li>
+      <li>Keep primary CTAs near-black pills; secondary as underlined links.</li>
+      <li>22px radius on major media; 8–16px on cards/chips.</li>
+      <li>Coral for taxonomy / near-fit; blue for links; green for eligible / strength.</li>
+      <li>Wide containers + dense data on dashboards; narrow reading column on forms/threads.</li>
+      <li>Mono uppercase labels for sections &amp; system markers.</li>
+    </ul></div>
+    <div class="box dont"><h2>Don't</h2><ul>
+      <li>Don't drown the page in tiny grey text or empty whitespace.</li>
+      <li>Don't add heavy shadows or make every section a boxed card.</li>
+      <li>Don't turn coral/blue into broad surface fills.</li>
+      <li>Don't stretch forms to full width — inputs look bad.</li>
+      <li>Don't collapse the display/body/mono split into one generic sans.</li>
+      <li>Don't put dark text on green — always white / white-opacity.</li>
+    </ul></div>
+  </div>
+</div></body></html>

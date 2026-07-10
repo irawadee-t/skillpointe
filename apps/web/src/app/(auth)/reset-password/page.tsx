@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
+import { MonoLabel, Field } from "@/components/ui";
 
 const ROLE_HOME: Record<string, string> = {
   applicant: "/applicant",
@@ -34,9 +35,7 @@ export default function ResetPasswordPage() {
     setLoading(true);
     const supabase = createClient();
 
-    const { data, error: updateError } = await supabase.auth.updateUser({
-      password,
-    });
+    const { data, error: updateError } = await supabase.auth.updateUser({ password });
 
     setLoading(false);
 
@@ -51,56 +50,45 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <div className="flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm bg-white border border-zinc-200 rounded-2xl p-8 shadow-sm">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 mb-1">Set new password</h1>
-        <p className="text-sm text-zinc-500 mb-6">
-          Choose a new password for your account.
-        </p>
+    <div>
+      <MonoLabel className="mb-4 block">New credentials</MonoLabel>
+      <h1 className="font-display text-card text-cohere-ink">Set new password</h1>
+      <p className="mt-2 text-body text-slate">Choose a new password for your account.</p>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium uppercase tracking-wide text-zinc-400 mb-1">
-              New password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-              autoComplete="new-password"
-              className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
-            />
-          </div>
+      <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+        <Field label="New password" hint="Minimum 8 characters.">
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={8}
+            autoComplete="new-password"
+            className="input-cohere"
+          />
+        </Field>
 
-          <div>
-            <label className="block text-xs font-medium uppercase tracking-wide text-zinc-400 mb-1">
-              Confirm new password
-            </label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              autoComplete="new-password"
-              className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
-            />
-          </div>
+        <Field label="Confirm new password">
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+            autoComplete="new-password"
+            className="input-cohere"
+          />
+        </Field>
 
-          {error && (
-            <p className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded p-3">{error}</p>
-          )}
+        {error && (
+          <p className="rounded-sm border border-error-red/20 bg-error-red/5 p-3 text-caption text-error-red">
+            {error}
+          </p>
+        )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-zinc-900 text-white py-2.5 rounded-full text-sm font-medium hover:bg-zinc-700 disabled:opacity-50 transition-colors"
-          >
-            {loading ? "Updating…" : "Update password"}
-          </button>
-        </form>
-      </div>
+        <button type="submit" disabled={loading} className="btn-primary w-full">
+          {loading ? "Updating…" : "Update password"}
+        </button>
+      </form>
     </div>
   );
 }

@@ -1,11 +1,25 @@
 /**
- * Base API client for server-side fetch calls to the FastAPI backend.
+ * Base API client for fetch calls to the FastAPI backend.
  *
- * Used only in server components — never exposes credentials to the browser.
- * The Bearer token is the Supabase access token from the current session.
+ * Isomorphic: server components pass the Supabase access token from the session;
+ * client components pass the token they received as a prop (never the secret key).
  */
 
-const API_BASE = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Resolve API URL. In production builds we refuse to fall back to localhost —
+// a misconfigured deploy should fail loudly, not silently point at nothing.
+const _API_URL =
+  typeof window !== "undefined"
+    ? process.env.NEXT_PUBLIC_API_URL
+    : process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL;
+
+if (process.env.NODE_ENV === "production" && !_API_URL) {
+  throw new Error(
+    "NEXT_PUBLIC_API_URL must be set in production (or API_URL on the server). " +
+      "Refusing to fall back to http://localhost:8000.",
+  );
+}
+
+export const API_BASE = _API_URL ?? "http://localhost:8000";
 
 export class ApiError extends Error {
   constructor(
@@ -37,4 +51,28 @@ export async function apiFetch<T>(
   }
 
   return res.json() as Promise<T>;
+}
+
+/**
+ * Like apiFetch but for endpoints that return no JSON body (e.g. 204 No Content).
+ * Resolves on 2xx, throws ApiError otherwise.
+ */
+export async function apiSend(
+  path: string,
+  token: string,
+  options?: RequestInit,
+): Promise<void> {
+  const res = await fetch(`${API_BASE}${path}`, {
+    ...options,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      ...(options?.headers ?? {}),
+    },
+    cache: "no-store",
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new ApiError(res.status, body);
+  }
 }

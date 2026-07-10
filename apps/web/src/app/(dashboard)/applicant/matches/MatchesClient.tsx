@@ -16,7 +16,6 @@ import {
   AlertTriangle,
   Briefcase,
   Shield,
-  Zap,
   ExternalLink,
   ClipboardList,
   GraduationCap,
@@ -26,11 +25,15 @@ import {
   Info,
 } from "lucide-react";
 
+import { motion, AnimatePresence } from "motion/react";
+
 import type {
   JobMatchSummary,
   RankedMatchesResponse,
 } from "@/lib/api/applicant";
 import { InterestSignalPanel } from "@/components/matches/InterestSignalPanel";
+import { PageHeader, Stagger, StaggerItem, MonoLabel } from "@/components/ui";
+import { easeCohere } from "@/lib/motion";
 
 /* ------------------------------------------------------------------ */
 /*  Props                                                              */
@@ -52,7 +55,7 @@ export function MatchesClient({ data, fetchError, token }: Props) {
       <main className="p-6 md:p-8">
         <div className="max-w-5xl mx-auto">
           <BackLink />
-          <div className="mt-6 bg-rose-50 border border-rose-200 rounded-lg p-5 text-sm text-rose-600 flex items-start gap-2">
+          <div className="mt-6 bg-studio-maroon/10 border border-studio-maroon-soft rounded-md p-5 text-caption text-error-red flex items-start gap-2">
             <AlertCircle className="w-4 h-4 mt-0.5 shrink-0" />
             {fetchError}
           </div>
@@ -69,34 +72,22 @@ export function MatchesClient({ data, fetchError, token }: Props) {
   return (
     <main className="p-6 md:p-8">
       <div className="max-w-5xl mx-auto space-y-6">
+        <BackLink />
+
         <div>
-          <BackLink />
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 mt-2">
+          <h1 className="text-2xl font-semibold tracking-tight text-cohere-ink">
             Your job matches
           </h1>
-          <p className="text-sm text-zinc-500 mt-1">
-            Ranked by how well each role fits your trade, location, and
-            background.
+          <p className="mt-1.5 text-sm text-slate">
+            Ranked by how well each role fits your trade, location, and background.
           </p>
         </div>
 
         {matches?.has_matches && (
-          <div className="grid grid-cols-3 gap-3">
-            <StatCard
-              label="Total matches"
-              value={totalMatches}
-              icon={<Target className="w-4 h-4" />}
-            />
-            <StatCard
-              label="Ready to apply"
-              value={eligibleCount}
-              icon={<Shield className="w-4 h-4" />}
-            />
-            <StatCard
-              label="Close matches"
-              value={nearFitCount}
-              icon={<TrendingUp className="w-4 h-4" />}
-            />
+          <div className="flex divide-x divide-hairline rounded-lg border border-hairline bg-white">
+            <SummaryStat label="Total matches" value={totalMatches} />
+            <SummaryStat label="Ready to apply" value={eligibleCount} highlight={eligibleCount > 0} />
+            <SummaryStat label="Close matches" value={nearFitCount} />
           </div>
         )}
 
@@ -107,56 +98,44 @@ export function MatchesClient({ data, fetchError, token }: Props) {
           />
         ) : (
           <>
-            {/* Eligible Section */}
+            {/* Eligible Section — editorial list, hairline-divided rows, no per-item borders */}
             <section>
-              <div className="flex items-center gap-3 mb-4">
-                <div>
-                  <h2 className="text-base font-semibold text-zinc-900">
-                    Ready to apply
-                  </h2>
-                  <p className="text-xs text-zinc-400">
-                    You meet the key requirements for these roles
-                  </p>
-                </div>
-                <span className="ml-auto text-sm font-semibold text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-full px-3 py-0.5">
-                  {eligibleCount}
-                </span>
+              <h2 className="text-base font-semibold text-cohere-ink">
+                Ready to apply <span className="ml-1 font-normal text-slate-muted">{eligibleCount}</span>
+              </h2>
+              <div className="mt-3">
+                {matches.eligible_matches.length === 0 ? (
+                  <EmptySection message="Nothing here yet. Finish the rest of your profile to see jobs you're ready to apply to." />
+                ) : (
+                  <div className="divide-y divide-hairline rounded-lg border border-hairline bg-white shadow-subtle">
+                    {matches.eligible_matches.map((m) => (
+                      <div key={m.match_id} className="px-6">
+                        <MatchRow match={m} token={token} />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              {matches.eligible_matches.length === 0 ? (
-                <EmptySection message="No eligible matches yet. Complete your profile to improve results." />
-              ) : (
-                <div className="space-y-3">
-                  {matches.eligible_matches.map((m) => (
-                    <MatchCard key={m.match_id} match={m} token={token} />
-                  ))}
-                </div>
-              )}
             </section>
 
             {/* Near-fit Section */}
             <section>
-              <div className="flex items-center gap-3 mb-4">
-                <div>
-                  <h2 className="text-base font-semibold text-zinc-900">
-                    Close matches
-                  </h2>
-                  <p className="text-xs text-zinc-400">
-                    Worth exploring — one or two gaps to address
-                  </p>
-                </div>
-                <span className="ml-auto text-sm font-semibold text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-3 py-0.5">
-                  {nearFitCount}
-                </span>
+              <h2 className="text-base font-semibold text-cohere-ink">
+                Close matches <span className="ml-1 font-normal text-slate-muted">{nearFitCount}</span>
+              </h2>
+              <div className="mt-3">
+                {matches.near_fit_matches.length === 0 ? (
+                  <EmptySection message="No near-fit matches right now." />
+                ) : (
+                  <div className="divide-y divide-hairline rounded-lg border border-hairline bg-white shadow-subtle">
+                    {matches.near_fit_matches.map((m) => (
+                      <div key={m.match_id} className="px-6">
+                        <MatchRow match={m} token={token} />
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
-              {matches.near_fit_matches.length === 0 ? (
-                <EmptySection message="No near-fit matches right now." />
-              ) : (
-                <div className="space-y-3">
-                  {matches.near_fit_matches.map((m) => (
-                    <MatchCard key={m.match_id} match={m} token={token} />
-                  ))}
-                </div>
-              )}
             </section>
           </>
         )}
@@ -182,7 +161,7 @@ function MatchCard({ match, token }: { match: JobMatchSummary; token: string }) 
   const score = match.policy_adjusted_score
     ? Math.round(match.policy_adjusted_score)
     : null;
-  const location = [match.job_city, match.job_state].filter(Boolean).join(", ");
+  const location = [match.job_city, match.job_state].filter((v) => v && !/^unspecified$/i.test(v.trim())).join(", ");
   const workLabel = match.work_setting
     ? (WORK_SETTING_LABELS[match.work_setting] ?? match.work_setting)
     : null;
@@ -198,129 +177,98 @@ function MatchCard({ match, token }: { match: JobMatchSummary; token: string }) 
         .replace(/\b\w/g, (c) => c.toUpperCase())
     : null;
 
-  const fitInfo = getFitInfo(score, match.eligibility_status);
+  const eligible = match.eligibility_status === "eligible";
+  // Left rule keyed to eligibility — green (eligible), coral (near), stone (ineligible).
+  // A left border reads more editorial than a top rule and doesn't compete with the title.
+  const railClass =
+    match.eligibility_status === "eligible"
+      ? "border-l-cohere-green"
+      : match.eligibility_status === "near_fit"
+        ? "border-l-cohere-coral"
+        : "border-l-hairline";
+
+  const metaBits = [
+    location || null,
+    workLabel,
+    payDisplay,
+    familyLabel,
+  ].filter(Boolean) as string[];
 
   return (
-    <div className="bg-white border border-zinc-200 rounded-lg hover:border-zinc-200 transition-all shadow-sm">
-      <div className="p-5">
-        {/* Row 1: Title + actions */}
-        <div className="flex items-start justify-between gap-4">
+    <div
+      className={`relative overflow-hidden rounded-xl border border-hairline border-l-[3px] bg-white transition-shadow duration-300 hover:shadow-[0_10px_28px_-14px_rgba(12,10,9,0.15)] ${railClass}`}
+    >
+      <div className="p-7">
+        {/* Header — title left, score right. No mono labels, no chip. */}
+        <div className="flex items-start justify-between gap-8">
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2.5">
-              {score !== null && (
-                <div className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold bg-zinc-100 text-spf-navy">
-                  {score}
-                </div>
-              )}
-              <div className="min-w-0">
-                <h3 className="font-semibold text-zinc-900 text-base leading-snug">
-                  {match.job_title}
-                </h3>
-                <p className="text-sm text-zinc-500 mt-0.5 flex items-center gap-1">
-                  <Building2 className="w-3.5 h-3.5 shrink-0" />
-                  {match.employer_name}
-                </p>
+            <h3 className="font-display text-heading leading-[1.1] text-cohere-ink">
+              {match.job_title}
+            </h3>
+            <p className="mt-2 text-body-lg text-cohere-ink">
+              {match.employer_name}
+            </p>
+            {metaBits.length > 0 && (
+              <p className="mt-1 text-body text-slate">
+                {metaBits.join(", ")}
+              </p>
+            )}
+          </div>
+
+          {score !== null && (
+            <div className="shrink-0 text-right">
+              <div className="font-display text-[3rem] leading-none tabular-nums text-cohere-ink">
+                {score}
+              </div>
+              <div className="mt-1 text-caption text-slate">
+                {score >= 85 ? "Strong fit" : eligible ? "Good fit" : "Near fit"}
               </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {match.source_url && (
-              <a
-                href={match.source_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-1 px-3 py-1.5 bg-zinc-900 text-white text-xs font-medium rounded-full hover:bg-zinc-700 transition-colors"
-              >
-                Apply <ExternalLink className="w-3 h-3" />
-              </a>
-            )}
-            {hasDetail && (
-              <button
-                onClick={() => setExpanded(!expanded)}
-                className="p-1.5 rounded-lg border border-zinc-200 text-zinc-400 hover:text-zinc-600 hover:border-zinc-300 transition-colors"
-                aria-label={expanded ? "Collapse" : "Expand"}
-              >
-                {expanded ? (
-                  <ChevronUp className="w-4 h-4" />
-                ) : (
-                  <ChevronDown className="w-4 h-4" />
-                )}
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Row 2: Location, pay, setting */}
-        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm text-zinc-500">
-          {(location || workLabel) && (
-            <span className="flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-              {location || ""}
-              {workLabel && (
-                <span className="text-zinc-400">
-                  {location ? " · " : ""}
-                  {workLabel}
-                </span>
-              )}
-            </span>
-          )}
-          {payDisplay && (
-            <span className="flex items-center gap-1">
-              <DollarSign className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-              {payDisplay}
-            </span>
           )}
         </div>
 
-        {/* Row 3: Match insight — single clear line */}
-        <div className="mt-3 px-3 py-2 rounded-lg bg-zinc-100">
-          <div className="flex items-start gap-2">
-            <fitInfo.InsightIcon className="w-4 h-4 shrink-0 mt-0.5 text-zinc-500" />
-            <div className="text-sm">
-              <span className="font-medium text-zinc-700">
-                {fitInfo.label}
-              </span>
-              {match.recommended_next_step && (
-                <span className="text-zinc-400">
-                  {" "}
-                  — {match.recommended_next_step}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Row 4: Tags — strengths, gaps, family */}
-        {!expanded && (
-          <div className="flex flex-wrap gap-1.5 mt-3">
+        {/* Strengths and gaps — body-sized, one per line for scannability. */}
+        {!expanded && (match.top_strengths.length > 0 || match.top_gaps.length > 0) && (
+          <ul className="mt-5 space-y-1.5 text-body">
             {match.top_strengths.slice(0, 2).map((s, i) => (
-              <span
-                key={`s-${i}`}
-                className="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-md px-2 py-0.5"
-              >
-                <CheckCircle2 className="w-3 h-3 shrink-0" />
-                {shortLabel(s)}
-              </span>
+              <li key={`s-${i}`} className="flex items-start gap-2 text-cohere-ink">
+                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-cohere-green" strokeWidth={2} />
+                <span>{shortLabel(s)}</span>
+              </li>
             ))}
             {match.top_gaps.slice(0, 2).map((g, i) => (
-              <span
-                key={`g-${i}`}
-                className="inline-flex items-center gap-1 text-xs bg-rose-50 text-rose-600 border border-rose-200 rounded-md px-2 py-0.5"
-              >
-                <AlertTriangle className="w-3 h-3 shrink-0" />
-                {shortLabel(g)}
-              </span>
+              <li key={`g-${i}`} className="flex items-start gap-2 text-cohere-ink">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-studio-maroon" strokeWidth={2} />
+                <span>{shortLabel(g)}</span>
+              </li>
             ))}
-            {familyLabel && (
-              <span className="text-xs bg-zinc-100 text-zinc-500 border border-zinc-200 rounded-md px-2 py-0.5">
-                {familyLabel}
-              </span>
-            )}
-          </div>
+          </ul>
         )}
 
+        {/* Actions — right-aligned, secondary details next to primary */}
+        <div className="mt-6 flex items-center justify-end gap-4">
+          {hasDetail && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="text-body text-slate underline decoration-hairline underline-offset-4 hover:text-cohere-ink hover:decoration-cohere-ink"
+            >
+              {expanded ? "Show less" : "See details"}
+            </button>
+          )}
+          {match.source_url && (
+            <a
+              href={match.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-primary inline-flex items-center gap-1.5"
+            >
+              Apply <ExternalLink className="h-4 w-4" />
+            </a>
+          )}
+        </div>
+
         {/* Row 5: Interest signal — always visible */}
-        <div className="mt-3 pt-3 border-t border-zinc-200">
+        <div className="mt-3 pt-3 border-t border-border-light">
           <InterestSignalPanel
             matchId={match.match_id}
             sourceUrl={match.source_url}
@@ -331,10 +279,183 @@ function MatchCard({ match, token }: { match: JobMatchSummary; token: string }) 
       </div>
 
       {/* Expanded section: job details + match breakdown */}
-      {expanded && (
-        <ExpandedMatchContent match={match} hasDetail={hasDetail} />
-      )}
+      <AnimatePresence initial={false}>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: easeCohere }}
+            className="overflow-hidden"
+          >
+            <ExpandedMatchContent match={match} hasDetail={hasDetail} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/*  Match Row — Cohere Research–style editorial list row               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * A single match rendered as a hairline-divided list row, no card border.
+ * Category chip → big display title → body meta line → strengths → apply.
+ * Modelled directly on cohere.com/research row treatment.
+ */
+function MatchRow({ match, token }: { match: JobMatchSummary; token: string }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const score = match.policy_adjusted_score
+    ? Math.round(match.policy_adjusted_score)
+    : null;
+  const location = [match.job_city, match.job_state].filter((v) => v && !/^unspecified$/i.test(v.trim())).join(", ");
+  const workLabel = match.work_setting
+    ? (WORK_SETTING_LABELS[match.work_setting] ?? match.work_setting)
+    : null;
+  const payDisplay = formatPay(match);
+  const hasDetail = !!(
+    match.description_raw ||
+    match.requirements_raw ||
+    match.preferred_qualifications_raw
+  );
+  const familyLabel = match.canonical_job_family_code
+    ? match.canonical_job_family_code
+        .replace(/_/g, " ")
+        .replace(/\b\w/g, (c) => c.toUpperCase())
+    : null;
+
+  const eligible = match.eligibility_status === "eligible";
+  const isStrong = score !== null && score >= 85;
+  const fitLabel = score !== null ? (isStrong ? "Strong fit" : eligible ? "Good fit" : "Near fit") : null;
+  // Color rhetoric on the dark palette:
+  //   maroon  — strong fit (≥85), prestige / brand-tie moment
+  //   forest  — eligible / good fit, positive default
+  //   sienna  — near fit, attention accent
+  //   grey    — ineligible / muted
+  const fitToneClass = isStrong
+    ? "text-studio-maroon"
+    : match.eligibility_status === "eligible"
+      ? "text-studio-forest"
+      : match.eligibility_status === "near_fit"
+        ? "text-studio-maroon"
+        : "text-studio-grey-brown";
+
+  const metaBits = [
+    match.employer_name,
+    location || null,
+    workLabel,
+    payDisplay,
+  ].filter(Boolean) as string[];
+
+  return (
+    <article className="group grid grid-cols-[1fr_auto] gap-6 py-5">
+      <div className="min-w-0">
+        {/* Category tag row — small caps, dashboard-scale */}
+        <div className="flex flex-wrap items-center gap-2 text-[11px] leading-none">
+          {fitLabel && (
+            <span className={`font-semibold uppercase tracking-[0.06em] ${fitToneClass}`}>
+              {fitLabel}
+            </span>
+          )}
+          {fitLabel && familyLabel && <span aria-hidden className="text-slate-muted">—</span>}
+          {familyLabel && (
+            <span className="text-slate-muted">{familyLabel}</span>
+          )}
+        </div>
+
+        {/* Item title */}
+        <h3 className="mt-1.5 text-body-lg font-medium leading-snug text-cohere-ink">
+          {match.job_title}
+        </h3>
+
+        {/* Meta line */}
+        {metaBits.length > 0 && (
+          <p className="mt-0.5 text-caption text-slate-muted">
+            {metaBits.join(", ")}
+          </p>
+        )}
+
+        {/* Strengths / gaps — 13px, one per line */}
+        {(match.top_strengths.length > 0 || match.top_gaps.length > 0) && (
+          <ul className="mt-2.5 space-y-1 text-[13px]">
+            {match.top_strengths.slice(0, 2).map((s, i) => (
+              <li key={`s-${i}`} className="flex items-start gap-1.5 text-cohere-ink">
+                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-cohere-green" strokeWidth={2} />
+                <span>{shortLabel(s)}</span>
+              </li>
+            ))}
+            {match.top_gaps.slice(0, 2).map((g, i) => (
+              <li key={`g-${i}`} className="flex items-start gap-1.5 text-cohere-ink">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-studio-maroon" strokeWidth={2} />
+                <span>{shortLabel(g)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {/* Actions row */}
+        <div className="mt-3 flex items-center gap-4">
+          {match.source_url && (
+            <a
+              href={match.source_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-primary-sm inline-flex items-center gap-1.5"
+            >
+              Apply <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+          {hasDetail && (
+            <button
+              onClick={() => setExpanded(!expanded)}
+              className="text-[13px] text-slate underline decoration-hairline underline-offset-2 transition-colors hover:text-cohere-ink hover:decoration-cohere-ink"
+            >
+              {expanded ? "Show less" : "See details"}
+            </button>
+          )}
+        </div>
+
+        {/* Expanded detail */}
+        <AnimatePresence initial={false}>
+          {expanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: easeCohere }}
+              className="overflow-hidden"
+            >
+              <div className="mt-4 rounded-lg border border-hairline bg-white">
+                <ExpandedMatchContent match={match} hasDetail={hasDetail} />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Interest signal — kept but denser */}
+        <div className="mt-4 border-t border-hairline pt-3">
+          <InterestSignalPanel
+            matchId={match.match_id}
+            sourceUrl={match.source_url}
+            initialSignal={match.applicant_interest ?? null}
+            token={token}
+          />
+        </div>
+      </div>
+
+      {/* Score column — right side, dashboard-scale number */}
+      {score !== null && (
+        <div className="shrink-0 pt-0.5 text-right">
+          <div className="text-2xl font-semibold leading-none tabular-nums text-cohere-ink">
+            {score}
+          </div>
+          <div className="mt-1 text-[11px] text-slate-muted">of 100</div>
+        </div>
+      )}
+    </article>
   );
 }
 
@@ -352,22 +473,22 @@ function ExpandedMatchContent({
   const [showScoring, setShowScoring] = useState(false);
 
   return (
-    <div className="border-t border-zinc-200">
+    <div className="border-t border-border-light">
       {/* Match analysis */}
       <div className="px-5 py-4 space-y-4">
         {/* Why you match */}
         {match.top_strengths.length > 0 && (
           <div>
-            <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-2">
+            <h4 className="text-micro font-semibold text-slate-muted tracking-wide mb-2">
               Why you match
             </h4>
             <div className="space-y-1.5">
               {match.top_strengths.map((s, i) => (
                 <div
                   key={i}
-                  className="flex items-start gap-2 text-sm text-zinc-600"
+                  className="flex items-start gap-2 text-caption text-slate"
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                  <CheckCircle2 className="w-3.5 h-3.5 text-cohere-green shrink-0 mt-0.5" />
                   <span>{humanize(s)}</span>
                 </div>
               ))}
@@ -378,16 +499,16 @@ function ExpandedMatchContent({
         {/* What to work on */}
         {match.top_gaps.length > 0 && (
           <div>
-            <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wide mb-2">
+            <h4 className="text-micro font-semibold text-slate-muted tracking-wide mb-2">
               What to work on
             </h4>
             <div className="space-y-1.5">
               {match.top_gaps.map((g, i) => (
                 <div
                   key={i}
-                  className="flex items-start gap-2 text-sm text-zinc-600"
+                  className="flex items-start gap-2 text-caption text-slate"
                 >
-                  <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                  <AlertTriangle className="w-3.5 h-3.5 text-studio-maroon shrink-0 mt-0.5" />
                   <span>{humanize(g)}</span>
                 </div>
               ))}
@@ -398,7 +519,7 @@ function ExpandedMatchContent({
         {/* Scoring breakdown toggle */}
         <button
           onClick={() => setShowScoring(!showScoring)}
-          className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-zinc-600 transition-colors"
+          className="flex items-center gap-1.5 text-micro text-slate-muted hover:text-ink transition-colors"
         >
           <Info className="w-3.5 h-3.5" />
           {showScoring ? "Hide" : "View"} scoring details
@@ -414,8 +535,8 @@ function ExpandedMatchContent({
 
       {/* Job description */}
       {hasDetail && (
-        <div className="border-t border-zinc-200 px-5 py-4 bg-zinc-100 space-y-5">
-          <h4 className="text-xs font-semibold text-zinc-400 uppercase tracking-wide">
+        <div className="border-t border-border-light px-5 py-4 bg-stone space-y-5">
+          <h4 className="text-micro font-semibold text-slate-muted tracking-wide">
             About this role
           </h4>
           <StructuredDescription
@@ -429,7 +550,7 @@ function ExpandedMatchContent({
                 href={match.source_url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-full hover:bg-zinc-700 transition-colors"
+                className="btn-primary inline-flex items-center gap-2"
               >
                 Apply for this position{" "}
                 <ExternalLink className="w-3.5 h-3.5" />
@@ -452,14 +573,14 @@ function ScoringBreakdown({ match }: { match: JobMatchSummary }) {
     : null;
 
   return (
-    <div className="bg-zinc-100 rounded-lg p-3 text-xs text-zinc-500 space-y-2">
+    <div className="bg-stone rounded-sm p-3 text-micro text-slate space-y-2">
       <div className="flex items-center justify-between">
-        <span className="font-medium text-zinc-600">Overall score</span>
-        <span className="font-bold text-spf-navy">{score ?? "—"}/100</span>
+        <span className="font-medium text-ink">Overall score</span>
+        <span className="font-bold text-cohere-blue">{score ?? "—"}/100</span>
       </div>
       <div className="flex items-center justify-between">
         <span>Eligibility</span>
-        <span className="text-zinc-600">
+        <span className="text-ink">
           {match.eligibility_status === "eligible"
             ? "Eligible"
             : "Near-fit"}
@@ -469,12 +590,12 @@ function ScoringBreakdown({ match }: { match: JobMatchSummary }) {
         <span>Confidence</span>
         <span>{match.confidence_level ?? "—"}</span>
       </div>
-      <p className="text-zinc-400 pt-1 border-t border-zinc-200">
+      <p className="text-slate-muted pt-1 border-t border-hairline">
         Score reflects trade alignment, geography, credentials, timing, and
         job requirements. For a full breakdown, visit{" "}
         <Link
           href={`/applicant/matches/${match.match_id}`}
-          className="text-spf-navy hover:text-spf-navy-light"
+          className="text-cohere-blue hover:text-cohere-ink"
         >
           match details
         </Link>
@@ -556,27 +677,27 @@ type SectionItem =
   | { type: "bullet"; text: string };
 
 const SECTION_ICONS: Record<string, React.ReactNode> = {
-  overview: <Briefcase className="w-4 h-4 text-zinc-500" />,
-  responsibilities: <ClipboardList className="w-4 h-4 text-zinc-500" />,
-  requirements: <Wrench className="w-4 h-4 text-zinc-500" />,
-  qualifications: <GraduationCap className="w-4 h-4 text-zinc-500" />,
-  preferred: <Star className="w-4 h-4 text-zinc-500" />,
-  benefits: <FileText className="w-4 h-4 text-zinc-500" />,
-  other: <FileText className="w-4 h-4 text-zinc-500" />,
+  overview: <Briefcase className="w-4 h-4 text-slate" />,
+  responsibilities: <ClipboardList className="w-4 h-4 text-slate" />,
+  requirements: <Wrench className="w-4 h-4 text-slate" />,
+  qualifications: <GraduationCap className="w-4 h-4 text-slate" />,
+  preferred: <Star className="w-4 h-4 text-slate" />,
+  benefits: <FileText className="w-4 h-4 text-slate" />,
+  other: <FileText className="w-4 h-4 text-slate" />,
 };
 
 function DescriptionSection({ section }: { section: Section }) {
   return (
     <div>
-      <h4 className="text-sm font-semibold text-zinc-700 flex items-center gap-1.5 mb-2">
+      <h4 className="text-caption font-semibold text-ink flex items-center gap-1.5 mb-2">
         {SECTION_ICONS[section.icon]}
         {section.title}
       </h4>
-      <div className="text-sm text-zinc-500 leading-relaxed">
+      <div className="text-caption text-slate leading-relaxed">
         {section.items.map((item, i) =>
           item.type === "bullet" ? (
             <div key={i} className="flex items-start gap-2 py-0.5">
-              <span className="w-1.5 h-1.5 bg-zinc-300 rounded-full mt-1.5 shrink-0" />
+              <span className="w-1.5 h-1.5 bg-cohere-coral rounded-full mt-1.5 shrink-0" />
               <span>{item.text}</span>
             </div>
           ) : (
@@ -777,24 +898,21 @@ function classifyLines(lines: string[]): SectionItem[] {
 /*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
 
-function StatCard({
+function SummaryStat({
   label,
   value,
-  icon,
+  highlight = false,
 }: {
   label: string;
   value: number;
-  icon: React.ReactNode;
+  highlight?: boolean;
 }) {
   return (
-    <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-4 shadow-sm">
-      <div className="flex items-center gap-1.5 text-zinc-400 text-xs font-medium">
-        {icon}
-        {label}
+    <div className="flex-1 px-4 py-3">
+      <div className={`text-xl font-semibold tabular-nums ${highlight ? "text-cohere-green" : "text-cohere-ink"}`}>
+        {value.toLocaleString()}
       </div>
-      <p className="text-2xl font-bold text-spf-navy mt-1 tabular-nums">
-        {value}
-      </p>
+      <div className="mt-0.5 text-[12px] text-slate">{label}</div>
     </div>
   );
 }
@@ -803,7 +921,7 @@ function BackLink() {
   return (
     <Link
       href="/applicant"
-      className="text-sm text-zinc-500 hover:text-zinc-900 inline-flex items-center gap-1 transition-colors"
+      className="text-caption text-slate hover:text-cohere-ink inline-flex items-center gap-1 transition-colors"
     >
       <ChevronLeft className="w-4 h-4" /> Dashboard
     </Link>
@@ -812,8 +930,8 @@ function BackLink() {
 
 function EmptySection({ message }: { message: string }) {
   return (
-    <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-5 text-sm text-zinc-400 text-center shadow-sm">
-      {message}
+    <div className="rounded-lg border border-dashed border-hairline px-4 py-6">
+      <p className="mx-auto max-w-prose text-center text-[13px] text-slate">{message}</p>
     </div>
   );
 }
@@ -826,60 +944,29 @@ function NoMatchesCard({
   profileHasLocation: boolean;
 }) {
   return (
-    <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-8 text-center shadow-sm">
-      <Briefcase className="w-8 h-8 text-zinc-300 mx-auto" />
-      <p className="text-zinc-900 font-semibold text-lg mt-3">
+    <div className="bg-stone border border-transparent rounded-md p-10 text-center">
+      <Briefcase className="w-8 h-8 text-slate-muted mx-auto" />
+      <p className="font-display text-feature text-cohere-ink mt-3">
         No matches yet
       </p>
-      <p className="text-sm text-zinc-500 mt-2">
-        Matches are computed when the scoring pipeline runs.
+      <p className="text-caption text-slate mt-2">
+        Finish your profile to see jobs you&apos;re ready to apply to.
       </p>
       {!profileHasFamily && (
-        <p className="flex items-center justify-center gap-1.5 text-xs text-zinc-400 mt-4">
-          <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+        <p className="flex items-center justify-center gap-1.5 text-micro text-slate mt-4">
+          <AlertCircle className="w-3.5 h-3.5 text-studio-maroon" />
           Your trade program hasn&apos;t been normalized yet — this affects
           match quality.
         </p>
       )}
       {!profileHasLocation && (
-        <p className="flex items-center justify-center gap-1.5 text-xs text-zinc-400 mt-2">
-          <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
+        <p className="flex items-center justify-center gap-1.5 text-micro text-slate mt-2">
+          <AlertCircle className="w-3.5 h-3.5 text-studio-maroon" />
           Set your location for geography-based matching.
         </p>
       )}
     </div>
   );
-}
-
-function getFitInfo(
-  score: number | null,
-  eligibilityStatus: string
-): {
-  label: string;
-  InsightIcon: typeof CheckCircle2;
-} {
-  if (eligibilityStatus === "eligible" && score !== null && score >= 80) {
-    return {
-      label: "Strong fit",
-      InsightIcon: CheckCircle2,
-    };
-  }
-  if (eligibilityStatus === "eligible") {
-    return {
-      label: "Good fit",
-      InsightIcon: CheckCircle2,
-    };
-  }
-  if (score !== null && score >= 55) {
-    return {
-      label: "Close match",
-      InsightIcon: Zap,
-    };
-  }
-  return {
-    label: "Worth exploring",
-    InsightIcon: Zap,
-  };
 }
 
 function shortLabel(text: string): string {

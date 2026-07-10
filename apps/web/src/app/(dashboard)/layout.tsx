@@ -1,22 +1,47 @@
-import Image from "next/image";
-import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { AppSidebar } from "@/components/dashboard/AppSidebar";
+import { Topbar } from "@/components/dashboard/Topbar";
+import { CommandPalette } from "@/components/dashboard/CommandPalette";
+import { ToastProvider } from "@/components/ui/Toast";
+
+const SEARCH: Record<string, { href: string; placeholder: string }> = {
+  applicant: { href: "/applicant/jobs", placeholder: "Search jobs, trades, employers…" },
+  employer: { href: "/employer/verified-workers", placeholder: "Search verified workers by trade, credential…" },
+  admin: { href: "/admin/applicants", placeholder: "Search applicants, employers, credentials…" },
+  institution: { href: "/institution", placeholder: "Search your students…" },
+};
 
 const NAV_ITEMS: Record<string, { label: string; href: string }[]> = {
   applicant: [
+    // Home
     { label: "Dashboard", href: "/applicant" },
+    // Discover
     { label: "Matches", href: "/applicant/matches" },
     { label: "Jobs", href: "/applicant/jobs" },
-    { label: "Plan", href: "/applicant/chat" },
+    // Activity
+    { label: "Applications", href: "/applicant/applications" },
     { label: "Messages", href: "/applicant/messages" },
+    { label: "Plan", href: "/applicant/chat" },
+    // My record
     { label: "Profile", href: "/applicant/profile" },
+    { label: "Credentials", href: "/applicant/credentials" },
+    { label: "Résumé", href: "/applicant/resume" },
+  ],
+  institution: [
+    { label: "Dashboard", href: "/institution" },
   ],
   employer: [
+    // Home
     { label: "Dashboard", href: "/employer" },
-    { label: "Post a job", href: "/employer/jobs/new" },
+    // Hiring flow
+    { label: "Applications", href: "/employer/applications" },
+    { label: "Verified workers", href: "/employer/verified-workers" },
     { label: "Messages", href: "/employer/messages" },
+    // Post & manage — single entry point that branches into single-post + import
+    { label: "Add jobs", href: "/employer/jobs/add" },
+    // Insight
     { label: "Analytics", href: "/employer/analytics" },
   ],
   admin: [
@@ -24,7 +49,13 @@ const NAV_ITEMS: Record<string, { label: string; href: string }[]> = {
     { label: "Map", href: "/admin/map" },
     { label: "Applicants", href: "/admin/applicants" },
     { label: "Employers", href: "/admin/employers" },
+    { label: "Imports", href: "/admin/job-imports" },
+    { label: "Credentials", href: "/admin/credentials" },
+    { label: "SKILLED ID", href: "/admin/skilled-id" },
+    { label: "Impact", href: "/admin/foundation" },
+    { label: "Sync", href: "/admin/sync" },
     { label: "Engagement", href: "/admin/engagement" },
+    { label: "Test Matches", href: "/admin/test-matches" },
   ],
 };
 
@@ -44,49 +75,46 @@ export default async function DashboardLayout({
 
   const role = (user.app_metadata?.role as string) ?? "applicant";
   const navItems = NAV_ITEMS[role] ?? NAV_ITEMS.applicant;
+  const search = SEARCH[role] ?? SEARCH.applicant;
+
+  // Best-effort display name — tries applicant profile first, then employer contact.
+  let displayName: string | null = null;
+  {
+    const { data: applicant } = await supabase
+      .from("applicants")
+      .select("first_name, last_name, preferred_name")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (applicant) {
+      const first = applicant.preferred_name || applicant.first_name;
+      displayName = [first, applicant.last_name].filter(Boolean).join(" ").trim() || null;
+    }
+    if (!displayName) {
+      const { data: emp } = await supabase
+        .from("employer_contacts")
+        .select("first_name, last_name")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (emp) displayName = [emp.first_name, emp.last_name].filter(Boolean).join(" ").trim() || null;
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-zinc-50">
-      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-zinc-200 transition-all duration-300">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-14">
-            <div className="flex items-center gap-8">
-              <Link href={navItems[0]?.href ?? "/"} className="flex-shrink-0">
-                <Image
-                  src="/spf-logo.png"
-                  alt="SkillPointe"
-                  width={140}
-                  height={38}
-                  className="brightness-0"
-                />
-              </Link>
-              <div className="flex items-center gap-1">
-                {navItems.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className="relative px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-900 transition-colors duration-200 group"
-                  >
-                    {item.label}
-                    <span className="absolute bottom-0 left-0 right-0 h-px bg-zinc-900 scale-x-0 group-hover:scale-x-100 transition-transform duration-200 origin-left" />
-                  </Link>
-                ))}
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <span className="text-xs text-zinc-400 hidden sm:inline">{user.email}</span>
-              <Link
-                href="/api/auth/signout"
-                prefetch={false}
-                className="text-xs text-zinc-500 hover:text-zinc-900 transition-colors duration-200"
-              >
-                Sign out
-              </Link>
-            </div>
-          </div>
+    <ToastProvider>
+      <div className="min-h-screen bg-canvas">
+        <AppSidebar
+          navItems={navItems}
+          email={user.email ?? ""}
+          role={role}
+          homeHref={navItems[0]?.href ?? "/"}
+          displayName={displayName}
+        />
+        <div className="md:pl-64">
+          <Topbar searchHref={search.href} placeholder={search.placeholder} role={role} />
+          {children}
         </div>
-      </nav>
-      {children}
-    </div>
+        <CommandPalette role={role} />
+      </div>
+    </ToastProvider>
   );
 }

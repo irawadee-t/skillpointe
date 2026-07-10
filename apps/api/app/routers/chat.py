@@ -27,6 +27,7 @@ from app.services.chat import (
     _build_job_focused_snapshot,
     _generate_opening_message,
 )
+from app.util.rate_limit import rate_limit_llm
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +117,12 @@ async def list_sessions(
 # POST /applicant/me/chat/sessions
 # ---------------------------------------------------------------------------
 
-@router.post("/sessions", response_model=ChatSessionSummary, status_code=201)
+@router.post(
+    "/sessions",
+    response_model=ChatSessionSummary,
+    status_code=201,
+    dependencies=[Depends(rate_limit_llm("chat"))],
+)
 async def create_session(
     body: CreateSessionRequest,
     current_user: Annotated[CurrentUser, Depends(require_applicant)],
@@ -291,6 +297,7 @@ async def get_session(
     "/sessions/{session_id}/messages",
     response_model=ChatMessageOut,
     status_code=201,
+    dependencies=[Depends(rate_limit_llm("chat"))],
 )
 async def send_message(
     session_id: str,

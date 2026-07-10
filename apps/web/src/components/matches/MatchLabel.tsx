@@ -3,11 +3,15 @@ interface MatchLabelBadgeProps {
   size?: "sm" | "md";
 }
 
+/**
+ * Match-quality labels — Cohere-style outlined pills.
+ * No filled washes; the border colors carry the tone.
+ */
 const LABEL_STYLES: Record<string, string> = {
-  strong_fit:   "bg-emerald-500/20 text-emerald-600 border-emerald-200",
-  good_fit:     "bg-spf-navy/10 text-spf-navy border-spf-navy/20",
-  moderate_fit: "bg-zinc-100 text-zinc-500 border-zinc-200",
-  low_fit:      "bg-zinc-100 text-zinc-400 border-zinc-200",
+  strong_fit:   "border-cohere-green/50 text-cohere-green",
+  good_fit:     "border-cohere-blue/50  text-cohere-blue",
+  moderate_fit: "border-hairline        text-slate",
+  low_fit:      "border-hairline        text-slate-muted",
 };
 
 const LABEL_TEXT: Record<string, string> = {
@@ -18,12 +22,11 @@ const LABEL_TEXT: Record<string, string> = {
 };
 
 export function MatchLabel({ label, size = "sm" }: MatchLabelBadgeProps) {
-  const styles = LABEL_STYLES[label ?? ""] ?? "bg-zinc-100 text-zinc-400 border-zinc-200";
+  const styles = LABEL_STYLES[label ?? ""] ?? "border-hairline text-slate-muted";
   const text = LABEL_TEXT[label ?? ""] ?? label ?? "—";
-  const padding = size === "md" ? "px-3 py-1 text-sm" : "px-2 py-0.5 text-xs";
-
+  const padding = size === "md" ? "px-3 py-1 text-caption" : "px-2.5 py-0.5 text-micro";
   return (
-    <span className={`inline-flex items-center font-medium rounded-full border ${styles} ${padding}`}>
+    <span className={`inline-flex items-center rounded-full border bg-white font-medium ${styles} ${padding}`}>
       {text}
     </span>
   );
@@ -37,13 +40,12 @@ interface EligibilityBadgeProps {
 export function EligibilityBadge({ status, size = "sm" }: EligibilityBadgeProps) {
   const isEligible = status === "eligible";
   const styles = isEligible
-    ? "bg-emerald-500/20 text-emerald-600 border-emerald-200"
-    : "bg-amber-50 text-amber-600 border-amber-200";
+    ? "border-cohere-green/50 text-cohere-green"
+    : "border-studio-maroon/50 text-studio-maroon";
   const text = isEligible ? "Eligible" : "Near fit";
-  const padding = size === "md" ? "px-3 py-1 text-sm" : "px-2 py-0.5 text-xs";
-
+  const padding = size === "md" ? "px-3 py-1 text-caption" : "px-2.5 py-0.5 text-micro";
   return (
-    <span className={`inline-flex items-center font-medium rounded-full border ${styles} ${padding}`}>
+    <span className={`inline-flex items-center rounded-full border bg-white font-medium ${styles} ${padding}`}>
       {text}
     </span>
   );

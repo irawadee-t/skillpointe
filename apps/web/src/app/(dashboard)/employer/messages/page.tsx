@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { MessageSquare } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
+import { Card, MonoLabel, Reveal, Stagger, StaggerItem } from "@/components/ui";
 
 interface Conversation {
   conversation_id: string;
@@ -37,62 +38,62 @@ export default async function EmployerMessagesPage() {
   const conversations = await fetchConversations(session.access_token);
 
   return (
-    <main className="p-6 md:p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        <div>
+    <main className="py-8">
+      <div className="page-shell space-y-6">
+        <Reveal>
           <Link
             href="/employer"
-            className="text-sm text-zinc-500 hover:text-zinc-900 inline-flex items-center gap-1 transition-colors"
+            className="mono-label inline-flex items-center gap-1 text-slate hover:text-ink transition-colors"
           >
             ← Back to dashboard
           </Link>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 mt-1">Messages</h1>
-          <p className="text-sm text-zinc-500 mt-0.5">
+          <h1 className="font-display text-card sm:text-heading text-cohere-ink mt-3">Messages</h1>
+          <p className="text-body-lg text-slate mt-3">
             Direct conversations with candidates
           </p>
-        </div>
+        </Reveal>
 
         {conversations.length === 0 ? (
-          <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-10 text-center">
-            <MessageSquare className="w-10 h-10 text-zinc-300 mx-auto mb-3" />
-            <p className="text-zinc-600 font-medium">No conversations yet</p>
-            <p className="text-sm text-zinc-400 mt-1">
-              Use the <strong>Message</strong> button on a candidate card to start a conversation.
-            </p>
-          </div>
+          <Reveal>
+            <Card tone="stone" className="p-12 text-center">
+              <MessageSquare className="w-10 h-10 text-cohere-green mx-auto mb-3" />
+              <p className="text-body-lg font-semibold text-cohere-ink">No conversations yet</p>
+              <p className="text-body text-slate mt-1">
+                Use the <strong className="font-medium">Message</strong> button on a candidate card to start a conversation.
+              </p>
+            </Card>
+          </Reveal>
         ) : (
-          <div className="space-y-2">
+          <Stagger className="space-y-3">
             {conversations.map((c) => (
-              <Link
-                key={c.conversation_id}
-                href={`/employer/messages/${c.conversation_id}`}
-                className="flex items-center justify-between bg-white border border-zinc-200 rounded-lg px-4 py-3.5 hover:border-zinc-200 transition-all"
-              >
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <p className="font-medium text-zinc-900 truncate">
-                      {c.other_party_name}
-                    </p>
-                    {c.unread_count > 0 && (
-                      <span className="shrink-0 inline-flex items-center justify-center w-5 h-5 rounded-full bg-zinc-900 text-white text-xs font-bold">
-                        {c.unread_count}
-                      </span>
+              <StaggerItem key={c.conversation_id}>
+                <Card interactive href={`/employer/messages/${c.conversation_id}`} className="flex items-center justify-between px-5 py-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-cohere-ink truncate">
+                        {c.other_party_name}
+                      </p>
+                      {c.unread_count > 0 && (
+                        <span className="shrink-0 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-cohere-green text-white text-micro font-bold tabular-nums">
+                          {c.unread_count}
+                        </span>
+                      )}
+                    </div>
+                    {c.job_title && (
+                      <p className="text-body text-slate mt-0.5 truncate">
+                        Re: {c.job_title}
+                      </p>
                     )}
-                  </div>
-                  {c.job_title && (
-                    <p className="text-xs text-zinc-400 mt-0.5 truncate">
-                      Re: {c.job_title}
+                    <p className="text-body text-slate mt-0.5 tabular-nums">
+                      {c.message_count} message{c.message_count !== 1 ? "s" : ""},{" "}
+                      {new Date(c.last_message_at).toLocaleDateString()}
                     </p>
-                  )}
-                  <p className="text-xs text-zinc-400 mt-0.5">
-                    {c.message_count} message{c.message_count !== 1 ? "s" : ""} ·{" "}
-                    {new Date(c.last_message_at).toLocaleDateString()}
-                  </p>
-                </div>
-                <MessageSquare className="w-4 h-4 text-zinc-300 shrink-0 ml-3" />
-              </Link>
+                  </div>
+                  <MessageSquare className="w-4 h-4 text-slate shrink-0 ml-3" />
+                </Card>
+              </StaggerItem>
             ))}
-          </div>
+          </Stagger>
         )}
       </div>
     </main>

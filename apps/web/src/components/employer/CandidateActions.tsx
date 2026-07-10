@@ -4,8 +4,8 @@
  * CandidateActions — client-side action buttons for an employer candidate card.
  * Includes "Reach out" (opens OutreachModal) and "Mark as hired" button.
  */
-import { useState } from "react";
-import { Mail, CheckCircle2, Loader2, MessageSquare } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Mail, CheckCircle2, Loader2, MessageSquare, History } from "lucide-react";
 import { OutreachModal } from "./OutreachModal";
 import { useRouter } from "next/navigation";
 
@@ -37,6 +37,27 @@ export function CandidateActions({
   const [hired, setHired] = useState(false);
   const [hireError, setHireError] = useState<string | null>(null);
   const [startingDM, setStartingDM] = useState(false);
+  const [priorOutreachAt, setPriorOutreachAt] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const url = `${API_URL}/employer/me/outreach/history?applicant_id=${encodeURIComponent(applicantId)}&job_id=${encodeURIComponent(jobId)}`;
+        const res = await fetch(url, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!res.ok) return;
+        const data: { items?: Array<{ sent_at: string | null }> } = await res.json();
+        if (cancelled) return;
+        const latest = data.items?.[0]?.sent_at ?? null;
+        setPriorOutreachAt(latest);
+      } catch {
+        // Best effort — history is a nice-to-have.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [applicantId, jobId, token, showOutreach]);
 
   async function handleMessage() {
     setStartingDM(true);
@@ -77,6 +98,8 @@ export function CandidateActions({
       );
       if (!res.ok) throw new Error("Failed");
       setHired(true);
+      // Refresh server components so dashboard eligible/near-fit counts update.
+      router.refresh();
     } catch {
       setHireError("Could not save. Please try again.");
     } finally {
@@ -86,18 +109,26 @@ export function CandidateActions({
 
   return (
     <>
-      <div className="flex items-center gap-2 mt-3 pt-3 border-t border-zinc-200">
-        <button
-          onClick={() => setShowOutreach(true)}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-600 border border-zinc-200 rounded-full px-3 py-1.5 hover:border-zinc-300 hover:text-zinc-900 transition-colors"
-        >
-          <Mail className="w-3.5 h-3.5" /> Reach out
-        </button>
+      <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-hairline">
+        <div className="flex flex-col items-start">
+          <button
+            onClick={() => setShowOutreach(true)}
+            className="btn-pill-outline text-micro"
+          >
+            <Mail className="w-3.5 h-3.5" /> {priorOutreachAt ? "Reach out again" : "Reach out"}
+          </button>
+          {priorOutreachAt && (
+            <span className="mt-1 inline-flex items-center gap-1 text-micro text-slate-muted">
+              <History className="w-3 h-3" />
+              Previously reached out {new Date(priorOutreachAt).toLocaleDateString()}
+            </span>
+          )}
+        </div>
 
         <button
           onClick={handleMessage}
           disabled={startingDM}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500 border border-zinc-200 rounded-full px-3 py-1.5 hover:border-zinc-300 hover:text-zinc-900 transition-colors disabled:opacity-50"
+          className="btn-pill-outline text-micro disabled:opacity-50"
         >
           {startingDM ? (
             <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -108,14 +139,14 @@ export function CandidateActions({
         </button>
 
         {hired ? (
-          <span className="inline-flex items-center gap-1 text-xs text-emerald-600 font-medium">
+          <span className="inline-flex items-center gap-1 text-micro text-cohere-green font-medium">
             <CheckCircle2 className="w-3.5 h-3.5" /> Marked as hired
           </span>
         ) : (
           <button
             onClick={handleHire}
             disabled={hiring}
-            className="inline-flex items-center gap-1.5 text-xs text-zinc-400 border border-zinc-200 rounded-full px-3 py-1.5 hover:text-emerald-600 hover:border-emerald-500/50 transition-colors"
+            className="btn-pill-outline text-micro hover:text-cohere-green hover:border-cohere-green/40"
           >
             {hiring ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -127,7 +158,7 @@ export function CandidateActions({
         )}
 
         {hireError && (
-          <span className="text-xs text-rose-600">{hireError}</span>
+          <span className="text-micro text-error-red">{hireError}</span>
         )}
       </div>
 

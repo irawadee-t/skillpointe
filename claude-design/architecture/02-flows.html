@@ -1,0 +1,65 @@
+<!-- @dsCard group="Architecture" -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Key User Flows</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#17171c;--body:#212121;--slate:#52525b;--smut:#6b6b76;--hair:#d9d9dd;--green:#003c33;--stone:#eeece7;--coral:#ff7759}
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:var(--body);font-family:Inter,system-ui,sans-serif;line-height:1.55}
+  .wrap{max-width:1100px;margin:0 auto;padding:36px}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--slate)}
+  h1{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:36px;letter-spacing:-.02em;color:var(--ink);margin:.3em 0 .2em}
+  p.lead{color:var(--slate);font-size:18px;max-width:760px;margin:0 0 28px}
+  .flow{border:1px solid var(--hair);border-radius:16px;padding:20px 22px;margin-bottom:18px}
+  .flow h2{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:20px;color:var(--ink);margin:0 0 14px}
+  .steps{display:flex;flex-wrap:wrap;gap:8px;align-items:stretch}
+  .step{background:var(--stone);border-radius:10px;padding:10px 14px;font-size:14px;display:flex;align-items:center}
+  .step.g{background:var(--green);color:#fff}
+  .arrow{display:flex;align-items:center;color:var(--smut);font-size:18px}
+  .sub{font-size:13px;color:var(--slate);margin-top:12px}
+</style></head>
+<body><div class="wrap">
+  <div class="eyebrow">SkillPointe Match · Architecture</div>
+  <h1>Key User Flows</h1>
+  <p class="lead">The three role journeys the design must serve. Green steps are the moments of value (ranked matches, candidate shortlist, platform insight).</p>
+
+  <div class="flow">
+    <h2>Applicant — find &amp; act on a match</h2>
+    <div class="steps">
+      <div class="step">Sign up</div><div class="arrow">→</div>
+      <div class="step">Setup: program · location · dates</div><div class="arrow">→</div>
+      <div class="step g">Ranked matches</div><div class="arrow">→</div>
+      <div class="step">Open match · see strengths / gaps</div><div class="arrow">→</div>
+      <div class="step">Set interest / apply</div><div class="arrow">→</div>
+      <div class="step">Plan with AI · message employer</div>
+    </div>
+    <div class="sub">Interest + apply-click log to engagement_events. Planning chat is job-focused.</div>
+  </div>
+
+  <div class="flow">
+    <h2>Employer — surface &amp; reach candidates</h2>
+    <div class="steps">
+      <div class="step">Invited · sign in</div><div class="arrow">→</div>
+      <div class="step">Post a job</div><div class="arrow">→</div>
+      <div class="step g">Ranked applicants + AI priority</div><div class="arrow">→</div>
+      <div class="step">Draft / send outreach</div><div class="arrow">→</div>
+      <div class="step">Message · mark hired</div><div class="arrow">→</div>
+      <div class="step g">Analytics funnel</div>
+    </div>
+    <div class="sub">Posting a job triggers a fire-and-forget match recompute. Outreach + hires recorded for analytics.</div>
+  </div>
+
+  <div class="flow">
+    <h2>Admin — monitor &amp; tune the platform</h2>
+    <div class="steps">
+      <div class="step">Sign in</div><div class="arrow">→</div>
+      <div class="step g">Dashboard KPIs + match quality</div><div class="arrow">→</div>
+      <div class="step">Browse applicants / employers</div><div class="arrow">→</div>
+      <div class="step">Job map by geography</div><div class="arrow">→</div>
+      <div class="step g">Engagement analytics</div><div class="arrow">→</div>
+      <div class="step">Test matches for any applicant</div>
+    </div>
+    <div class="sub">Admin is read-only over employer surfaces; all admin mutations are audit-logged.</div>
+  </div>
+</div></body></html>

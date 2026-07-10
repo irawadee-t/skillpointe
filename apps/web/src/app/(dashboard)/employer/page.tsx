@@ -22,6 +22,7 @@ import { fetchMyCompany, fetchMyJobs, formatWorkSetting } from "@/lib/api/employ
 import type { EmployerJobSummary } from "@/lib/api/employer";
 import { ApiError } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/server";
+import { PageHeader, Card, Chip, MonoLabel, Reveal, Stagger, StaggerItem } from "@/components/ui";
 
 export default async function EmployerDashboard() {
   const supabase = await createClient();
@@ -41,102 +42,128 @@ export default async function EmployerDashboard() {
   const token = session.access_token;
 
   let apiError = false;
+  let companyMissing = false;
   const [company, jobsList] = await Promise.all([
     fetchMyCompany(token).catch((e) => {
-      if (e instanceof ApiError && e.status === 404) return null;
+      if (e instanceof ApiError && e.status === 404) { companyMissing = true; return null; }
       apiError = true; return null;
     }),
     fetchMyJobs(token).catch(() => null),
   ]);
 
-  return (
-    <main className="p-6 md:p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        {/* Header */}
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">
-            {company ? company.name : "Employer Dashboard"}
-          </h1>
-        </div>
+  // No company linked but API is reachable → self-serve onboarding.
+  // If the API is unreachable, fall through and show the legacy "contact admin"
+  // message so we don't trap the user in a redirect loop.
+  if (companyMissing && !apiError) {
+    redirect("/employer/onboarding");
+  }
 
-        {/* No employer linked warning */}
+  return (
+    <main className="py-8">
+      <div className="page-shell space-y-6">
+        {/* Header */}
+        <PageHeader
+          eyebrow="Employer workspace"
+          title={company ? company.name : "Employer Dashboard"}
+          lead={company ? "Your jobs and the candidates ranked against them." : undefined}
+          actions={
+            company ? (
+              <Link href="/employer/jobs/new" className="btn-primary">
+                <Plus className="w-4 h-4" /> New job
+              </Link>
+            ) : undefined
+          }
+        />
+
+        {/* API unreachable fallback — only shown when we couldn't verify company state. */}
         {!company && (
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 text-sm text-amber-600">
-            <strong>Employer account not linked.</strong> Contact a SkillPointe
-            admin to connect your account to a company.
-          </div>
+          <Reveal className="rounded-md border border-cohere-coral-soft bg-cohere-coral/10 p-5 text-body text-cohere-ink">
+            <strong className="font-medium">We couldn&apos;t reach the SKILLED service.</strong>{" "}
+            Refresh in a moment — if the issue continues, contact{" "}
+            <a
+              className="underline hover:text-cohere-blue"
+              href="mailto:support@skilled-nation.org"
+            >
+              support@skilled-nation.org
+            </a>
+            .
+          </Reveal>
         )}
 
         {/* Company summary */}
         {company && (
-          <section className="bg-zinc-50 border border-zinc-200 rounded-lg p-5">
-            <div className="flex items-center gap-3 mb-4">
-              <h2 className="font-semibold text-zinc-900">Company</h2>
-              {company.is_partner && (
-                <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-600 bg-amber-50 border border-amber-200 rounded-full px-2.5 py-1">
-                  Partner
-                </span>
-              )}
+          <Reveal>
+            <div className="card-green p-7">
+              <div className="flex items-center gap-3 mb-6">
+                <span className="text-caption font-medium tracking-[0.04em] text-white/70">Company</span>
+                {company.is_partner && (
+                  <span className="inline-flex items-center rounded-pill bg-white/10 px-3 py-1 text-caption font-medium text-white">
+                    Partner
+                  </span>
+                )}
+              </div>
+              <dl className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+                {company.industry && (
+                  <div>
+                    <dt className="text-micro font-medium tracking-wide text-white/70">Industry</dt>
+                    <dd className="mt-1 text-body-lg text-white">{company.industry}</dd>
+                  </div>
+                )}
+                {(company.city || company.state) && (
+                  <div>
+                    <dt className="text-micro font-medium tracking-wide text-white/70">Location</dt>
+                    <dd className="mt-1 text-body-lg text-white">
+                      {[company.city, company.state].filter(Boolean).join(", ")}
+                    </dd>
+                  </div>
+                )}
+                <div>
+                  <dt className="text-micro font-medium tracking-wide text-white/70">Total jobs</dt>
+                  <dd className="mt-1 font-display text-card leading-none text-white tabular-nums">{company.total_jobs}</dd>
+                </div>
+                <div>
+                  <dt className="text-micro font-medium tracking-wide text-white/70">Active jobs</dt>
+                  <dd className="mt-1 font-display text-card leading-none text-white tabular-nums">{company.active_jobs}</dd>
+                </div>
+              </dl>
             </div>
-            <dl className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
-              {company.industry && (
-                <div>
-                  <dt className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Industry</dt>
-                  <dd className="mt-0.5 text-zinc-900">{company.industry}</dd>
-                </div>
-              )}
-              {(company.city || company.state) && (
-                <div>
-                  <dt className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Location</dt>
-                  <dd className="mt-0.5 text-zinc-900">
-                    {[company.city, company.state].filter(Boolean).join(", ")}
-                  </dd>
-                </div>
-              )}
-              <div>
-                <dt className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Total jobs</dt>
-                <dd className="mt-0.5 text-2xl font-bold text-spf-navy leading-none">{company.total_jobs}</dd>
-              </div>
-              <div>
-                <dt className="text-xs font-medium text-zinc-400 uppercase tracking-wide">Active jobs</dt>
-                <dd className="mt-0.5 text-2xl font-bold text-spf-navy leading-none">{company.active_jobs}</dd>
-              </div>
-            </dl>
-          </section>
+          </Reveal>
         )}
 
         {/* Jobs section */}
         {company && (
           <section>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-semibold text-zinc-900">Your jobs</h2>
+            <div className="flex items-center justify-between mb-5">
+              <MonoLabel>Your jobs</MonoLabel>
               <Link
                 href="/employer/jobs/new"
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-zinc-600 border border-zinc-200 rounded-full px-3 py-1.5 hover:border-zinc-400 hover:text-zinc-900 transition-colors"
+                className="btn-pill-outline"
               >
                 <Plus className="w-3.5 h-3.5" /> New job
               </Link>
             </div>
 
             {!jobsList || jobsList.jobs.length === 0 ? (
-              <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-8 text-center">
-                <p className="text-zinc-600 font-medium">No jobs yet</p>
-                <p className="text-sm text-zinc-400 mt-2">
+              <Card tone="stone" className="p-10 text-center">
+                <p className="text-body-lg font-medium text-ink">No jobs yet</p>
+                <p className="text-body text-slate mt-2">
                   Create your first job posting to start receiving ranked applicant matches.
                 </p>
                 <Link
                   href="/employer/jobs/new"
-                  className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-spf-navy hover:text-spf-navy-light transition-colors"
+                  className="mt-4 inline-flex items-center gap-1.5 text-body font-medium text-cohere-blue hover:opacity-70 transition-opacity"
                 >
                   Create a job <ChevronRight className="w-3.5 h-3.5" />
                 </Link>
-              </div>
+              </Card>
             ) : (
-              <div className="space-y-3">
+              <Stagger className="space-y-4">
                 {jobsList.jobs.map((job) => (
-                  <JobCard key={job.job_id} job={job} />
+                  <StaggerItem key={job.job_id}>
+                    <JobCard job={job} />
+                  </StaggerItem>
                 ))}
-              </div>
+              </Stagger>
             )}
           </section>
         )}
@@ -153,51 +180,51 @@ function JobCard({ job }: { job: EmployerJobSummary }) {
   const locationStr = [job.city, job.state].filter(Boolean).join(", ");
 
   return (
-    <div className="bg-white border border-zinc-200 rounded-lg p-5 hover:border-zinc-200 transition-all">
+    <Card className="p-6">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="font-semibold text-zinc-900 truncate">{job.title}</h3>
+            <h3 className="font-display text-feature text-cohere-ink truncate leading-tight">{job.title}</h3>
             {!job.is_active && (
-              <span className="text-xs text-zinc-400 bg-zinc-100 border border-zinc-200 rounded-full px-1.5 py-0.5 shrink-0">
+              <Chip tone="neutral" size="sm" className="shrink-0">
                 Inactive
-              </span>
+              </Chip>
             )}
           </div>
-          <p className="text-sm text-zinc-500 mt-0.5">
+          <p className="text-body text-slate mt-1">
             {locationStr || "Location not set"}
-            {job.work_setting && ` · ${formatWorkSetting(job.work_setting)}`}
+            {job.work_setting && `, ${formatWorkSetting(job.work_setting)}`}
           </p>
         </div>
 
         {/* Applicant counts */}
-        <div className="shrink-0 flex gap-4 text-right">
-          <div>
-            <div className="text-xl font-bold text-emerald-600 leading-none">{job.eligible_count}</div>
-            <div className="text-xs text-zinc-400 mt-0.5">eligible</div>
+        <div className="shrink-0 flex flex-col items-end gap-1.5">
+          <div className="card-green flex items-baseline gap-1.5 rounded-md px-4 py-2">
+            <span className="font-display text-feature leading-none text-white tabular-nums">{job.eligible_count}</span>
+            <span className="text-caption text-white/70">eligible</span>
           </div>
-          <div>
-            <div className="text-xl font-bold text-amber-600 leading-none">{job.near_fit_count}</div>
-            <div className="text-xs text-zinc-400 mt-0.5">near fit</div>
+          <div className="flex items-baseline gap-1.5 rounded-md bg-stone px-4 py-2">
+            <span className="font-display text-feature leading-none text-cohere-coral tabular-nums">{job.near_fit_count}</span>
+            <span className="text-caption text-slate">near fit</span>
           </div>
         </div>
       </div>
 
       {/* Actions */}
-      <div className="flex items-center gap-4 mt-4 pt-3 border-t border-zinc-200">
+      <div className="flex items-center gap-5 mt-5 pt-4 border-t border-hairline">
         <Link
           href={`/employer/jobs/${job.job_id}/applicants`}
-          className="inline-flex items-center gap-1 text-sm font-medium text-spf-navy hover:text-spf-navy-light transition-colors"
+          className="inline-flex items-center gap-1.5 text-body font-medium text-cohere-blue hover:opacity-70 transition-opacity"
         >
           <Users className="w-3.5 h-3.5" /> View matched candidates ({job.total_visible})
         </Link>
         <Link
           href={`/employer/jobs/${job.job_id}/edit`}
-          className="inline-flex items-center gap-1 text-sm text-zinc-400 hover:text-zinc-600 transition-colors"
+          className="inline-flex items-center gap-1.5 text-body text-slate hover:text-ink transition-colors"
         >
           <Edit3 className="w-3.5 h-3.5" /> Edit
         </Link>
       </div>
-    </div>
+    </Card>
   );
 }

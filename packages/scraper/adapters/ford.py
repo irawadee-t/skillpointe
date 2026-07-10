@@ -78,7 +78,13 @@ class FordAdapter(BaseAdapter):
 
         ld_json = _extract_json_ld(soup)
         if ld_json:
-            return _from_json_ld(ld_json, listing, url)
+            job = _from_json_ld(ld_json, listing, url)
+            # Ford's JSON-LD `baseSalary` is usually empty even when the visible
+            # page text shows "$56,400-$94,900". Fall back to a text scan when
+            # JSON-LD didn't yield a pay band.
+            if not job.pay_raw:
+                job.pay_raw = _scan_pay_band(soup.get_text(" "))
+            return job
 
         return self._from_listing(listing)
 
@@ -101,6 +107,23 @@ def _parse_ford_location(raw: str) -> tuple:
     city = parts[0] if parts else None
     state = normalize_state(parts[1]) if len(parts) > 1 else None
     return city, state
+
+
+# Reusable pay-band scanner — looks for "$X-$Y" / "$X to $Y" / "$X/hr" patterns
+# in body text. Tight enough to skip random dollar mentions ("up to $1000 bonus").
+_PAY_BAND_RE = re.compile(
+    r"\$\s?\d[\d,]*(?:\.\d{1,2})?"
+    r"(?:\s?(?:k|K)\b|\s?(?:per\s+hour|/\s?hour|/\s?hr|hourly|an\s+hour|annual|annually|/\s?year|/\s?yr|a\s+year)?)?"
+    r"(?:\s*(?:-|–|to)\s*\$?\s?\d[\d,]*(?:\.\d{1,2})?"
+    r"(?:\s?(?:k|K)\b|\s?(?:per\s+hour|/\s?hour|/\s?hr|hourly|an\s+hour|annual|annually|/\s?year|/\s?yr|a\s+year)?)?)"
+)
+
+
+def _scan_pay_band(text: str) -> Optional[str]:
+    if not text:
+        return None
+    m = _PAY_BAND_RE.search(text)
+    return m.group(0).strip() if m else None
 
 
 def _extract_json_ld(soup) -> Optional[dict]:

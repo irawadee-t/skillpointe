@@ -20,6 +20,8 @@ import { ApiError } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/server";
 import { ApplicantMatchCard } from "@/components/employer/ApplicantMatchCard";
 import { AIPriorityPanel } from "@/components/employer/AIPriorityPanel";
+import { Card, MetricCard, MonoLabel, Stagger, StaggerItem } from "@/components/ui";
+import { FilterBarClient } from "./FilterBarClient";
 
 interface PageProps {
   params: Promise<{ jobId: string }>;
@@ -73,10 +75,10 @@ export default async function JobApplicantsPage({
   } catch (e) {
     if (e instanceof ApiError && e.status === 404) {
       return (
-        <main className="p-6 md:p-8">
-          <div className="max-w-5xl mx-auto">
+        <main className="py-8">
+          <div className="page-shell">
             <BackLink href={backHref} />
-            <div className="mt-6 bg-rose-50 border border-rose-200 rounded-lg p-5 text-sm text-rose-600">
+            <div className="mt-6 rounded-md border border-error-red/30 bg-rose-50 p-5 text-body text-error-red">
               Job not found or you do not have access to this job.
             </div>
           </div>
@@ -84,11 +86,11 @@ export default async function JobApplicantsPage({
       );
     }
     return (
-      <main className="p-6 md:p-8">
-        <div className="max-w-5xl mx-auto">
+      <main className="py-8">
+        <div className="page-shell">
           <BackLink href={backHref} />
-          <div className="mt-6 bg-rose-50 border border-rose-200 rounded-lg p-5 text-sm text-rose-600">
-            <strong>Could not reach the API.</strong> The backend may be starting up — please refresh in a moment.
+          <div className="mt-6 rounded-md border border-error-red/30 bg-rose-50 p-5 text-body text-error-red">
+            <strong className="font-medium">Could not reach the API.</strong> The backend may be starting up — please refresh in a moment.
           </div>
         </div>
       </main>
@@ -99,19 +101,20 @@ export default async function JobApplicantsPage({
     eligibilityFilter !== "all" || minScore > 0 || stateFilter || relocateFilter !== undefined;
 
   return (
-    <main className="p-6 md:p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
+    <main className="py-8">
+      <div className="page-shell space-y-6">
         {/* Header */}
         <div>
           <BackLink href={backHref} />
-          <div className="flex items-start justify-between mt-1">
+          <div className="flex items-start justify-between gap-4 mt-3 border-b border-hairline pb-8">
             <div>
-              <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">{data.job_title}</h1>
-              <p className="text-sm text-zinc-500 mt-0.5">{data.employer_name}</p>
+              <MonoLabel className="mb-3 block">Matched candidates</MonoLabel>
+              <h1 className="font-display text-card sm:text-heading text-cohere-ink">{data.job_title}</h1>
+              <p className="text-body-lg text-slate mt-3">{data.employer_name}</p>
             </div>
             <Link
               href={`/employer/jobs/${jobId}/edit`}
-              className="shrink-0 text-sm text-zinc-500 hover:text-zinc-900 border border-zinc-200 rounded-lg px-3 py-1.5 hover:border-zinc-300 transition-colors"
+              className="btn-pill-outline shrink-0"
             >
               Edit job
             </Link>
@@ -119,11 +122,11 @@ export default async function JobApplicantsPage({
         </div>
 
         {/* Quick stats */}
-        <div className="grid grid-cols-3 gap-4">
-          <StatCard label="Matched candidates" value={data.total_visible} />
-          <StatCard label="Eligible" value={data.eligible_count} />
-          <StatCard label="Near fit" value={data.near_fit_count} />
-        </div>
+        <Stagger className="grid grid-cols-3 gap-4">
+          <StaggerItem><MetricCard label="Matched candidates" value={data.total_visible} /></StaggerItem>
+          <StaggerItem><MetricCard label="Eligible" value={data.eligible_count} /></StaggerItem>
+          <StaggerItem><MetricCard label="Near fit" value={data.near_fit_count} tone="stone" /></StaggerItem>
+        </Stagger>
 
         {/* AI prioritisation panel */}
         {data.applicants.length > 0 && (
@@ -131,7 +134,7 @@ export default async function JobApplicantsPage({
         )}
 
         {/* Filter bar */}
-        <FilterBar
+        <FilterBarClient
           jobId={jobId}
           eligibility={eligibilityFilter}
           minScore={minScore}
@@ -141,11 +144,11 @@ export default async function JobApplicantsPage({
 
         {/* Active filter indicator */}
         {hasActiveFilters && (
-          <div className="flex items-center gap-2 text-sm text-zinc-500">
+          <div className="flex items-center gap-2 text-body text-slate">
             <span>Filters active</span>
             <Link
               href={`/employer/jobs/${jobId}/applicants`}
-              className="text-spf-navy hover:text-spf-navy-light font-medium transition-colors"
+              className="text-cohere-blue hover:opacity-70 font-medium transition-opacity"
             >
               Clear all
             </Link>
@@ -154,27 +157,38 @@ export default async function JobApplicantsPage({
 
         {/* Matched candidates list */}
         {data.applicants.length === 0 ? (
-          <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-8 text-center">
-            <p className="text-zinc-600 font-medium">No matched candidates found</p>
-            <p className="text-sm text-zinc-400 mt-2">
+          <Card tone="stone" className="p-10 text-center">
+            <p className="text-body-lg font-medium text-ink">
+              {hasActiveFilters ? "No matched candidates found" : "No matches yet"}
+            </p>
+            <p className="text-body text-slate mt-2">
               {hasActiveFilters
                 ? "Try adjusting your filters."
-                : "Matches are computed when the admin runs the scoring pipeline."}
+                : "Matches usually appear within 24h of posting."}
             </p>
-          </div>
+            {!hasActiveFilters && (
+              <a
+                href="mailto:admin@skillpointe.com?subject=No matches for job"
+                className="mt-3 inline-flex items-center gap-1 text-body font-medium text-cohere-blue hover:opacity-70 transition-opacity"
+              >
+                Contact admin if it&apos;s been longer
+              </a>
+            )}
+          </Card>
         ) : (
-          <div className="space-y-4">
+          <Stagger className="space-y-4">
             {data.applicants.map((match) => (
-              <ApplicantMatchCard
-                key={match.match_id}
-                match={match}
-                jobId={jobId}
-                jobTitle={data.job_title}
-                token={token}
-                isAdmin={role === "admin"}
-              />
+              <StaggerItem key={match.match_id}>
+                <ApplicantMatchCard
+                  match={match}
+                  jobId={jobId}
+                  jobTitle={data.job_title}
+                  token={token}
+                  isAdmin={role === "admin"}
+                />
+              </StaggerItem>
             ))}
-          </div>
+          </Stagger>
         )}
       </div>
     </main>
@@ -189,120 +203,10 @@ function BackLink({ href }: { href: string }) {
   return (
     <Link
       href={href}
-      className="text-sm text-zinc-500 hover:text-zinc-900 inline-flex items-center gap-1 transition-colors"
+      className="mono-label inline-flex items-center gap-1 text-slate hover:text-ink transition-colors"
     >
       ← Back to dashboard
     </Link>
   );
 }
 
-function StatCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: number;
-}) {
-  return (
-    <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-4 text-center">
-      <div className="text-3xl font-bold text-spf-navy">{value}</div>
-      <div className="text-xs text-zinc-400 mt-1">{label}</div>
-    </div>
-  );
-}
-
-/**
- * Filter bar — renders as a GET form so filters are reflected in the URL
- * and the page can be bookmarked / shared.
- */
-function FilterBar({
-  jobId,
-  eligibility,
-  minScore,
-  state,
-  relocate,
-}: {
-  jobId: string;
-  eligibility: string;
-  minScore: number;
-  state: string | undefined;
-  relocate: boolean | undefined;
-}) {
-  return (
-    <form
-      method="GET"
-      action={`/employer/jobs/${jobId}/applicants`}
-      className="bg-zinc-50 border border-zinc-200 rounded-lg p-4"
-    >
-      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400 mb-3">
-        Filters
-      </p>
-      <div className="flex flex-wrap gap-4 items-end">
-        {/* Eligibility */}
-        <div className="min-w-[140px]">
-          <label className="block text-xs text-zinc-500 mb-1">Eligibility</label>
-          <select
-            name="eligibility"
-            defaultValue={eligibility}
-            className="w-full border border-zinc-200 rounded-md px-2 py-1.5 text-sm bg-white text-zinc-900 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
-          >
-            <option value="all">All (eligible + near fit)</option>
-            <option value="eligible">Eligible only</option>
-            <option value="near_fit">Near fit only</option>
-          </select>
-        </div>
-
-        {/* Min score */}
-        <div className="min-w-[120px]">
-          <label className="block text-xs text-zinc-500 mb-1">Min score</label>
-          <input
-            type="number"
-            name="min_score"
-            min="0"
-            max="100"
-            step="5"
-            defaultValue={minScore || ""}
-            placeholder="0"
-            className="w-full border border-zinc-200 rounded-md px-2 py-1.5 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
-          />
-        </div>
-
-        {/* State */}
-        <div className="min-w-[100px]">
-          <label className="block text-xs text-zinc-500 mb-1">State</label>
-          <input
-            type="text"
-            name="state"
-            maxLength={2}
-            defaultValue={state || ""}
-            placeholder="e.g. TX"
-            className="w-full border border-zinc-200 rounded-md px-2 py-1.5 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 uppercase focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
-          />
-        </div>
-
-        {/* Willing to relocate */}
-        <div className="min-w-[140px]">
-          <label className="block text-xs text-zinc-500 mb-1">Relocate willingness</label>
-          <select
-            name="relocate"
-            defaultValue={
-              relocate === true ? "true" : relocate === false ? "false" : ""
-            }
-            className="w-full border border-zinc-200 rounded-md px-2 py-1.5 text-sm bg-white text-zinc-900 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
-          >
-            <option value="">Any</option>
-            <option value="true">Open to relocate</option>
-            <option value="false">Local only</option>
-          </select>
-        </div>
-
-        <button
-          type="submit"
-          className="px-4 py-1.5 bg-zinc-900 text-white text-sm font-medium rounded-full hover:bg-zinc-700 transition-colors"
-        >
-          Apply
-        </button>
-      </div>
-    </form>
-  );
-}

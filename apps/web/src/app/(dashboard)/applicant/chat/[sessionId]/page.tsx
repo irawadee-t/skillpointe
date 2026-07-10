@@ -59,8 +59,8 @@ export default async function ChatSessionPage({
     chatSession = await fetchSession(sessionId, session.access_token);
   } catch {
     return (
-      <main className="p-6 md:p-8">
-        <div className="max-w-5xl mx-auto bg-rose-50 border border-rose-200 rounded-lg p-5 text-sm text-rose-600">
+      <main className="py-8">
+        <div className="mx-auto w-full max-w-3xl px-5 bg-cohere-coral/10 border border-cohere-coral-soft rounded-md p-5 text-body text-error-red">
           <strong>Could not reach the API.</strong> Please refresh in a moment.
         </div>
       </main>
@@ -70,29 +70,30 @@ export default async function ChatSessionPage({
   if (!chatSession) notFound();
 
   return (
-    <main className="p-6 md:p-8">
-      <div className="max-w-5xl mx-auto space-y-4">
-        {/* Header */}
-        <div>
+    <main className="flex h-[calc(100svh-3.5rem)] flex-col md:h-[calc(100svh-4rem)]">
+      {/* Compact conversation header — one quiet line, the room's title. */}
+      <header className="border-b border-hairline">
+        <div className="mx-auto flex w-full max-w-[46rem] items-center gap-3 px-5 py-3">
           <Link
             href="/applicant/chat"
-            className="text-sm text-zinc-500 hover:text-zinc-900 inline-flex items-center gap-1 transition-colors"
+            aria-label="Back to chats"
+            className="-ml-1 rounded-md p-1 text-slate transition-colors hover:text-cohere-ink"
           >
-            ← Back to chats
+            ←
           </Link>
-          <h1 className="text-xl font-semibold text-zinc-900 mt-1">
+          <h1 className="min-w-0 truncate font-display text-subhead text-cohere-ink">
             {chatSession.title || "Planning chat"}
           </h1>
         </div>
+      </header>
 
-        {/* Chat interface */}
-        <ChatClient
-          sessionId={sessionId}
-          initialMessages={chatSession.messages}
-          isActive={chatSession.is_active}
-          token={session.access_token}
-        />
-      </div>
+      {/* The conversation owns the rest of the viewport. */}
+      <ChatClient
+        sessionId={sessionId}
+        initialMessages={chatSession.messages}
+        isActive={chatSession.is_active}
+        token={session.access_token}
+      />
     </main>
   );
 }

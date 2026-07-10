@@ -1,7 +1,6 @@
 import Link from "next/link";
 import {
   MapPin,
-  DollarSign,
   ChevronRight,
   CheckCircle2,
   AlertTriangle,
@@ -14,17 +13,25 @@ import {
   formatWorkSetting,
 } from "@/lib/api/applicant";
 import { EligibilityBadge, MatchLabel } from "./MatchLabel";
+import { cn } from "@/lib/utils";
 
 interface JobMatchCardProps {
   match: JobMatchSummary;
 }
+
+// A 3-px top rule colored by eligibility gives the list an instantly-scannable
+// left-margin — green for eligible, coral for near-fit, muted for ineligible.
+const ACCENT_BY_STATUS: Record<string, string> = {
+  eligible:   "before:bg-cohere-green",
+  near_fit:   "before:bg-studio-maroon",
+  ineligible: "before:bg-slate-muted",
+};
 
 export function JobMatchCard({ match }: JobMatchCardProps) {
   const {
     match_id,
     job_title,
     employer_name,
-    is_partner_employer,
     job_city,
     job_state,
     work_setting,
@@ -42,117 +49,127 @@ export function JobMatchCard({ match }: JobMatchCardProps) {
     requires_review,
   } = match;
 
-  const locationStr = [job_city, job_state].filter(Boolean).join(", ");
+  const locationStr = [job_city, job_state].filter((v) => v && !/^unspecified$/i.test(v.trim())).join(", ");
   const payStr = formatPay(pay_min, pay_max, pay_type);
   const score = policy_adjusted_score !== null ? Math.round(policy_adjusted_score) : null;
+  const accentClass = ACCENT_BY_STATUS[eligibility_status] ?? "before:bg-hairline";
 
   return (
     <Link
       href={`/applicant/matches/${match_id}`}
-      className="bg-white border border-zinc-200 rounded-lg p-5 hover:border-zinc-200 transition-all block group"
+      className={cn(
+        "group relative block overflow-hidden rounded-xl border border-hairline bg-white p-5 shadow-[0_1px_2px_rgba(12,10,9,0.04)] transition-all duration-300 ease-cohere",
+        // Eligibility accent — 3px top rule via ::before
+        "before:absolute before:left-0 before:top-0 before:h-[3px] before:w-full before:content-['']",
+        accentClass,
+        // Warm-tinted hover + lift
+        "hover:-translate-y-0.5 hover:border-cohere-ink/20 hover:shadow-[0_10px_28px_-14px_rgba(12,10,9,0.15)]",
+      )}
     >
-      {/* Header */}
+      {/* Header — title + editorial score */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
-          <h3 className="font-semibold text-zinc-900 text-base leading-snug">
+          <h3 className="font-display text-feature leading-snug text-cohere-ink">
             {job_title}
           </h3>
-          <p className="text-sm text-zinc-500 mt-0.5 flex items-center gap-1">
+          <p className="mt-1 text-caption text-slate">
             {employer_name}
           </p>
         </div>
 
-        {/* Score */}
         {score !== null && (
-          <div className="shrink-0 w-10 h-10 rounded-lg flex items-center justify-center text-sm font-bold bg-zinc-100 text-spf-navy">
-            {score}
+          <div className="shrink-0 text-right">
+            <div className="mono-label text-slate-muted">Fit</div>
+            <div className="mt-0.5 font-display text-[2rem] leading-none tabular-nums text-cohere-ink">
+              {score}
+            </div>
           </div>
         )}
       </div>
 
-      {/* Badges */}
-      <div className="flex flex-wrap items-center gap-2 mt-3">
+      {/* Status pills */}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <EligibilityBadge status={eligibility_status} />
         {match_label && <MatchLabel label={match_label} />}
       </div>
 
       {/* Meta row */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm text-zinc-500">
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-caption text-slate">
         {locationStr && (
           <span className="flex items-center gap-1">
-            <MapPin className="w-3.5 h-3.5 text-zinc-400" />
+            <MapPin className="h-3.5 w-3.5 text-slate-muted" />
             {locationStr}
-            {work_setting && <span className="text-zinc-400"> · {formatWorkSetting(work_setting)}</span>}
+            {work_setting && <span className="text-slate-muted">, {formatWorkSetting(work_setting)}</span>}
           </span>
         )}
         {!locationStr && work_setting && (
           <span className="flex items-center gap-1">
-            <MapPin className="w-3.5 h-3.5 text-zinc-400" />
+            <MapPin className="h-3.5 w-3.5 text-slate-muted" />
             {formatWorkSetting(work_setting)}
           </span>
         )}
-        {pay_min !== null && (
-          <span className="flex items-center gap-1">
-            <DollarSign className="w-3.5 h-3.5 text-zinc-400" />
-            {payStr}
-          </span>
-        )}
+        {/* payStr carries its own "$" — an icon would read "$ $31". */}
+        {pay_min !== null && <span>{payStr}</span>}
       </div>
 
       {geography_note && (
-        <p className="mt-1.5 text-xs text-zinc-400 flex items-center gap-1">
-          <Info className="w-3 h-3" />
+        <p className="mt-1.5 flex items-center gap-1 text-micro text-slate-muted">
+          <Info className="h-3 w-3" />
           {geography_note}
         </p>
       )}
 
-      {/* Strengths + Gaps */}
+      {/* Match-why one-liner — the top-1 (or top-2 joined) reason this ranked
+          well. Italic + forest green so it reads as an editorial aside, not
+          a chip. Renders only when at least one strength is present. */}
+      {top_strengths.length > 0 && (
+        <p className="mt-2 flex items-center gap-1 text-caption italic text-studio-forest">
+          <CheckCircle2 className="h-3.5 w-3.5 shrink-0" strokeWidth={2} />
+          Strong on: {formatWhyLine(top_strengths)}
+        </p>
+      )}
+
+      {/* Strengths + Gaps — checkmark / caution + inline text, no filled pills */}
       {(top_strengths.length > 0 || top_gaps.length > 0) && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
+        <ul className="mt-4 flex flex-wrap gap-x-5 gap-y-1.5 text-caption">
           {top_strengths.slice(0, 2).map((s, i) => (
-            <span
-              key={`s-${i}`}
-              className="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-md px-2 py-0.5"
-            >
-              <CheckCircle2 className="w-3 h-3" />
+            <li key={`s-${i}`} className="inline-flex items-center gap-1.5 text-cohere-ink">
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-cohere-green" strokeWidth={2} />
               {shortRationale(s)}
-            </span>
+            </li>
           ))}
           {top_gaps.slice(0, 2).map((g, i) => (
-            <span
-              key={`g-${i}`}
-              className="inline-flex items-center gap-1 text-xs bg-rose-50 text-rose-600 border border-rose-200 rounded-md px-2 py-0.5"
-            >
-              <AlertTriangle className="w-3 h-3" />
+            <li key={`g-${i}`} className="inline-flex items-center gap-1.5 text-cohere-ink">
+              <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-studio-maroon" strokeWidth={2} />
               {shortRationale(g)}
-            </span>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
 
       {/* Next step */}
       {recommended_next_step && (
-        <p className="mt-3 text-sm text-zinc-600 leading-snug">
-          <span className="font-medium text-zinc-700">Next step:</span> {recommended_next_step}
+        <p className="mt-3 text-caption leading-snug text-slate">
+          <span className="font-medium text-ink">Next step:</span> {recommended_next_step}
         </p>
       )}
 
       {/* Footer */}
-      <div className="flex items-center justify-between mt-4 pt-3 border-t border-zinc-200">
-        <div className="flex items-center gap-3 text-xs text-zinc-400">
+      <div className="mt-4 flex items-center justify-between border-t border-hairline pt-3">
+        <div className="flex items-center gap-3 text-micro text-slate-muted">
           {confidence_level === "low" && (
-            <span className="flex items-center gap-1 text-amber-600">
-              <AlertTriangle className="w-3 h-3" /> Low confidence
+            <span className="flex items-center gap-1 text-studio-maroon">
+              <AlertTriangle className="h-3 w-3" /> Low confidence
             </span>
           )}
           {requires_review && (
-            <span className="flex items-center gap-1 text-zinc-500">
-              <Info className="w-3 h-3" /> Pending review
+            <span className="flex items-center gap-1 text-slate">
+              <Info className="h-3 w-3" /> Pending review
             </span>
           )}
         </div>
-        <span className="text-sm font-medium text-zinc-400 group-hover:text-spf-navy flex items-center gap-1 transition-colors">
-          View details <ChevronRight className="w-4 h-4" />
+        <span className="flex items-center gap-1 text-caption font-medium text-slate-muted transition-colors group-hover:text-cohere-ink">
+          View details <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
         </span>
       </div>
     </Link>
@@ -163,4 +180,22 @@ function shortRationale(text: string): string {
   const colonIdx = text.indexOf(":");
   if (colonIdx > 0 && colonIdx < 40) return text.slice(0, colonIdx);
   return text.length > 45 ? text.slice(0, 45) + "..." : text;
+}
+
+/**
+ * Build the "Strong on: X + Y" tail from the top strengths. Strips the
+ * post-colon detail so it reads as short keywords rather than a full
+ * rationale. Joins the top 2 with " + " for a "trade + location" feel.
+ */
+function formatWhyLine(strengths: string[]): string {
+  const parts = strengths
+    .slice(0, 2)
+    .map((s) => {
+      const colonIdx = s.indexOf(":");
+      const head = colonIdx > 0 && colonIdx < 40 ? s.slice(0, colonIdx) : s;
+      return head.trim().toLowerCase();
+    })
+    .filter(Boolean);
+  if (parts.length === 0) return "your profile";
+  return parts.join(" + ");
 }

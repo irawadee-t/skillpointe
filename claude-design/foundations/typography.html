@@ -1,0 +1,45 @@
+<!-- @dsCard group="Foundations" -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Typography</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#17171c;--body:#212121;--slate:#52525b;--hair:#d9d9dd}
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:var(--body);font-family:Inter,system-ui,sans-serif}
+  .wrap{max-width:1000px;margin:0 auto;padding:36px}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--slate)}
+  h1{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:34px;letter-spacing:-.02em;color:var(--ink);margin:.3em 0 .2em}
+  p.lead{color:var(--slate);font-size:17px;max-width:680px;margin:0 0 26px}
+  .fams{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:0 0 30px}
+  .fam{border:1px solid var(--hair);border-radius:12px;padding:16px}
+  .fam .k{font-family:'JetBrains Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--slate)}
+  .fam .v{font-size:22px;color:var(--ink);margin-top:6px}
+  .row{display:flex;align-items:baseline;gap:18px;border-top:1px solid var(--hair);padding:16px 0}
+  .row .tag{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--slate);width:130px;flex:none}
+  .disp{font-family:'Space Grotesk',sans-serif;font-weight:500;color:var(--ink);letter-spacing:-.02em;line-height:1.05}
+  .ui{font-family:Inter,sans-serif;color:var(--body)}
+  .mono{font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.04em;color:var(--slate)}
+</style></head>
+<body><div class="wrap">
+  <div class="eyebrow">SkillPointe Match · Foundations</div>
+  <h1>Typography</h1>
+  <p class="lead">A display / body / mono split. Display is carved and tight (almost-monospaced research-lab cadence); body is calm and legible; mono marks technical labels. Use massive type sparingly — one oversized headline, then settle into 16–24px UI copy.</p>
+
+  <div class="fams">
+    <div class="fam"><div class="k">Display</div><div class="v" style="font-family:'Space Grotesk',sans-serif">Space Grotesk</div><div class="k" style="margin-top:6px">CohereText → Space Grotesk</div></div>
+    <div class="fam"><div class="k">Body / UI</div><div class="v" style="font-family:Inter,sans-serif">Inter</div><div class="k" style="margin-top:6px">Unica77 → Inter</div></div>
+    <div class="fam"><div class="k">Mono labels</div><div class="v" style="font-family:'JetBrains Mono',monospace">JetBrains Mono</div><div class="k" style="margin-top:6px">CohereMono → JetBrains Mono</div></div>
+  </div>
+
+  <div class="row"><div class="tag">Hero 96 / -1.9</div><div class="disp" style="font-size:64px">The right trade.</div></div>
+  <div class="row"><div class="tag">Section 60 / -1.2</div><div class="disp" style="font-size:48px">See where you fit</div></div>
+  <div class="row"><div class="tag">Heading 48 / -.48</div><div class="disp" style="font-size:40px">Admin Dashboard</div></div>
+  <div class="row"><div class="tag">Card 32 / -.32</div><div class="disp" style="font-size:32px">Platform Engagement</div></div>
+  <div class="row"><div class="tag">Feature 24</div><div class="disp" style="font-size:24px;font-weight:500">Electrical Apprentice</div></div>
+  <div class="row"><div class="tag">Body-lg 18</div><div class="ui" style="font-size:18px">Ranked by how well each role fits your trade, location, and background.</div></div>
+  <div class="row"><div class="tag">Body 16</div><div class="ui" style="font-size:16px">Default copy and link text sit at sixteen pixels, line-height 1.5.</div></div>
+  <div class="row"><div class="tag">Caption 14</div><div class="ui" style="font-size:14px;color:var(--slate)">Metadata and small explanatory text.</div></div>
+  <div class="row"><div class="tag">Mono 13 / .04em</div><div class="mono" style="font-size:13px">Ready to apply · Engagement analytics</div></div>
+  <div class="row"><div class="tag">Micro 12</div><div class="ui" style="font-size:12px;color:var(--slate)">Footer, nav microcopy, small links.</div></div>
+</div></body></html>

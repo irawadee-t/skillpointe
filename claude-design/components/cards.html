@@ -1,0 +1,63 @@
+<!-- @dsCard group="Components" -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cards &amp; Metric Cards</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#17171c;--body:#212121;--slate:#52525b;--smut:#6b6b76;--hair:#d9d9dd;--bl:#e5e7eb;--green:#003c33;--stone:#eeece7;--coral:#ff7759}
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:var(--body);font-family:Inter,system-ui,sans-serif}
+  .wrap{max-width:1040px;margin:0 auto;padding:36px}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--slate)}
+  h1{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:34px;letter-spacing:-.02em;color:var(--ink);margin:.3em 0 .2em}
+  p.lead{color:var(--slate);font-size:17px;max-width:700px;margin:0 0 26px}
+  h2{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:18px;color:var(--ink);margin:28px 0 14px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}
+  .mono{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;text-transform:uppercase;letter-spacing:.04em}
+  /* metric cards */
+  .metric{border-radius:16px;padding:20px}
+  .metric.green{background:var(--green)}
+  .metric.stone{background:var(--stone)}
+  .metric.white{background:#fff;border:1px solid var(--bl)}
+  .metric .ic{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;margin-bottom:0}
+  .metric .top{display:flex;align-items:center;gap:10px}
+  .metric.green .ic{background:rgba(255,255,255,.1)}
+  .metric.green .lbl{color:rgba(255,255,255,.6)}
+  .metric.green .val{color:#fff}
+  .metric .lbl{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;text-transform:uppercase;letter-spacing:.04em;color:var(--slate)}
+  .metric .val{font-family:'Space Grotesk',sans-serif;font-size:40px;line-height:1;margin-top:14px;color:var(--ink)}
+  /* editorial cards */
+  .card{border:1px solid var(--bl);border-radius:16px;background:#fff;padding:22px}
+  .card h3{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:22px;color:var(--ink);margin:0 0 6px}
+  .card p{margin:0;color:var(--slate);font-size:15px}
+  .panel{background:var(--green);color:#fff;border-radius:16px;padding:24px}
+  .panel .e{font-family:'JetBrains Mono',monospace;font-size:13px;text-transform:uppercase;letter-spacing:.04em;color:var(--coral)}
+  .panel h3{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:26px;margin:10px 0 6px}
+  .panel p{margin:0;color:rgba(255,255,255,.75);font-size:15px}
+</style></head>
+<body><div class="wrap">
+  <div class="eyebrow">SkillPointe Match · Components</div>
+  <h1>Cards &amp; Metric Cards</h1>
+  <p class="lead">Flat, bordered cards — no heavy shadows. The signature element is the <strong>green MetricCard</strong>: deep-green field, big white display number, mono label. Used for every KPI / stat row. Hero / summary panels use the same green field with a coral eyebrow.</p>
+
+  <h2>MetricCard — tones (green is default)</h2>
+  <div class="grid">
+    <div class="metric green"><div class="top"><span class="ic">◷</span><span class="lbl">Applicants</span></div><div class="val">335</div></div>
+    <div class="metric green"><div class="top"><span class="ic">✦</span><span class="lbl">Actionable</span></div><div class="val">83,570</div></div>
+    <div class="metric stone"><div class="top"><span class="ic">◷</span><span class="lbl">Near fit</span></div><div class="val">98</div></div>
+    <div class="metric white"><div class="top"><span class="ic">◷</span><span class="lbl">Total</span></div><div class="val">657</div></div>
+  </div>
+
+  <h2>Hero / summary panel — card-green</h2>
+  <div class="panel">
+    <div class="e">Employer workspace</div>
+    <h3>Southwire — Carrollton, GA</h3>
+    <p>12 active jobs · 48 eligible candidates · 23 near-fit. A bold green field carries summary / hero context with white text.</p>
+  </div>
+
+  <h2>Editorial card — card-cohere</h2>
+  <div class="grid">
+    <div class="card"><h3>Continuous ranking</h3><p>Flat bordered white card with display title + slate body. The workhorse content container.</p></div>
+    <div class="card" style="background:var(--stone);border-color:transparent"><h3>Warm variant</h3><p>card-stone breaks up the white with a warm neutral surface.</p></div>
+  </div>
+</div></body></html>

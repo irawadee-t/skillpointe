@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   Search,
   MapPin,
-  DollarSign,
   Building2,
   ExternalLink,
   Briefcase,
@@ -20,7 +19,11 @@ import {
   Star,
 } from "lucide-react";
 
+import { motion, AnimatePresence } from "motion/react";
+
 import type { JobBrowseItem, JobBrowseResponse } from "./page";
+import { PageHeader, Stagger, StaggerItem } from "@/components/ui";
+import { easeCohere } from "@/lib/motion";
 
 
 const US_STATES = [
@@ -64,48 +67,46 @@ export function JobBrowseClient({
   const hasFilters = !!(q || stateFilter || workSetting || employerFilter);
 
   return (
-    <main className="p-6 md:p-8">
-      <div className="max-w-5xl mx-auto space-y-6">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Browse jobs</h1>
-          <p className="text-sm text-zinc-500 mt-1">
-            {total.toLocaleString()} skilled trade{total !== 1 ? "s" : ""}{" "}
-            position{total !== 1 ? "s" : ""} available
-          </p>
-        </div>
+    <main className="py-8">
+      <div className="page-shell space-y-6">
+        <PageHeader
+          eyebrow="Browse"
+          title="Browse jobs"
+          lead={`${total.toLocaleString()} skilled trade${total !== 1 ? "s" : ""} position${total !== 1 ? "s" : ""} available`}
+        />
 
         <form
           method="GET"
-          className="bg-zinc-50 border border-zinc-200 rounded-lg p-4 space-y-3 shadow-sm"
+          className="bg-white border border-border-light rounded-md p-4 space-y-3"
         >
           <div className="flex gap-2">
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-muted z-10" />
               <input
                 type="text"
                 name="q"
                 defaultValue={q}
                 placeholder="Search by title or description..."
-                className="w-full pl-10 pr-4 py-2 border border-zinc-200 rounded-lg text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
+                className="input-cohere w-full pl-10"
               />
             </div>
             <button
               type="submit"
-              className="px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-full hover:bg-zinc-700 transition-colors"
+              className="btn-primary"
             >
               Search
             </button>
           </div>
-          <div className="flex flex-wrap gap-3 pt-2 border-t border-zinc-200">
-            <select name="employer" defaultValue={employerFilter} className="border border-zinc-200 rounded-lg px-3 py-1.5 text-sm bg-white text-zinc-900 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy">
+          <div className="flex flex-wrap gap-3 pt-2 border-t border-border-light">
+            <select name="employer" defaultValue={employerFilter} className="w-auto rounded-sm border border-hairline bg-white px-3 py-1.5 text-caption text-ink transition-colors focus:outline-none focus:border-focus-violet focus:ring-1 focus:ring-focus-violet/40">
               <option value="">All employers</option>
               {employers.map((e) => (<option key={e} value={e}>{e}</option>))}
             </select>
-            <select name="state" defaultValue={stateFilter} className="border border-zinc-200 rounded-lg px-3 py-1.5 text-sm bg-white text-zinc-900 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy">
+            <select name="state" defaultValue={stateFilter} className="w-auto rounded-sm border border-hairline bg-white px-3 py-1.5 text-caption text-ink transition-colors focus:outline-none focus:border-focus-violet focus:ring-1 focus:ring-focus-violet/40">
               <option value="">All states</option>
               {US_STATES.map((s) => (<option key={s} value={s}>{s}</option>))}
             </select>
-            <select name="work_setting" defaultValue={workSetting} className="border border-zinc-200 rounded-lg px-3 py-1.5 text-sm bg-white text-zinc-900 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy">
+            <select name="work_setting" defaultValue={workSetting} className="w-auto rounded-sm border border-hairline bg-white px-3 py-1.5 text-caption text-ink transition-colors focus:outline-none focus:border-focus-violet focus:ring-1 focus:ring-focus-violet/40">
               <option value="">All work settings</option>
               <option value="on_site">On-site</option>
               <option value="remote">Remote</option>
@@ -113,7 +114,7 @@ export function JobBrowseClient({
               <option value="flexible">Flexible</option>
             </select>
             {hasFilters && (
-              <Link href="/applicant/jobs" className="flex items-center gap-1 text-xs text-zinc-400 hover:text-zinc-600 self-center ml-auto transition-colors">
+              <Link href="/applicant/jobs" className="flex items-center gap-1 text-micro text-slate-muted hover:text-ink self-center ml-auto transition-colors">
                 Clear all
               </Link>
             )}
@@ -121,26 +122,30 @@ export function JobBrowseClient({
         </form>
 
         {fetchError && (
-          <div className="bg-rose-50 border border-rose-200 rounded-lg p-5 text-sm text-rose-600">{fetchError}</div>
+          <div className="bg-studio-maroon/10 border border-studio-maroon-soft rounded-md p-5 text-body text-error-red">{fetchError}</div>
         )}
 
         {!fetchError && jobs.length === 0 && (
-          <div className="bg-zinc-50 border border-zinc-200 rounded-lg p-8 text-center shadow-sm">
-            <Briefcase className="w-8 h-8 text-zinc-300 mx-auto" />
-            <p className="text-zinc-600 font-medium mt-3">No jobs found</p>
-            <p className="text-sm text-zinc-400 mt-1">Try adjusting your search or filters.</p>
+          <div className="bg-stone border border-transparent rounded-md p-10 text-center">
+            <Briefcase className="w-8 h-8 text-slate mx-auto" />
+            <p className="font-display text-feature text-cohere-ink mt-3">No jobs found</p>
+            <p className="text-body text-slate mt-1">Try adjusting your search or filters.</p>
           </div>
         )}
 
         {jobs.length > 0 && (
-          <div className="space-y-3">
-            {jobs.map((job) => (<ExpandableJobCard key={job.job_id} job={job} />))}
-          </div>
+          <Stagger className="space-y-3">
+            {jobs.map((job) => (
+              <StaggerItem key={job.job_id}>
+                <ExpandableJobCard job={job} />
+              </StaggerItem>
+            ))}
+          </Stagger>
         )}
 
         {totalPages > 1 && (
-          <div className="flex items-center justify-between bg-zinc-50 border border-zinc-200 rounded-lg px-4 py-3 shadow-sm">
-            <p className="text-sm text-zinc-400">
+          <div className="flex items-center justify-between bg-white border border-border-light rounded-md px-4 py-3">
+            <p className="text-body text-slate">
               Page {currentPage} of {totalPages} ({total.toLocaleString()} total)
             </p>
             <div className="flex gap-2">
@@ -168,7 +173,7 @@ function PaginationLink({ page, q, state, workSetting, employer, label, icon }: 
   if (employer) qs.set("employer", employer);
   qs.set("page", String(page));
   return (
-    <Link href={`/applicant/jobs?${qs.toString()}`} className="flex items-center gap-1 px-3 py-1.5 border border-zinc-200 rounded-lg text-sm text-zinc-600 hover:border-zinc-300 hover:text-zinc-900 transition-colors">
+    <Link href={`/applicant/jobs?${qs.toString()}`} className="flex items-center gap-1 px-3 py-1.5 border border-hairline rounded-pill text-caption text-slate hover:border-cohere-ink hover:text-ink transition-colors">
       {icon === "left" && <ChevronLeft className="w-3.5 h-3.5" />}
       {label}
       {icon === "right" && <ChevronRight className="w-3.5 h-3.5" />}
@@ -179,7 +184,10 @@ function PaginationLink({ page, q, state, workSetting, employer, label, icon }: 
 function ExpandableJobCard({ job }: { job: JobBrowseItem }) {
   const [expanded, setExpanded] = useState(false);
 
-  const location = [job.city, job.state].filter(Boolean).join(", ");
+  // Scraped feeds sometimes send literal "Unspecified" — treat it as absent.
+  const clean = (v: string | null | undefined) =>
+    v && v.trim() && !/^unspecified$/i.test(v.trim()) ? v.trim() : null;
+  const location = [clean(job.city), clean(job.state)].filter(Boolean).join(", ");
   const workLabel = job.work_setting ? (WORK_SETTING_LABELS[job.work_setting] ?? job.work_setting) : null;
   const payDisplay = formatPay(job);
   const hasDetail = !!(job.description || job.qualifications || job.requirements);
@@ -188,12 +196,12 @@ function ExpandableJobCard({ job }: { job: JobBrowseItem }) {
     : null;
 
   return (
-    <div className="bg-white border border-zinc-200 rounded-lg hover:border-zinc-200 transition-colors shadow-sm">
+    <div className="bg-white border border-border-light rounded-md hover:border-cohere-ink transition-colors">
       <div className="p-5">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <h3 className="font-semibold text-zinc-900 text-base leading-snug">{job.title}</h3>
-            <p className="text-sm text-zinc-500 mt-0.5 flex items-center gap-1">
+            <h3 className="font-display text-feature text-cohere-ink leading-snug">{job.title}</h3>
+            <p className="text-body text-slate mt-0.5 flex items-center gap-1">
               <Building2 className="w-3.5 h-3.5 shrink-0" />
               {job.employer_name}
             </p>
@@ -201,13 +209,13 @@ function ExpandableJobCard({ job }: { job: JobBrowseItem }) {
           <div className="flex items-center gap-2 shrink-0">
             {job.source_url && (
               <a href={job.source_url} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-1 px-3 py-1.5 bg-zinc-900 text-white text-xs font-medium rounded-full hover:bg-zinc-700 transition-colors">
+                className="btn-sm">
                 Apply <ExternalLink className="w-3 h-3" />
               </a>
             )}
             {hasDetail && (
               <button onClick={() => setExpanded(!expanded)}
-                className="p-1.5 rounded-lg border border-zinc-200 text-zinc-400 hover:text-zinc-600 hover:border-zinc-300 transition-colors"
+                className="p-1.5 rounded-sm border border-hairline text-slate hover:text-ink hover:border-cohere-ink transition-colors"
                 aria-label={expanded ? "Collapse details" : "Expand details"}>
                 {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
               </button>
@@ -215,48 +223,56 @@ function ExpandableJobCard({ job }: { job: JobBrowseItem }) {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm text-zinc-500">
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-body text-slate">
           {(location || workLabel) && (
-            <span className="flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-              {location || ""}
-              {workLabel && <span className="text-zinc-400">{location ? " · " : ""}{workLabel}</span>}
+            <span className="flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5 shrink-0 text-slate" />
+              {[location, workLabel].filter(Boolean).join(", ")}
             </span>
           )}
-          {payDisplay && (
-            <span className="flex items-center gap-1">
-              <DollarSign className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-              {payDisplay}
-            </span>
-          )}
+          {/* payDisplay carries its own "$" — no icon, or it reads "$ $31". */}
+          {payDisplay && <span>{payDisplay}</span>}
         </div>
 
         {!expanded && job.description_preview && (
-          <p className="mt-2 text-xs text-zinc-400 line-clamp-2">{job.description_preview}</p>
+          <p className="mt-2 text-caption text-slate line-clamp-2">
+            {job.description_preview.trim()}
+            {/[.!?…]$/.test(job.description_preview.trim()) ? "" : "…"}
+          </p>
         )}
 
         {familyLabel && (
           <div className="mt-3">
-            <span className="text-xs bg-zinc-100 text-zinc-500 border border-zinc-200 rounded-full px-2 py-0.5">
+            <span className="rounded-sm border border-hairline bg-parchment px-2 py-0.5 text-caption text-slate">
               {familyLabel}
             </span>
           </div>
         )}
       </div>
 
-      {expanded && hasDetail && (
-        <div className="border-t border-zinc-200 px-5 py-4 bg-zinc-100 space-y-5">
-          <StructuredDescription description={job.description} requirements={job.requirements} qualifications={job.qualifications} />
-          {job.source_url && (
-            <div className="pt-2">
-              <a href={job.source_url} target="_blank" rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-zinc-900 text-white text-sm font-medium rounded-full hover:bg-zinc-700 transition-colors">
-                Apply for this position <ExternalLink className="w-3.5 h-3.5" />
-              </a>
+      <AnimatePresence initial={false}>
+        {expanded && hasDetail && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: easeCohere }}
+            className="overflow-hidden"
+          >
+            <div className="border-t border-border-light px-5 py-4 bg-stone space-y-5">
+              <StructuredDescription description={job.description} requirements={job.requirements} qualifications={job.qualifications} />
+              {job.source_url && (
+                <div className="pt-2">
+                  <a href={job.source_url} target="_blank" rel="noopener noreferrer"
+                    className="btn-primary inline-flex items-center gap-2">
+                    Apply for this position <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -308,27 +324,27 @@ type SectionItem =
   | { type: "bullet"; text: string };
 
 const SECTION_ICONS: Record<string, React.ReactNode> = {
-  overview: <Briefcase className="w-4 h-4 text-zinc-500" />,
-  responsibilities: <ClipboardList className="w-4 h-4 text-zinc-500" />,
-  requirements: <Wrench className="w-4 h-4 text-zinc-500" />,
-  qualifications: <GraduationCap className="w-4 h-4 text-zinc-500" />,
-  preferred: <Star className="w-4 h-4 text-zinc-500" />,
-  benefits: <FileText className="w-4 h-4 text-zinc-500" />,
-  other: <FileText className="w-4 h-4 text-zinc-500" />,
+  overview: <Briefcase className="w-4 h-4 text-slate" />,
+  responsibilities: <ClipboardList className="w-4 h-4 text-slate" />,
+  requirements: <Wrench className="w-4 h-4 text-slate" />,
+  qualifications: <GraduationCap className="w-4 h-4 text-slate" />,
+  preferred: <Star className="w-4 h-4 text-slate" />,
+  benefits: <FileText className="w-4 h-4 text-slate" />,
+  other: <FileText className="w-4 h-4 text-slate" />,
 };
 
 function DescriptionSection({ section }: { section: Section }) {
   return (
     <div>
-      <h4 className="text-sm font-semibold text-zinc-700 flex items-center gap-1.5 mb-2">
+      <h4 className="text-body font-semibold text-ink flex items-center gap-1.5 mb-2">
         {SECTION_ICONS[section.icon]}
         {section.title}
       </h4>
-      <div className="text-sm text-zinc-500 leading-relaxed">
+      <div className="text-body text-slate leading-relaxed">
         {section.items.map((item, i) =>
           item.type === "bullet" ? (
             <div key={i} className="flex items-start gap-2 py-0.5">
-              <span className="w-1.5 h-1.5 bg-zinc-300 rounded-full mt-1.5 shrink-0" />
+              <span className="w-1.5 h-1.5 bg-cohere-green rounded-full mt-2 shrink-0" />
               <span>{item.text}</span>
             </div>
           ) : (

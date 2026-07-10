@@ -339,6 +339,159 @@ async def admin_dashboard(user=Depends(require_admin)):
     )
 
 
+@router.get("/analytics/overview")
+async def admin_overview(user=Depends(require_admin)):
+    """Granular, cross-domain platform metrics — the admin command center.
+    One aggregation call covering acquisition, verification, consent, matching,
+    marketplace, engagement, outcomes, SKILLED ID, and sync health."""
+    async with get_db() as conn:
+        async def v(q: str) -> int:
+            return int(await conn.fetchval(q) or 0)
+        async def f(q: str) -> float:
+            r = await conn.fetchval(q)
+            return round(float(r), 1) if r is not None else 0.0
+
+        W7 = "created_at >= now() - interval '7 days'"
+        W30 = "created_at >= now() - interval '30 days'"
+
+        creds = await v("SELECT count(*) FROM public.credentials")
+        inst = await v("SELECT count(*) FROM public.credentials WHERE verification_level = 1")
+        skilled = await v("SELECT count(*) FROM public.credentials WHERE verification_level >= 2")
+        m_total = await v("SELECT count(*) FROM public.matches")
+
+        eng_rows = await conn.fetch(
+            f"SELECT event_type, count(*) AS c, count(*) FILTER (WHERE {W7}) AS c7 "
+            "FROM public.engagement_events GROUP BY event_type ORDER BY c DESC"
+        )
+        trade_rows = await conn.fetch(
+            "SELECT jf.name AS name, count(*) AS c FROM public.jobs j "
+            "JOIN public.canonical_job_families jf ON jf.id = j.canonical_job_family_id "
+            "WHERE j.is_active = TRUE GROUP BY jf.name ORDER BY c DESC LIMIT 6"
+        )
+        med_wage = await conn.fetchval(
+            "SELECT percentile_disc(0.5) WITHIN GROUP (ORDER BY reported_wage_annual) "
+            "FROM public.hire_outcomes WHERE reported_wage_annual IS NOT NULL"
+        )
+
+        # --- Marketplace funnel (the core conversion story) ---
+        learners = await v("SELECT count(*) FROM public.applicants")
+        with_credential = await v("SELECT count(DISTINCT applicant_id) FROM public.credentials")
+        verified_workers = await v("SELECT count(DISTINCT applicant_id) FROM public.credentials WHERE verification_level >= 1")
+        discoverable = await v(
+            "SELECT count(DISTINCT a.id) FROM public.applicants a "
+            "JOIN public.consent_settings cs ON cs.applicant_id = a.id "
+            "WHERE cs.external_sharing ? 'employer' AND EXISTS ("
+            "  SELECT 1 FROM public.credentials c WHERE c.applicant_id = a.id AND c.verification_level >= 1)"
+        )
+        matched = await v("SELECT count(DISTINCT applicant_id) FROM public.matches WHERE eligibility_status = 'eligible'")
+        interested = await v("SELECT count(DISTINCT applicant_id) FROM public.saved_jobs WHERE interest_level IN ('interested','applied')")
+        placed = await v("SELECT count(DISTINCT applicant_id) FROM public.hire_outcomes WHERE outcome_type IN ('placed','hired')")
+
+        # --- Action-needed signals (what an operator should DO) ---
+        unmatched = await v(
+            "SELECT count(*) FROM public.applicants a WHERE a.onboarding_complete = TRUE AND NOT EXISTS ("
+            "  SELECT 1 FROM public.matches m WHERE m.applicant_id = a.id AND m.eligibility_status = 'eligible')"
+        )
+        jobs_no_candidates = await v(
+            "SELECT count(*) FROM public.jobs j WHERE j.is_active = TRUE AND NOT EXISTS ("
+            "  SELECT 1 FROM public.matches m WHERE m.job_id = j.id AND m.eligibility_status = 'eligible')"
+        )
+        verified_not_sharing = await v(
+            "SELECT count(DISTINCT a.id) FROM public.applicants a WHERE EXISTS ("
+            "  SELECT 1 FROM public.credentials c WHERE c.applicant_id = a.id AND c.verification_level >= 1) "
+            "AND NOT EXISTS (SELECT 1 FROM public.consent_settings cs WHERE cs.applicant_id = a.id AND cs.external_sharing ? 'employer')"
+        )
+        review_queue = await v("SELECT count(*) FROM public.credentials WHERE needs_review = TRUE")
+        sync_pending = await v("SELECT count(*) FROM public.event_outbox WHERE published_at IS NULL")
+
+        return {
+            "platform": {
+                "users": await v("SELECT count(*) FROM public.user_profiles"),
+                "applicants": await v("SELECT count(*) FROM public.applicants"),
+                "employers": await v("SELECT count(*) FROM public.employers"),
+                "institutions": await v("SELECT count(*) FROM public.institutions"),
+                "partners": await v("SELECT count(*) FROM public.api_clients"),
+            },
+            "acquisition": {
+                "new_applicants_7d": await v(f"SELECT count(*) FROM public.applicants WHERE {W7}"),
+                "new_applicants_30d": await v(f"SELECT count(*) FROM public.applicants WHERE {W30}"),
+                "new_jobs_7d": await v(f"SELECT count(*) FROM public.jobs WHERE {W7}"),
+                "new_jobs_30d": await v(f"SELECT count(*) FROM public.jobs WHERE {W30}"),
+                "new_credentials_7d": await v(f"SELECT count(*) FROM public.credentials WHERE {W7}"),
+                "new_credentials_30d": await v(f"SELECT count(*) FROM public.credentials WHERE {W30}"),
+            },
+            "verification": {
+                "credentials_total": creds,
+                "self_reported": await v("SELECT count(*) FROM public.credentials WHERE verification_level = 0"),
+                "institution_verified": inst,
+                "skilled_verified": skilled,
+                "verified_rate": round((inst + skilled) / creds * 100, 1) if creds else 0.0,
+                "needs_review": await v("SELECT count(*) FROM public.credentials WHERE needs_review = TRUE"),
+            },
+            "consent": {
+                "sharing_with_employers": await v(
+                    "SELECT count(DISTINCT applicant_id) FROM public.consent_settings WHERE external_sharing ? 'employer'"
+                ),
+                "total_with_settings": await v("SELECT count(DISTINCT applicant_id) FROM public.consent_settings"),
+            },
+            "matching": {
+                "total": m_total,
+                "eligible": await v("SELECT count(*) FROM public.matches WHERE eligibility_status = 'eligible'"),
+                "near_fit": await v("SELECT count(*) FROM public.matches WHERE eligibility_status = 'near_fit'"),
+                "ineligible": await v("SELECT count(*) FROM public.matches WHERE eligibility_status = 'ineligible'"),
+                "avg_fit": await f("SELECT avg(base_fit_score) FROM public.matches"),
+                "strong": await v("SELECT count(*) FROM public.matches WHERE base_fit_score >= 70"),
+                "applicants_matched": await v("SELECT count(DISTINCT applicant_id) FROM public.matches WHERE eligibility_status = 'eligible'"),
+            },
+            "marketplace": {
+                "active_jobs": await v("SELECT count(*) FROM public.jobs WHERE is_active = TRUE"),
+                "discoverable_workers": await v(
+                    "SELECT count(DISTINCT a.id) FROM public.applicants a "
+                    "JOIN public.consent_settings cs ON cs.applicant_id = a.id "
+                    "WHERE cs.external_sharing ? 'employer' AND EXISTS ("
+                    "  SELECT 1 FROM public.credentials c WHERE c.applicant_id = a.id AND c.verification_level >= 1)"
+                ),
+                "top_trades": [{"name": r["name"], "count": int(r["c"])} for r in trade_rows],
+            },
+            "engagement": {
+                "total": await v("SELECT count(*) FROM public.engagement_events"),
+                "total_7d": await v(f"SELECT count(*) FROM public.engagement_events WHERE {W7}"),
+                "by_type": [{"type": r["event_type"], "count": int(r["c"]), "last_7d": int(r["c7"])} for r in eng_rows],
+            },
+            "outcomes": {
+                "placements": await v("SELECT count(*) FROM public.hire_outcomes WHERE outcome_type IN ('placed','hired')"),
+                "median_wage": int(med_wage) if med_wage is not None else None,
+            },
+            "skilled_id": {
+                "partners": await v("SELECT count(*) FROM public.api_clients"),
+                "active": await v("SELECT count(*) FROM public.api_clients WHERE active = TRUE"),
+                "queries_total": await v("SELECT count(*) FROM public.api_request_logs"),
+                "queries_7d": await v(f"SELECT count(*) FROM public.api_request_logs WHERE {W7}"),
+            },
+            "sync": {
+                "outbox_total": await v("SELECT count(*) FROM public.event_outbox"),
+                "outbox_unpublished": await v("SELECT count(*) FROM public.event_outbox WHERE published_at IS NULL"),
+                "inbox_applied": await v("SELECT count(*) FROM public.sync_inbox"),
+            },
+            "funnel": [
+                {"key": "learners", "label": "Learners", "count": learners},
+                {"key": "credentialed", "label": "Added a credential", "count": with_credential},
+                {"key": "verified", "label": "Verified", "count": verified_workers},
+                {"key": "discoverable", "label": "Discoverable to employers", "count": discoverable},
+                {"key": "matched", "label": "Matched to a job", "count": matched},
+                {"key": "interested", "label": "Showed interest", "count": interested},
+                {"key": "placed", "label": "Placed", "count": placed},
+            ],
+            "alerts": {
+                "review_queue": review_queue,
+                "unmatched_learners": unmatched,
+                "jobs_no_candidates": jobs_no_candidates,
+                "verified_not_sharing": verified_not_sharing,
+                "sync_pending": sync_pending,
+            },
+        }
+
+
 @router.get("/analytics/cluster-jobs", response_model=list[ClusterJob])
 async def cluster_jobs(city: str, state: str, user=Depends(require_admin)):
     """Fetch jobs at a specific city/state for map drill-down."""
@@ -1049,4 +1202,586 @@ async def employer_engagement(
             )
             for r in rows
         ],
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /admin/analytics/engagement/summary
+# The single aggregate endpoint for the redesigned engagement page.
+# Returns everything: north-star metric with 12-week sparkline, AARRR-style
+# supporting metrics, activation funnels for both sides, cohort retention
+# curve for applicants, and time-to-hire percentiles.
+# ---------------------------------------------------------------------------
+
+
+class SparklinePoint(BaseModel):
+    label: str          # ISO week-start date "YYYY-MM-DD"
+    value: float
+
+
+class NorthStar(BaseModel):
+    value: int          # verified hires in last 30 days
+    prev_value: int     # previous 30 days, for delta arrow
+    all_time: int
+    spark: list[SparklinePoint]  # 12 weeks of hires
+
+
+class LensMetric(BaseModel):
+    lens: str           # "acquisition" | "activation" | "engagement" | "retention" | "conversion"
+    label: str
+    value: str          # display string ("48", "62%", "3.2d")
+    detail: str         # "vs 41 last 30d" or similar
+    trend: float | None # signed % change; null if no baseline
+
+
+class FunnelStep(BaseModel):
+    label: str
+    count: int
+    pct_of_top: float   # 0.0 – 1.0
+
+
+class RetentionCohort(BaseModel):
+    week_offset: int    # 0 = signup week, 1 = week after, ...
+    pct_returning: float
+    n_users: int
+
+
+class TimeToHire(BaseModel):
+    p50_days: float | None
+    p90_days: float | None
+    sample_size: int
+
+
+class ResponseSLA(BaseModel):
+    median_hours: float | None
+    p90_hours: float | None
+    sample_size: int
+
+
+class EngagementSummary(BaseModel):
+    generated_at: str
+    north_star: NorthStar
+    lenses: list[LensMetric]
+    applicant_funnel: list[FunnelStep]
+    employer_funnel: list[FunnelStep]
+    retention: list[RetentionCohort]
+    time_to_hire: TimeToHire
+    employer_response: ResponseSLA
+
+
+@router.get("/analytics/engagement/summary", response_model=EngagementSummary)
+async def engagement_summary(user=Depends(require_admin)):
+    """
+    Aggregate engagement snapshot for the admin engagement page.
+
+    North star = Verified hires in last 30 days. Everything else supports
+    that: acquisition, activation, engagement, retention, conversion, plus
+    the two activation funnels and cohort retention curve.
+    """
+    from datetime import datetime, timezone
+
+    async with get_db() as conn:
+        # -------- North star: verified hires ----------
+        ns_30 = await conn.fetchval(
+            "SELECT COUNT(*) FROM public.hire_outcomes "
+            "WHERE outcome_type = 'hired' AND created_at > NOW() - INTERVAL '30 days'"
+        ) or 0
+        ns_prev = await conn.fetchval(
+            "SELECT COUNT(*) FROM public.hire_outcomes "
+            "WHERE outcome_type = 'hired' "
+            "AND created_at > NOW() - INTERVAL '60 days' "
+            "AND created_at <= NOW() - INTERVAL '30 days'"
+        ) or 0
+        ns_all = await conn.fetchval(
+            "SELECT COUNT(*) FROM public.hire_outcomes WHERE outcome_type = 'hired'"
+        ) or 0
+
+        # 12-week sparkline of hires
+        spark_rows = await conn.fetch(
+            """
+            SELECT
+              date_trunc('week', gs)::date AS wk,
+              COALESCE((
+                SELECT COUNT(*) FROM public.hire_outcomes ho
+                WHERE ho.outcome_type = 'hired'
+                  AND ho.created_at >= date_trunc('week', gs)
+                  AND ho.created_at <  date_trunc('week', gs) + INTERVAL '7 days'
+              ), 0) AS n
+            FROM generate_series(
+              date_trunc('week', NOW() - INTERVAL '11 weeks'),
+              date_trunc('week', NOW()),
+              INTERVAL '1 week'
+            ) AS gs
+            ORDER BY wk
+            """
+        )
+        spark = [SparklinePoint(label=r["wk"].isoformat(), value=float(r["n"])) for r in spark_rows]
+
+        # -------- Supporting lenses (AARRR-flavoured, marketplace-tuned) ----------
+        # Acquisition — new applicants + new employer contacts last 30d
+        new_applicants_30 = await conn.fetchval(
+            "SELECT COUNT(*) FROM public.applicants WHERE created_at > NOW() - INTERVAL '30 days'"
+        ) or 0
+        new_applicants_prev = await conn.fetchval(
+            "SELECT COUNT(*) FROM public.applicants "
+            "WHERE created_at > NOW() - INTERVAL '60 days' "
+            "AND created_at <= NOW() - INTERVAL '30 days'"
+        ) or 0
+
+        # Activation — % of applicants (created last 30d) whose profile is complete
+        act_num = await conn.fetchval(
+            "SELECT COUNT(*) FROM public.applicants "
+            "WHERE created_at > NOW() - INTERVAL '30 days' "
+            "AND onboarding_complete = TRUE"
+        ) or 0
+        act_pct = (act_num / new_applicants_30 * 100) if new_applicants_30 > 0 else 0.0
+
+        # Engagement — active applicants (any engagement event) last 7d
+        active_7d = await conn.fetchval(
+            "SELECT COUNT(DISTINCT applicant_id) FROM public.engagement_events "
+            "WHERE created_at > NOW() - INTERVAL '7 days' AND applicant_id IS NOT NULL"
+        ) or 0
+        active_prev_7d = await conn.fetchval(
+            "SELECT COUNT(DISTINCT applicant_id) FROM public.engagement_events "
+            "WHERE created_at > NOW() - INTERVAL '14 days' "
+            "AND created_at <= NOW() - INTERVAL '7 days' "
+            "AND applicant_id IS NOT NULL"
+        ) or 0
+
+        # Employer activation — % of employers who posted a job AND reviewed at least one applicant
+        emp_activated = await conn.fetchval(
+            """
+            SELECT COUNT(DISTINCT e.id)
+            FROM public.employers e
+            JOIN public.jobs j ON j.employer_id = e.id
+            JOIN public.engagement_events ee ON ee.employer_id = e.id
+              AND ee.event_type = 'candidate_viewed'
+            """
+        ) or 0
+        emp_with_jobs = await conn.fetchval(
+            "SELECT COUNT(DISTINCT employer_id) FROM public.jobs WHERE employer_id IS NOT NULL"
+        ) or 0
+        emp_act_pct = (emp_activated / emp_with_jobs * 100) if emp_with_jobs > 0 else 0.0
+
+        # Match-to-apply conversion — apply_clicks / match_views (last 30d)
+        m_views = await conn.fetchval(
+            "SELECT COUNT(*) FROM public.engagement_events "
+            "WHERE event_type = 'match_view' AND created_at > NOW() - INTERVAL '30 days'"
+        ) or 0
+        m_applies = await conn.fetchval(
+            "SELECT COUNT(*) FROM public.engagement_events "
+            "WHERE event_type = 'apply_click' AND created_at > NOW() - INTERVAL '30 days'"
+        ) or 0
+        m_conv_pct = (m_applies / m_views * 100) if m_views > 0 else 0.0
+
+        def pct_delta(a: int, b: int) -> float | None:
+            if b == 0:
+                return None
+            return (a - b) / b * 100.0
+
+        lenses = [
+            LensMetric(
+                lens="acquisition",
+                label="New applicants (30d)",
+                value=str(new_applicants_30),
+                detail=f"vs {new_applicants_prev} prior 30d",
+                trend=pct_delta(new_applicants_30, new_applicants_prev),
+            ),
+            LensMetric(
+                lens="activation",
+                label="Applicant activation rate",
+                value=f"{act_pct:.0f}%",
+                detail=f"{act_num} of {new_applicants_30} new signups complete profile",
+                trend=None,
+            ),
+            LensMetric(
+                lens="activation",
+                label="Employer activation rate",
+                value=f"{emp_act_pct:.0f}%",
+                detail=f"{emp_activated} of {emp_with_jobs} posted-a-job employers reviewed candidates",
+                trend=None,
+            ),
+            LensMetric(
+                lens="engagement",
+                label="Weekly active applicants",
+                value=str(active_7d),
+                detail=f"vs {active_prev_7d} prior week",
+                trend=pct_delta(active_7d, active_prev_7d),
+            ),
+            LensMetric(
+                lens="conversion",
+                label="Match to apply",
+                value=f"{m_conv_pct:.0f}%",
+                detail=f"{m_applies} applies on {m_views} match views (30d)",
+                trend=None,
+            ),
+        ]
+
+        # -------- Applicant activation funnel ----------
+        total_applicants = await conn.fetchval("SELECT COUNT(*) FROM public.applicants") or 0
+        complete_profiles = await conn.fetchval(
+            "SELECT COUNT(*) FROM public.applicants WHERE onboarding_complete = TRUE"
+        ) or 0
+        viewed_match = await conn.fetchval(
+            "SELECT COUNT(DISTINCT applicant_id) FROM public.engagement_events "
+            "WHERE event_type = 'match_view' AND applicant_id IS NOT NULL"
+        ) or 0
+        applied = await conn.fetchval(
+            "SELECT COUNT(DISTINCT applicant_id) FROM public.engagement_events "
+            "WHERE event_type = 'apply_click' AND applicant_id IS NOT NULL"
+        ) or 0
+        got_response = await conn.fetchval(
+            """
+            SELECT COUNT(DISTINCT c.applicant_id)
+            FROM public.conversations c
+            JOIN public.direct_messages dm ON dm.conversation_id = c.id
+            WHERE dm.sender_role = 'employer'
+            """
+        ) or 0
+
+        def steps(pairs: list[tuple[str, int]]) -> list[FunnelStep]:
+            top = pairs[0][1] if pairs and pairs[0][1] > 0 else 0
+            return [
+                FunnelStep(
+                    label=label,
+                    count=count,
+                    pct_of_top=(count / top) if top > 0 else 0.0,
+                )
+                for label, count in pairs
+            ]
+
+        applicant_funnel = steps([
+            ("Signed up", total_applicants),
+            ("Profile complete", complete_profiles),
+            ("Viewed a match", viewed_match),
+            ("Clicked apply", applied),
+            ("Got employer reply", got_response),
+        ])
+
+        # -------- Employer activation funnel ----------
+        total_employers = await conn.fetchval("SELECT COUNT(*) FROM public.employers") or 0
+        emp_with_contact = await conn.fetchval(
+            "SELECT COUNT(DISTINCT employer_id) FROM public.employer_contacts"
+        ) or 0
+        emp_posted_job = await conn.fetchval(
+            "SELECT COUNT(DISTINCT employer_id) FROM public.jobs WHERE employer_id IS NOT NULL"
+        ) or 0
+        emp_viewed_applicant = await conn.fetchval(
+            "SELECT COUNT(DISTINCT employer_id) FROM public.engagement_events "
+            "WHERE event_type = 'candidate_viewed' AND employer_id IS NOT NULL"
+        ) or 0
+        emp_hired = await conn.fetchval(
+            "SELECT COUNT(DISTINCT employer_id) FROM public.hire_outcomes WHERE outcome_type = 'hired'"
+        ) or 0
+
+        employer_funnel = steps([
+            ("Onboarded", total_employers),
+            ("Account created", emp_with_contact),
+            ("Posted first job", emp_posted_job),
+            ("Reviewed applicants", emp_viewed_applicant),
+            ("Reported first hire", emp_hired),
+        ])
+
+        # -------- Applicant cohort retention (weeks since signup) ----------
+        retention_rows = await conn.fetch(
+            """
+            WITH cohort AS (
+              SELECT a.id, date_trunc('week', a.created_at) AS signup_wk
+              FROM public.applicants a
+              WHERE a.created_at > NOW() - INTERVAL '84 days'
+            ),
+            active AS (
+              SELECT DISTINCT
+                ee.applicant_id,
+                date_trunc('week', ee.created_at) AS active_wk
+              FROM public.engagement_events ee
+              WHERE ee.applicant_id IS NOT NULL
+                AND ee.created_at > NOW() - INTERVAL '84 days'
+            )
+            SELECT
+              wk_off AS week_offset,
+              COUNT(DISTINCT c.id) FILTER (WHERE c.id IS NOT NULL) AS n_users,
+              COUNT(DISTINCT c.id) FILTER (WHERE a.applicant_id IS NOT NULL) AS n_active
+            FROM generate_series(0, 8) AS wk_off
+            LEFT JOIN cohort c ON c.signup_wk + (wk_off || ' weeks')::INTERVAL <= NOW()
+            LEFT JOIN active a
+              ON a.applicant_id = c.id
+             AND a.active_wk = c.signup_wk + (wk_off || ' weeks')::INTERVAL
+            GROUP BY wk_off
+            ORDER BY wk_off
+            """
+        )
+        retention = [
+            RetentionCohort(
+                week_offset=int(r["week_offset"]),
+                n_users=int(r["n_users"] or 0),
+                pct_returning=(
+                    float(r["n_active"] or 0) / float(r["n_users"])
+                    if r["n_users"] else 0.0
+                ),
+            )
+            for r in retention_rows
+        ]
+
+        # -------- Time to hire percentiles ----------
+        tth_rows = await conn.fetch(
+            """
+            SELECT EXTRACT(EPOCH FROM (ho.created_at - a.created_at)) / 86400.0 AS days
+            FROM public.hire_outcomes ho
+            JOIN public.applicants a ON a.id = ho.applicant_id
+            WHERE ho.outcome_type = 'hired'
+              AND ho.created_at > a.created_at
+            """
+        )
+        days = sorted([float(r["days"]) for r in tth_rows if r["days"] is not None])
+
+        def pct(vals: list[float], q: float) -> float | None:
+            if not vals:
+                return None
+            k = int(round((len(vals) - 1) * q))
+            return vals[k]
+
+        time_to_hire = TimeToHire(
+            p50_days=pct(days, 0.5),
+            p90_days=pct(days, 0.9),
+            sample_size=len(days),
+        )
+
+        # -------- Employer response SLA (median hours from applicant DM → employer reply) ----------
+        sla_rows = await conn.fetch(
+            """
+            WITH first_applicant AS (
+              SELECT conversation_id, MIN(created_at) AS applicant_at
+              FROM public.direct_messages
+              WHERE sender_role = 'applicant'
+              GROUP BY conversation_id
+            ),
+            first_employer AS (
+              SELECT conversation_id, MIN(created_at) AS employer_at
+              FROM public.direct_messages
+              WHERE sender_role = 'employer'
+              GROUP BY conversation_id
+            )
+            SELECT EXTRACT(EPOCH FROM (fe.employer_at - fa.applicant_at)) / 3600.0 AS hours
+            FROM first_applicant fa
+            JOIN first_employer fe ON fe.conversation_id = fa.conversation_id
+            WHERE fe.employer_at > fa.applicant_at
+            """
+        )
+        hours = sorted([float(r["hours"]) for r in sla_rows if r["hours"] is not None])
+        response_sla = ResponseSLA(
+            median_hours=pct(hours, 0.5),
+            p90_hours=pct(hours, 0.9),
+            sample_size=len(hours),
+        )
+
+    return EngagementSummary(
+        generated_at=datetime.now(timezone.utc).isoformat(),
+        north_star=NorthStar(
+            value=int(ns_30),
+            prev_value=int(ns_prev),
+            all_time=int(ns_all),
+            spark=spark,
+        ),
+        lenses=lenses,
+        applicant_funnel=applicant_funnel,
+        employer_funnel=employer_funnel,
+        retention=retention,
+        time_to_hire=time_to_hire,
+        employer_response=response_sla,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test mode: applicant switcher (for development & QA)
+# ---------------------------------------------------------------------------
+
+class TestApplicantListItem(BaseModel):
+    id: str
+    first_name: str | None
+    last_name: str | None
+    state: str | None
+    program: str | None
+    family_code: str | None
+    eligible_count: int
+    near_fit_count: int
+
+
+@router.get("/test/applicants", response_model=list[TestApplicantListItem])
+async def list_all_applicants_for_test(user=Depends(require_admin)):
+    """List all applicants with match counts for the test switcher dropdown."""
+    async with get_db() as conn:
+        rows = await conn.fetch("""
+            SELECT
+                a.id::text,
+                a.first_name,
+                a.last_name,
+                a.state,
+                a.program_name_raw,
+                jf.code AS family_code,
+                COUNT(*) FILTER (WHERE m.eligibility_status = 'eligible') AS eligible_count,
+                COUNT(*) FILTER (WHERE m.eligibility_status = 'near_fit') AS near_fit_count
+            FROM public.applicants a
+            LEFT JOIN public.canonical_job_families jf ON jf.id = a.canonical_job_family_id
+            LEFT JOIN public.matches m ON m.applicant_id = a.id
+            GROUP BY a.id, a.first_name, a.last_name, a.state, a.program_name_raw, jf.code
+            ORDER BY a.first_name, a.last_name
+        """)
+
+    return [
+        TestApplicantListItem(
+            id=r["id"],
+            first_name=r["first_name"],
+            last_name=r["last_name"],
+            state=r["state"],
+            program=r["program_name_raw"],
+            family_code=r["family_code"],
+            eligible_count=int(r["eligible_count"] or 0),
+            near_fit_count=int(r["near_fit_count"] or 0),
+        )
+        for r in rows
+    ]
+
+
+class TestApplicantProfile(BaseModel):
+    applicant_id: str
+    first_name: str | None
+    last_name: str | None
+    program: str | None
+    family_code: str | None
+    city: str | None
+    state: str | None
+    region: str | None
+    expected_completion_date: str | None
+    travel_preference: str | None
+    relocation_preference: str | None
+
+
+class TestMatchSummary(BaseModel):
+    match_id: str
+    job_id: str
+    job_title: str
+    employer_name: str
+    job_city: str | None
+    job_state: str | None
+    work_setting: str | None
+    eligibility_status: str
+    match_label: str | None
+    policy_adjusted_score: float | None
+    top_strengths: list[str]
+    top_gaps: list[str]
+    recommended_next_step: str | None
+    source_url: str | None
+    family_code: str | None
+    description_raw: str | None
+    requirements_raw: str | None
+    experience_level: str | None
+    confidence_level: str | None
+
+
+class TestApplicantMatches(BaseModel):
+    profile: TestApplicantProfile
+    eligible_matches: list[TestMatchSummary]
+    near_fit_matches: list[TestMatchSummary]
+    total_eligible: int
+    total_near_fit: int
+
+
+@router.get("/test/applicants/{applicant_id}/matches", response_model=TestApplicantMatches)
+async def get_test_applicant_matches(
+    applicant_id: str,
+    user=Depends(require_admin),
+):
+    """Fetch profile + matches for any applicant (admin test mode)."""
+    async with get_db() as conn:
+        profile = await conn.fetchrow("""
+            SELECT
+                a.id::text, a.first_name, a.last_name,
+                a.program_name_raw, a.city, a.state, a.region,
+                a.expected_completion_date::text,
+                a.travel_preference::text, a.relocation_preference::text,
+                jf.code AS family_code
+            FROM public.applicants a
+            LEFT JOIN public.canonical_job_families jf ON jf.id = a.canonical_job_family_id
+            WHERE a.id = $1::uuid
+        """, applicant_id)
+
+        if not profile:
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Applicant not found")
+
+        rows = await conn.fetch("""
+            SELECT
+                m.id::text AS match_id,
+                m.job_id::text,
+                COALESCE(j.title_normalized, j.title_raw) AS job_title,
+                e.name AS employer_name,
+                j.city AS job_city, j.state AS job_state,
+                j.work_setting::text,
+                m.eligibility_status::text,
+                m.match_label::text,
+                m.policy_adjusted_score,
+                m.top_strengths, m.top_gaps,
+                m.recommended_next_step,
+                j.source_url,
+                jf.code AS family_code,
+                j.description_raw, j.requirements_raw,
+                j.experience_level::text,
+                m.confidence_level::text
+            FROM public.matches m
+            JOIN public.jobs j ON j.id = m.job_id
+            JOIN public.employers e ON e.id = j.employer_id
+            LEFT JOIN public.canonical_job_families jf ON jf.id = j.canonical_job_family_id
+            WHERE m.applicant_id = $1::uuid
+              AND m.eligibility_status IN ('eligible', 'near_fit')
+            ORDER BY m.policy_adjusted_score DESC NULLS LAST
+            LIMIT 100
+        """, applicant_id)
+
+    prof = TestApplicantProfile(
+        applicant_id=str(profile["id"]),
+        first_name=profile["first_name"],
+        last_name=profile["last_name"],
+        program=profile["program_name_raw"],
+        family_code=profile["family_code"],
+        city=profile["city"],
+        state=profile["state"],
+        region=profile["region"],
+        expected_completion_date=profile["expected_completion_date"],
+        travel_preference=profile["travel_preference"],
+        relocation_preference=profile["relocation_preference"],
+    )
+
+    def _to_match(r: Any) -> TestMatchSummary:
+        return TestMatchSummary(
+            match_id=r["match_id"],
+            job_id=r["job_id"],
+            job_title=r["job_title"] or "Untitled",
+            employer_name=r["employer_name"] or "Unknown",
+            job_city=r["job_city"],
+            job_state=r["job_state"],
+            work_setting=r["work_setting"],
+            eligibility_status=r["eligibility_status"],
+            match_label=r["match_label"],
+            policy_adjusted_score=float(r["policy_adjusted_score"]) if r["policy_adjusted_score"] else None,
+            top_strengths=r["top_strengths"] or [],
+            top_gaps=r["top_gaps"] or [],
+            recommended_next_step=r["recommended_next_step"],
+            source_url=r["source_url"],
+            family_code=r["family_code"],
+            description_raw=r["description_raw"],
+            requirements_raw=r["requirements_raw"],
+            experience_level=r["experience_level"],
+            confidence_level=r["confidence_level"],
+        )
+
+    eligible = [_to_match(r) for r in rows if r["eligibility_status"] == "eligible"]
+    near_fit = [_to_match(r) for r in rows if r["eligibility_status"] == "near_fit"]
+
+    return TestApplicantMatches(
+        profile=prof,
+        eligible_matches=eligible,
+        near_fit_matches=near_fit,
+        total_eligible=len(eligible),
+        total_near_fit=len(near_fit),
     )

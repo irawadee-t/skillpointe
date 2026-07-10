@@ -1,0 +1,42 @@
+<!-- @dsCard group="Architecture" -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Model (key tables)</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#17171c;--body:#212121;--slate:#52525b;--smut:#6b6b76;--hair:#d9d9dd;--green:#003c33;--stone:#eeece7}
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:var(--body);font-family:Inter,system-ui,sans-serif;line-height:1.5}
+  .wrap{max-width:1000px;margin:0 auto;padding:36px}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--slate)}
+  h1{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:36px;letter-spacing:-.02em;color:var(--ink);margin:.3em 0 .2em}
+  p.lead{color:var(--slate);font-size:18px;max-width:760px;margin:0 0 28px}
+  table{width:100%;border-collapse:collapse}
+  th{text-align:left;font-family:'JetBrains Mono',monospace;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--smut);padding:10px 12px;border-bottom:1px solid var(--hair)}
+  td{padding:12px;border-bottom:1px solid #f0f0f0;font-size:14px;vertical-align:top}
+  td code{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--green);font-weight:500}
+  tr:hover{background:#fafafa}
+</style></head>
+<body><div class="wrap">
+  <div class="eyebrow">SkillPointe Match · Architecture</div>
+  <h1>Data Model</h1>
+  <p class="lead">Key tables behind the UI. Scores live in <code>matches</code>; per-dimension detail in <code>match_dimension_scores</code>; activity in <code>engagement_events</code>. Postgres via Supabase.</p>
+  <table>
+    <thead><tr><th>Table</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td><code>user_profiles</code></td><td>Auth bridge — links auth.users → app role (admin / applicant / employer)</td></tr>
+      <tr><td><code>applicants</code></td><td>Applicant profiles (program, location, credentials, availability, preferences)</td></tr>
+      <tr><td><code>employers</code> / <code>employer_contacts</code></td><td>Company profiles + contacts</td></tr>
+      <tr><td><code>jobs</code></td><td>Job postings (scraped + imported + manually created); city/state, family, pay, requirements</td></tr>
+      <tr><td><code>matches</code></td><td>base_fit_score, policy_adjusted_score, eligibility_status, match_label, top_strengths, top_gaps, required_missing_items, recommended_next_step, confidence_level</td></tr>
+      <tr><td><code>match_dimension_scores</code></td><td>Per-dimension breakdown (9 dimensions)</td></tr>
+      <tr><td><code>saved_jobs</code></td><td>Applicant interest per job: interested / applied / not_interested</td></tr>
+      <tr><td><code>engagement_events</code></td><td>Activity log: interest_set, apply_click, dm_sent, outreach_sent, hire_reported …</td></tr>
+      <tr><td><code>conversations</code> / <code>direct_messages</code></td><td>Applicant ↔ employer DMs; unread counts; polled every 5s</td></tr>
+      <tr><td><code>employer_outreach</code> / <code>hire_outcomes</code></td><td>Outreach intent/sent + reported hires (employer analytics funnel)</td></tr>
+      <tr><td><code>extracted_applicant_signals</code> / <code>extracted_job_signals</code></td><td>LLM extraction results</td></tr>
+      <tr><td><code>chat_sessions</code> / <code>chat_messages</code></td><td>Applicant AI planning chat (job-focused sessions)</td></tr>
+      <tr><td><code>policy_configs</code> / <code>review_queue_items</code> / <code>audit_logs</code></td><td>Scoring config, admin review queue, auditable admin actions</td></tr>
+    </tbody>
+  </table>
+</div></body></html>

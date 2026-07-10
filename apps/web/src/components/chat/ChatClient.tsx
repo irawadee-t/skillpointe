@@ -5,7 +5,9 @@
  * Renders message history and handles sending new messages to the API.
  */
 import { useState, useRef, useEffect } from "react";
-import { Send, Loader2, Bot, User } from "lucide-react";
+import { Send, Loader2 } from "lucide-react";
+import { Markdown } from "@/components/ui/Markdown";
+import { OrbMark, ThinkingOrb } from "@/components/ui/Orb";
 
 interface Message {
   message_id: string;
@@ -93,14 +95,16 @@ export function ChatClient({
   }
 
   return (
-    <div className="flex flex-col bg-white border border-zinc-200 rounded-lg overflow-hidden" style={{ minHeight: "500px" }}>
-      {/* Messages area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ maxHeight: "60vh" }}>
+    <div className="flex min-h-0 flex-1 flex-col">
+      {/* Messages — the conversation fills the room; a reading-width column. */}
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-[46rem] space-y-5 px-5 py-6">
         {messages.length === 0 && (
-          <div className="text-center py-8">
-            <Bot className="w-8 h-8 text-zinc-400 mx-auto mb-2" />
-            <p className="text-sm text-zinc-400">
-              Ask me anything about your matches, gaps, or next steps!
+          <div className="text-center py-10">
+            <OrbMark size={44} className="mx-auto mb-3" label="SKILLED assistant" />
+            <p className="text-body text-ink">Plan your next move.</p>
+            <p className="mt-1 text-caption text-slate-muted">
+              Ask about your matches, what&rsquo;s holding one back, or the fastest credential to close a gap.
             </p>
           </div>
         )}
@@ -110,23 +114,24 @@ export function ChatClient({
         ))}
 
         {sending && (
-          <div className="flex items-center gap-2 text-sm text-zinc-400">
-            <Bot className="w-4 h-4 text-spf-navy" />
-            <Loader2 className="w-3.5 h-3.5 animate-spin text-spf-navy" />
+          <div className="flex items-center gap-2.5 text-caption text-slate-muted" role="status">
+            <ThinkingOrb size={26} />
             <span>Thinking…</span>
           </div>
         )}
 
-        <div ref={bottomRef} />
+          <div ref={bottomRef} />
+        </div>
       </div>
 
-      {/* Input area */}
-      <div className="border-t border-zinc-200 p-3">
+      {/* Composer — pinned to the bottom of the room, not of a widget. */}
+      <div className="border-t border-hairline bg-canvas">
+        <div className="mx-auto w-full max-w-[46rem] px-5 py-3">
         {error && (
-          <p className="text-xs text-rose-600 mb-2">{error}</p>
+          <p className="text-micro text-error-red mb-2">{error}</p>
         )}
         {!isActive && (
-          <p className="text-xs text-zinc-400 mb-2">This session is closed.</p>
+          <p className="text-micro text-slate-muted mb-2">This session is closed.</p>
         )}
         <div className="flex gap-2 items-end">
           <textarea
@@ -135,13 +140,13 @@ export function ChatClient({
             onKeyDown={handleKeyDown}
             disabled={!isActive || sending}
             rows={2}
-            placeholder="Ask about your matches, gaps, certifications… (Enter to send)"
-            className="flex-1 border border-zinc-200 rounded-lg px-3 py-2 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 resize-none focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy disabled:opacity-50"
+            placeholder="Ask about your matches, gaps, certifications…"
+            className="input-cohere flex-1 resize-none disabled:opacity-50"
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || sending || !isActive}
-            className="shrink-0 p-2 bg-zinc-900 text-white rounded-lg hover:bg-zinc-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="shrink-0 p-2.5 bg-studio-dark-cork text-white rounded-sm hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
           >
             {sending ? (
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -149,6 +154,7 @@ export function ChatClient({
               <Send className="w-4 h-4" />
             )}
           </button>
+          </div>
         </div>
       </div>
     </div>
@@ -159,26 +165,20 @@ function MessageBubble({ message }: { message: Message }) {
   const isUser = message.role === "user";
 
   return (
-    <div className={`flex items-start gap-2 ${isUser ? "flex-row-reverse" : ""}`}>
+    <div className={`flex items-start gap-2.5 ${isUser ? "justify-end" : ""}`}>
+      {!isUser && <OrbMark size={28} className="mt-0.5" />}
       <div
-        className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${
-          isUser ? "bg-zinc-900" : "bg-zinc-100"
+        className={`max-w-[85%] rounded-lg px-4 py-3 text-body ${
+          isUser
+            ? "rounded-br-sm bg-parchment border border-hairline text-ink"
+            : "bg-white border border-hairline text-ink shadow-subtle"
         }`}
       >
         {isUser ? (
-          <User className="w-3.5 h-3.5 text-white" />
+          <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
         ) : (
-          <Bot className="w-3.5 h-3.5 text-spf-navy" />
+          <Markdown content={message.content} />
         )}
-      </div>
-      <div
-        className={`max-w-[80%] rounded-xl px-3.5 py-2.5 text-sm ${
-          isUser
-            ? "bg-spf-navy/10 border border-spf-navy/20 text-zinc-900"
-            : "bg-zinc-100 border border-zinc-200 text-zinc-700"
-        }`}
-      >
-        <p className="whitespace-pre-wrap leading-relaxed">{message.content}</p>
       </div>
     </div>
   );

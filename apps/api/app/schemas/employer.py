@@ -89,6 +89,23 @@ class JobCreateResponse(BaseModel):
     created_at: str
 
 
+class JobDetail(BaseModel):
+    """Full job detail — used to pre-fill the edit form."""
+    job_id: str
+    title_raw: str
+    city: str | None = None
+    state: str | None = None
+    work_setting: str | None = None
+    travel_requirement: str | None = None
+    pay_min: float | None = None
+    pay_max: float | None = None
+    pay_type: str | None = None
+    description_raw: str | None = None
+    requirements_raw: str | None = None
+    experience_level: str | None = None
+    is_active: bool
+
+
 # ---------------------------------------------------------------------------
 # Applicant match summary (employer view)
 # Safe fields only — no user_id, no email, no admin-only fields.

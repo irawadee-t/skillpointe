@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
+import { MonoLabel, Field } from "@/components/ui";
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
@@ -13,8 +14,22 @@ export default function SignupPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
+  const [resendState, setResendState] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
   const router = useRouter();
+
+  async function handleResend() {
+    if (!email || resendState === "sending") return;
+    setResendState("sending");
+    const supabase = createClient();
+    const { error: resendErr } = await supabase.auth.resend({
+      type: "signup",
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+    });
+    if (resendErr) setResendState("error");
+    else setResendState("sent");
+  }
 
   async function handleSignup(e: React.FormEvent) {
     e.preventDefault();
@@ -76,15 +91,39 @@ export default function SignupPage() {
 
   if (done) {
     return (
-      <div className="flex items-center justify-center px-4 py-12">
-        <div className="w-full max-w-sm bg-white border border-zinc-200 rounded-2xl p-8 shadow-sm text-center">
-          <h2 className="text-xl font-semibold mb-3 text-zinc-900">Check your email</h2>
-          <p className="text-zinc-500 text-sm">
-            We sent a confirmation link to <strong className="text-zinc-900">{email}</strong>. Click the
-            link to finish creating your account.
-          </p>
-          <Link href="/login" className="mt-6 inline-block text-spf-navy hover:text-spf-navy-light underline text-sm">
-            Back to sign in
+      <div className="text-center">
+        <MonoLabel className="mb-4 block">Almost there</MonoLabel>
+        <h2 className="font-display text-card text-cohere-ink">Check your email</h2>
+        <p className="mt-3 text-body text-slate">
+          We sent a confirmation link to{" "}
+          <strong className="text-ink">{email}</strong>. Click it to finish creating
+          your account. The link expires in 24 hours.
+        </p>
+        <p className="mt-3 text-caption text-slate">
+          Don&apos;t see it? Check your spam folder, or resend below.
+        </p>
+
+        <div className="mt-6 flex flex-col items-center gap-3">
+          <button
+            type="button"
+            onClick={handleResend}
+            disabled={resendState === "sending" || resendState === "sent"}
+            className="btn-secondary inline-flex disabled:opacity-60"
+          >
+            {resendState === "sending"
+              ? "Sending…"
+              : resendState === "sent"
+                ? "Resent — check your inbox"
+                : "Resend confirmation email"}
+          </button>
+          {resendState === "error" && (
+            <p className="text-caption text-error-red">Couldn&apos;t resend right now. Try again in a moment.</p>
+          )}
+          <Link
+            href="/login"
+            className="text-caption text-cohere-blue underline underline-offset-4 hover:text-cohere-ink"
+          >
+            Already verified? Sign in
           </Link>
         </div>
       </div>
@@ -92,78 +131,65 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-sm bg-white border border-zinc-200 rounded-2xl p-8 shadow-sm">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 mb-1">Create account</h1>
-        <p className="text-sm text-zinc-500 mb-6">
-          Applicants only — employers are added by invitation.
-        </p>
+    <div>
+      <MonoLabel className="mb-4 block">Get started</MonoLabel>
+      <h1 className="font-display text-card text-cohere-ink">Create account</h1>
+      <p className="mt-2 text-body text-slate">
+        Applicants only — employers are added by invitation.
+      </p>
 
-        <form onSubmit={handleSignup} className="space-y-4">
-          <div>
-            <label className="block text-xs font-medium uppercase tracking-wide text-zinc-400 mb-1">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              autoComplete="email"
-              className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
-            />
-          </div>
+      <form onSubmit={handleSignup} className="mt-8 space-y-5">
+        <Field label="Email">
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            autoComplete="email"
+            className="input-cohere"
+          />
+        </Field>
 
-          <div>
-            <label className="block text-xs font-medium uppercase tracking-wide text-zinc-400 mb-1">
-              Password
-            </label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
-              autoComplete="new-password"
-              className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
-            />
-            <p className="text-xs text-zinc-400 mt-1">Minimum 8 characters.</p>
-          </div>
+        <Field label="Password" hint="Minimum 8 characters.">
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={8}
+            autoComplete="new-password"
+            className="input-cohere"
+          />
+        </Field>
 
-          <div>
-            <label className="block text-xs font-medium uppercase tracking-wide text-zinc-400 mb-1">
-              Confirm password
-            </label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              autoComplete="new-password"
-              className="w-full border border-zinc-200 rounded-lg px-3 py-2.5 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
-            />
-          </div>
+        <Field label="Confirm password">
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+            autoComplete="new-password"
+            className="input-cohere"
+          />
+        </Field>
 
-          {error && (
-            <p className="text-sm text-rose-600 bg-rose-50 border border-rose-200 rounded p-3">{error}</p>
-          )}
+        {error && (
+          <p className="rounded-sm border border-error-red/20 bg-error-red/5 p-3 text-caption text-error-red">
+            {error}
+          </p>
+        )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-zinc-900 text-white py-2.5 rounded-full text-sm font-medium hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-          >
-            {loading ? "Creating account…" : "Create account"}
-          </button>
-        </form>
+        <button type="submit" disabled={loading} className="btn-primary w-full">
+          {loading ? "Creating account…" : "Create account"}
+        </button>
+      </form>
 
-        <p className="mt-6 text-sm text-zinc-500">
-          Already have an account?{" "}
-          <Link href="/login" className="text-spf-navy hover:text-spf-navy-light underline font-medium">
-            Sign in
-          </Link>
-        </p>
-      </div>
+      <p className="mt-8 text-caption text-slate">
+        Already have an account?{" "}
+        <Link href="/login" className="font-medium text-cohere-blue underline underline-offset-4">
+          Sign in
+        </Link>
+      </p>
     </div>
   );
 }

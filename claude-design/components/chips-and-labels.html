@@ -1,0 +1,57 @@
+<!-- @dsCard group="Components" -->
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chips, Labels &amp; Score Badges</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{--ink:#17171c;--body:#212121;--slate:#52525b;--hair:#d9d9dd;--green:#003c33;--stone:#eeece7;--coral:#ff7759;--coralsoft:#ffad9b;--blue:#1863dc;--wgreen:#edfce9;--wblue:#f1f5ff}
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:var(--body);font-family:Inter,system-ui,sans-serif}
+  .wrap{max-width:1000px;margin:0 auto;padding:36px}
+  .eyebrow{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;letter-spacing:.04em;text-transform:uppercase;color:var(--slate)}
+  h1{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:34px;letter-spacing:-.02em;color:var(--ink);margin:.3em 0 .2em}
+  p.lead{color:var(--slate);font-size:17px;max-width:700px;margin:0 0 26px}
+  h2{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:18px;color:var(--ink);margin:28px 0 12px}
+  .row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+  .chip{display:inline-flex;align-items:center;gap:6px;border-radius:8px;border:1px solid;padding:6px 12px;font-size:14px;font-weight:500}
+  .c-green{background:var(--wgreen);color:var(--green);border-color:rgba(0,60,51,.2)}
+  .c-coral{background:rgba(255,119,89,.1);color:var(--coral);border-color:var(--coralsoft)}
+  .c-coral-fill{background:var(--coral);color:var(--ink);border-color:var(--coral)}
+  .c-blue{background:var(--wblue);color:var(--blue);border-color:rgba(24,99,220,.2)}
+  .c-neutral{background:none;color:var(--body);border-color:var(--hair)}
+  .mono{font-family:'JetBrains Mono',monospace;font-size:13px;font-weight:500;text-transform:uppercase;letter-spacing:.04em;color:var(--slate)}
+  .badge{width:48px;height:48px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-size:22px}
+  .b-green{background:var(--green);color:#fff}
+  .b-coral{background:rgba(255,119,89,.15);color:var(--coral)}
+</style></head>
+<body><div class="wrap">
+  <div class="eyebrow">SkillPointe Match · Components</div>
+  <h1>Chips, Labels &amp; Score Badges</h1>
+  <p class="lead">Coral is the editorial taxonomy accent; green = eligible / strength; blue = links / info. Mono labels mark sections. Score badges are the match signal — deep green for eligible, soft coral for near-fit.</p>
+
+  <h2>Taxonomy / status chips</h2>
+  <div class="row">
+    <span class="chip c-green">✓ Your trade matches this role</span>
+    <span class="chip c-green">✓ Location works for you</span>
+    <span class="chip c-coral">△ Credential gap</span>
+    <span class="chip c-coral-fill">Welding</span>
+    <span class="chip c-blue">Interested</span>
+    <span class="chip c-neutral">Electrical</span>
+  </div>
+
+  <h2>Mono labels (eyebrows / column headers)</h2>
+  <div class="row">
+    <span class="mono">Ready to apply</span><span class="mono">·</span>
+    <span class="mono">Engagement analytics</span><span class="mono">·</span>
+    <span class="mono">Eligible</span><span class="mono">·</span>
+    <span class="mono">Near fit</span>
+  </div>
+
+  <h2>Score badges</h2>
+  <div class="row">
+    <span class="badge b-green">96</span>
+    <span class="badge b-green">88</span>
+    <span class="badge b-coral">71</span>
+    <span class="mono" style="margin-left:8px">green = eligible · coral = near-fit</span>
+  </div>
+</div></body></html>

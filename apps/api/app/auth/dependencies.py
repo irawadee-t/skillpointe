@@ -191,5 +191,17 @@ def _require_roles(*roles: str):
 require_admin = _require_roles("admin")
 require_applicant = _require_roles("applicant")
 require_employer = _require_roles("employer")
+# Alias of require_employer with an explicit name at call sites for endpoints
+# that MUST NOT be reachable by admins (mutations that would create/modify data
+# on behalf of an employer). Use this whenever an endpoint's business logic
+# assumes `user.user_id` maps to a real employer_contacts row.
+require_employer_only = _require_roles("employer")
+
+# WARNING — Any endpoint using require_employer_or_admin must explicitly branch
+# on `user.role == "admin"` (or `user.is_admin`) to keep admins in a read-only
+# posture. Mutations, outreach sends, hires, and account onboarding on behalf of
+# a specific employer must instead use `require_employer_only`.
 require_employer_or_admin = _require_roles("employer", "admin")
+require_institution = _require_roles("institution")
+require_institution_or_admin = _require_roles("institution", "admin")
 require_authenticated = get_current_user   # any valid role

@@ -10,6 +10,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { Loader2, SendHorizonal } from "lucide-react";
+import { useRealtimeChannel } from "@/hooks/useRealtimeChannel";
 
 interface Message {
   message_id: string;
@@ -76,17 +77,54 @@ export function MessageThread({
     fetchMessages();
     markRead();
 
-    // Poll every 5s
-    pollRef.current = setInterval(() => fetchMessages(true), 5000);
+    // Poll as fallback — Realtime handles the live case, so 15s is plenty.
+    pollRef.current = setInterval(() => fetchMessages(true), 15_000);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
   }, [fetchMessages, markRead]);
 
+  // Realtime: any new direct_message in this conversation triggers an
+  // immediate refetch so the other side's reply appears without waiting
+  // on the polling tick. Also mark read so the badge clears.
+  useRealtimeChannel(
+    `thread:${conversationId}`,
+    "INSERT",
+    () => {
+      fetchMessages(true);
+      markRead();
+      if (typeof window !== "undefined") {
+        try { window.dispatchEvent(new CustomEvent("sn:messages-arrived")); } catch { /* silent */ }
+      }
+    },
+    { table: "direct_messages", filter: `conversation_id=eq.${conversationId}` },
+  );
+
   // Scroll to bottom when messages change
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // iOS Safari: when the on-screen keyboard opens, visualViewport shrinks —
+  // apply the delta as bottom padding so the input isn't hidden behind the
+  // keyboard and the last message stays in view.
+  const [kbInset, setKbInset] = useState(0);
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.visualViewport) return;
+    const vv = window.visualViewport;
+    function onResize() {
+      const delta = Math.max(0, window.innerHeight - (vv?.height ?? window.innerHeight));
+      setKbInset(delta);
+      // Nudge the latest message back into view once the keyboard settles.
+      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+    vv.addEventListener("resize", onResize);
+    vv.addEventListener("scroll", onResize);
+    return () => {
+      vv.removeEventListener("resize", onResize);
+      vv.removeEventListener("scroll", onResize);
+    };
+  }, []);
 
   async function sendMessage() {
     const text = input.trim();
@@ -138,27 +176,37 @@ export function MessageThread({
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-16">
-        <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />
+      <div className="flex justify-center items-center py-16" role="status" aria-label="Loading conversation">
+        <Loader2 className="w-5 h-5 animate-spin text-slate-muted" />
       </div>
     );
   }
 
+  const initial = (otherPartyName || "?").trim().charAt(0).toUpperCase();
+
   return (
     <div className="flex flex-col h-full">
       {/* Thread header */}
-      <div className="border-b border-zinc-200 pb-3 mb-4">
-        <p className="font-semibold text-zinc-900">{otherPartyName}</p>
-        {jobTitle && (
-          <p className="text-xs text-zinc-400 mt-0.5">Re: {jobTitle}</p>
-        )}
+      <div className="flex items-center gap-3 border-b border-border-light pb-3 mb-4">
+        <span
+          aria-hidden
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-studio-dark-cork text-[14px] font-semibold text-studio-cream"
+        >
+          {initial}
+        </span>
+        <div className="min-w-0">
+          <p className="font-display text-feature text-cohere-ink truncate">{otherPartyName}</p>
+          {jobTitle && (
+            <p className="text-caption text-slate-muted mt-0.5 truncate">About: {jobTitle}</p>
+          )}
+        </div>
       </div>
 
       {/* Message list */}
       <div className="flex-1 overflow-y-auto space-y-3 pb-2">
         {messages.length === 0 && (
-          <p className="text-sm text-zinc-400 text-center py-8">
-            No messages yet. Say hello!
+          <p className="text-caption text-slate-muted text-center py-8">
+            No messages yet — introduce yourself.
           </p>
         )}
         {messages.map((m) => (
@@ -167,16 +215,16 @@ export function MessageThread({
             className={`flex ${m.is_mine ? "justify-end" : "justify-start"}`}
           >
             <div
-              className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+              className={`max-w-[75%] rounded-md px-4 py-2.5 text-body leading-relaxed ${
                 m.is_mine
-                  ? "bg-spf-navy/10 border border-spf-navy/20 text-zinc-900 rounded-br-sm"
-                  : "bg-zinc-100 border border-zinc-200 text-zinc-700 rounded-bl-sm"
+                  ? "bg-parchment border border-hairline text-ink rounded-br-sm"
+                  : "bg-white border border-hairline text-ink shadow-subtle rounded-bl-sm"
               }`}
             >
               <p className="whitespace-pre-wrap">{m.content}</p>
               <p
-                className={`text-[10px] mt-1 ${
-                  m.is_mine ? "text-zinc-900/50 text-right" : "text-zinc-400"
+                className={`text-micro mt-1 ${
+                  m.is_mine ? "text-slate-muted text-right" : "text-slate-muted"
                 }`}
               >
                 {new Date(m.created_at).toLocaleTimeString([], {
@@ -190,21 +238,27 @@ export function MessageThread({
         <div ref={bottomRef} />
       </div>
 
-      {/* Input */}
-      {error && <p className="text-xs text-rose-600 mb-1">{error}</p>}
-      <div className="flex items-end gap-2 border-t border-zinc-200 pt-3 mt-2">
+      {/* Input — sticky at bottom so it survives iOS keyboard opening. */}
+      {error && <p className="text-micro text-error-red mb-1">{error}</p>}
+      <div
+        className="sticky bottom-0 flex items-end gap-2 border-t border-border-light bg-canvas pt-3 mt-2"
+        style={{
+          paddingBottom: `calc(env(safe-area-inset-bottom) + ${kbInset}px)`,
+        }}
+      >
         <textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           rows={2}
           placeholder="Write a message… (Enter to send)"
-          className="flex-1 resize-none border border-zinc-200 rounded-xl px-3 py-2 text-sm bg-white text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-1 focus:ring-spf-navy/20 focus:border-spf-navy"
+          className="input-cohere flex-1 resize-none"
         />
         <button
           onClick={sendMessage}
           disabled={!input.trim() || sending}
-          className="shrink-0 p-2.5 bg-zinc-900 text-white rounded-xl hover:bg-zinc-700 disabled:opacity-40 transition-colors"
+          aria-label="Send message"
+          className="shrink-0 inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2.5 bg-studio-dark-cork text-white rounded-sm hover:opacity-90 disabled:opacity-40 transition-opacity"
         >
           {sending ? (
             <Loader2 className="w-4 h-4 animate-spin" />

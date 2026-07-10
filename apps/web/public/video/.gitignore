@@ -1,0 +1,4 @@
+# Never commit large source files — only the compressed hero.mp4
+source.*
+*.mov
+*.MOV

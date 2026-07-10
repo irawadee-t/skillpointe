@@ -30,6 +30,7 @@ import {
 } from "@/lib/api/employer";
 import { EligibilityBadge, MatchLabel } from "@/components/matches/MatchLabel";
 import { CandidateActions } from "./CandidateActions";
+import { Tooltip } from "./Tooltip";
 
 interface ApplicantMatchCardProps {
   match: ApplicantMatchSummary;
@@ -71,26 +72,35 @@ export function ApplicantMatchCard({ match, jobId, jobTitle, token, isAdmin = fa
     : (program_name_raw ?? null);
 
   return (
-    <div className="bg-white border border-zinc-200 rounded-lg p-5 hover:border-zinc-200 transition-colors">
+    <div className="bg-white border border-border-light rounded-md p-6 transition-colors">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h3 className="font-semibold text-zinc-900 text-base leading-snug truncate">
+          <h3 className="font-display text-feature text-cohere-ink leading-tight truncate">
             {name}
           </h3>
           {programDisplay && (
-            <p className="text-sm text-zinc-500 mt-0.5 truncate">{programDisplay}</p>
+            <p className="text-body text-slate mt-1 truncate">{programDisplay}</p>
           )}
         </div>
 
         {/* Score */}
         {policy_adjusted_score !== null && (
-          <div className="shrink-0 text-right">
-            <div className="text-2xl font-bold text-spf-navy leading-none">
-              {Math.round(policy_adjusted_score)}
+          <Tooltip
+            label="Weighted fit across trade, credentials, location, availability, pay. 80+ = strong fit."
+            className="shrink-0"
+          >
+            <div
+              className="shrink-0 card-green rounded-md px-4 py-3 text-center cursor-help"
+              tabIndex={0}
+              aria-label={`Fit score ${Math.round(policy_adjusted_score)} out of 100`}
+            >
+              <div className="font-display text-card text-white leading-none tabular-nums">
+                {Math.round(policy_adjusted_score)}
+              </div>
+              <div className="text-micro text-white/70 mt-1">/ 100</div>
             </div>
-            <div className="text-xs text-zinc-400 mt-0.5">/ 100</div>
-          </div>
+          </Tooltip>
         )}
       </div>
 
@@ -102,34 +112,34 @@ export function ApplicantMatchCard({ match, jobId, jobTitle, token, isAdmin = fa
       </div>
 
       {/* Location + availability */}
-      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-sm text-zinc-500">
+      <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-body text-slate">
         {locationStr && (
           <span className="flex items-center gap-1">
-            <MapPin className="w-3.5 h-3.5 text-zinc-400" /> {locationStr}
+            <MapPin className="w-3.5 h-3.5 text-slate-muted" /> {locationStr}
           </span>
         )}
         {availability !== "Not set" && (
           <span className="flex items-center gap-1">
-            <Calendar className="w-3.5 h-3.5 text-zinc-400" /> Available {availability}
+            <Calendar className="w-3.5 h-3.5 text-slate-muted" /> Available {availability}
           </span>
         )}
       </div>
 
       {/* Geography note */}
       {geography_note && (
-        <p className="mt-1 text-xs text-zinc-400">{geography_note}</p>
+        <p className="mt-1 text-body text-slate">{geography_note}</p>
       )}
 
       {/* Mobility indicators */}
       {(willing_to_relocate || willing_to_travel) && (
         <div className="flex gap-2 mt-2">
           {willing_to_relocate && (
-            <span className="text-xs bg-zinc-100 text-zinc-500 border border-zinc-200 rounded-full px-2 py-0.5">
+            <span className="text-micro bg-stone text-slate border border-hairline rounded-sm px-2 py-0.5">
               Open to relocate
             </span>
           )}
           {willing_to_travel && (
-            <span className="text-xs bg-zinc-100 text-zinc-500 border border-zinc-200 rounded-full px-2 py-0.5">
+            <span className="text-micro bg-stone text-slate border border-hairline rounded-sm px-2 py-0.5">
               Open to travel
             </span>
           )}
@@ -138,11 +148,11 @@ export function ApplicantMatchCard({ match, jobId, jobTitle, token, isAdmin = fa
 
       {/* Strengths */}
       {top_strengths.length > 0 && (
-        <div className="mt-3 flex flex-wrap gap-1.5">
+        <div className="mt-4 flex flex-wrap gap-1.5">
           {top_strengths.slice(0, 2).map((s, i) => (
             <span
               key={i}
-              className="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-md px-2 py-0.5"
+              className="inline-flex items-center gap-1 text-micro bg-wash-green text-cohere-green border border-cohere-green/20 rounded-sm px-2 py-0.5"
             >
               <CheckCircle2 className="w-3 h-3" /> {_short(s)}
             </span>
@@ -156,7 +166,7 @@ export function ApplicantMatchCard({ match, jobId, jobTitle, token, isAdmin = fa
           {top_gaps.slice(0, 2).map((g, i) => (
             <span
               key={i}
-              className="inline-flex items-center gap-1 text-xs bg-rose-50 text-rose-600 border border-rose-200 rounded-md px-2 py-0.5"
+              className="inline-flex items-center gap-1 text-micro bg-studio-maroon/10 text-studio-maroon border border-studio-maroon-soft rounded-sm px-2 py-0.5"
             >
               <AlertTriangle className="w-3 h-3" /> {_short(g)}
             </span>
@@ -166,21 +176,21 @@ export function ApplicantMatchCard({ match, jobId, jobTitle, token, isAdmin = fa
 
       {/* Recommended next step */}
       {recommended_next_step && (
-        <p className="mt-3 text-sm text-zinc-600 leading-snug">
-          <span className="font-medium text-zinc-700">Suggested:</span> {recommended_next_step}
+        <p className="mt-4 text-body text-slate leading-snug">
+          <span className="font-medium text-ink">Suggested:</span> {recommended_next_step}
         </p>
       )}
 
       {/* Flags */}
       {(confidence_level === "low" || requires_review) && (
-        <div className="mt-3 flex gap-3 text-xs text-zinc-400">
+        <div className="mt-4 flex gap-3 text-micro text-slate-muted">
           {confidence_level === "low" && (
-            <span className="flex items-center gap-1 text-amber-600">
+            <span className="flex items-center gap-1 text-studio-maroon">
               <AlertTriangle className="w-3 h-3" /> Low confidence
             </span>
           )}
           {requires_review && (
-            <span className="flex items-center gap-1 text-zinc-500">
+            <span className="flex items-center gap-1 text-slate">
               <Info className="w-3 h-3" /> Pending review
             </span>
           )}
@@ -205,21 +215,21 @@ export function ApplicantMatchCard({ match, jobId, jobTitle, token, isAdmin = fa
 function ApplicantInterestBadge({ level }: { level: string }) {
   if (level === "applied") {
     return (
-      <span className="inline-flex items-center gap-1 text-xs bg-emerald-50 text-emerald-600 border border-emerald-200 rounded-full px-2 py-0.5">
+      <span className="inline-flex items-center gap-1 text-micro bg-wash-green text-cohere-green border border-cohere-green/20 rounded-sm px-2 py-0.5">
         <ClipboardCheck className="w-3 h-3" /> Candidate applied
       </span>
     );
   }
   if (level === "interested") {
     return (
-      <span className="inline-flex items-center gap-1 text-xs bg-spf-navy/10 text-spf-navy border border-spf-navy/20 rounded-full px-2 py-0.5">
+      <span className="inline-flex items-center gap-1 text-micro bg-wash-blue text-cohere-blue border border-cohere-blue/20 rounded-sm px-2 py-0.5">
         <ThumbsUp className="w-3 h-3" /> Candidate interested
       </span>
     );
   }
   if (level === "not_interested") {
     return (
-      <span className="inline-flex items-center gap-1 text-xs bg-zinc-100 text-zinc-400 border border-zinc-200 rounded-full px-2 py-0.5">
+      <span className="inline-flex items-center gap-1 text-micro bg-stone text-slate-muted border border-hairline rounded-sm px-2 py-0.5">
         <ThumbsDown className="w-3 h-3" /> Not interested
       </span>
     );
