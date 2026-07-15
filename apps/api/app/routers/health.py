@@ -31,7 +31,14 @@ async def health_check() -> HealthResponse:
         import httpx
 
         async with httpx.AsyncClient(timeout=3.0) as client:
-            resp = await client.get(f"{settings.supabase_url}/rest/v1/")
+            # Send the anon key — a keyless request to /rest/v1/ returns 401 on
+            # Supabase Cloud, which would otherwise show a false "degraded".
+            headers = (
+                {"apikey": settings.supabase_anon_key}
+                if settings.supabase_anon_key
+                else {}
+            )
+            resp = await client.get(f"{settings.supabase_url}/rest/v1/", headers=headers)
             if resp.status_code in (200, 404):
                 dependencies["supabase"] = DependencyStatus(status="ok")
             else:
