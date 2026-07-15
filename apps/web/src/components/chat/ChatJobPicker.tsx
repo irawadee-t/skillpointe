@@ -14,6 +14,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "motion/react";
 import {
@@ -57,6 +58,7 @@ export function ChatJobPicker({ token }: Props) {
   const router = useRouter();
 
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const [startingJobId, setStartingJobId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"matches" | "browse">("matches");
@@ -71,6 +73,29 @@ export function ChatJobPicker({ token }: Props) {
   const [browseResults, setBrowseResults] = useState<BrowseItem[]>([]);
   const [browseLoading, setBrowseLoading] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Portal target is only available on the client
+  useEffect(() => setMounted(true), []);
+
+  // Lock body scroll while the modal is open
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [open]);
+
+  // Close on Escape
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open]);
 
   // Load matches when modal opens
   useEffect(() => {
@@ -184,7 +209,9 @@ export function ChatJobPicker({ token }: Props) {
         New chat
       </button>
 
-      <AnimatePresence>
+      {mounted &&
+        createPortal(
+          <AnimatePresence>
       {open && (
         <motion.div
           className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-studio-dark-cork/30"
@@ -351,7 +378,9 @@ export function ChatJobPicker({ token }: Props) {
           </motion.div>
         </motion.div>
       )}
-      </AnimatePresence>
+          </AnimatePresence>,
+          document.body
+        )}
     </>
   );
 }

@@ -96,9 +96,10 @@ export function ChatClient({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      {/* Messages — the conversation fills the room; a reading-width column. */}
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-[46rem] space-y-5 px-5 py-6">
+      {/* Messages — the conversation fills the room; a reading-width column.
+          Content hugs the bottom when short, scrolls normally when it overflows. */}
+      <div className="min-h-0 flex-1 overflow-y-auto flex flex-col">
+        <div className="mx-auto mt-auto w-full max-w-[46rem] space-y-5 px-5 py-6">
         {messages.length === 0 && (
           <div className="text-center py-10">
             <OrbMark size={44} className="mx-auto mb-3" label="SKILLED assistant" />
@@ -133,7 +134,7 @@ export function ChatClient({
         {!isActive && (
           <p className="text-micro text-slate-muted mb-2">This session is closed.</p>
         )}
-        <div className="flex gap-2 items-end">
+        <div className="flex gap-2 items-stretch">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -146,7 +147,8 @@ export function ChatClient({
           <button
             onClick={handleSend}
             disabled={!input.trim() || sending || !isActive}
-            className="shrink-0 p-2.5 bg-studio-dark-cork text-white rounded-sm hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
+            aria-label="Send message"
+            className="shrink-0 inline-flex w-11 items-center justify-center rounded-[3px] bg-studio-dark-cork text-white hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-opacity"
           >
             {sending ? (
               <Loader2 className="w-4 h-4 animate-spin" />

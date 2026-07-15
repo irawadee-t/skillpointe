@@ -202,8 +202,10 @@ export function MessageThread({
         </div>
       </div>
 
-      {/* Message list */}
-      <div className="flex-1 overflow-y-auto space-y-3 pb-2">
+      {/* Message list — content hugs the bottom (above the composer) when
+          short, and scrolls normally once it overflows. */}
+      <div className="flex-1 overflow-y-auto flex flex-col">
+        <div className="mt-auto space-y-3 pb-2">
         {messages.length === 0 && (
           <p className="text-caption text-slate-muted text-center py-8">
             No messages yet — introduce yourself.
@@ -236,12 +238,13 @@ export function MessageThread({
           </div>
         ))}
         <div ref={bottomRef} />
+        </div>
       </div>
 
       {/* Input — sticky at bottom so it survives iOS keyboard opening. */}
       {error && <p className="text-micro text-error-red mb-1">{error}</p>}
       <div
-        className="sticky bottom-0 flex items-end gap-2 border-t border-border-light bg-canvas pt-3 mt-2"
+        className="sticky bottom-0 flex items-stretch gap-2 border-t border-border-light bg-white pt-3 mt-2"
         style={{
           paddingBottom: `calc(env(safe-area-inset-bottom) + ${kbInset}px)`,
         }}
@@ -258,7 +261,7 @@ export function MessageThread({
           onClick={sendMessage}
           disabled={!input.trim() || sending}
           aria-label="Send message"
-          className="shrink-0 inline-flex items-center justify-center min-h-[44px] min-w-[44px] p-2.5 bg-studio-dark-cork text-white rounded-sm hover:opacity-90 disabled:opacity-40 transition-opacity"
+          className="shrink-0 inline-flex w-11 items-center justify-center rounded-[3px] bg-studio-dark-cork text-white hover:opacity-90 disabled:opacity-40 transition-opacity"
         >
           {sending ? (
             <Loader2 className="w-4 h-4 animate-spin" />
