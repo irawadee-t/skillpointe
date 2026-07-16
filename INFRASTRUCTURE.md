@@ -136,14 +136,20 @@ git push origin main
 - Watch: Vercel → Deployments (Ready), Railway → Deployments (green/Active).
 - Verify backend: open https://web-production-6f34.up.railway.app/health → `status: ok`.
 
-> ⚠️ **Known Railway quirk:** Railway sometimes skips a deploy with *"No changes to watched
-> files"* and keeps running old code. It only watches changes under `/apps/api` (its Root
-> Directory), so a **frontend-only** change won't trigger a backend rebuild (that's fine).
-> If a backend change doesn't deploy, either (a) Railway → Deployments → find your commit →
-> **⋮ → Redeploy**, or (b) permanent fix below.
+> ✅ **Railway auto-deploy is working** (verified). Pushes to `main` trigger a backend
+> rebuild automatically — no manual step needed.
 >
-> **Permanent fix for the skip glitch:** Railway → service → **Settings → Source** →
-> **Disconnect** the branch, then reconnect `main`. A fresh connection always deploys HEAD.
+> **Do NOT delete `apps/api/railway.json`.** Railway's monorepo change-detection was buggy —
+> it kept skipping real backend commits as *"No changes to watched files"* and running old
+> code. The file `apps/api/railway.json` with `"watchPatterns": ["**"]` overrides that broken
+> detection so every push deploys. Removing it reintroduces the skipping bug.
+> - Reconnecting the repo / reinstalling the GitHub App does **not** fix this (the webhook was
+>   never broken — commits showed up as *skipped*). Only the `watchPatterns` override worked.
+> - Tradeoff: the backend also rebuilds on frontend-only/docs pushes (harmless). To rebuild
+>   only on backend changes, narrow it to `["apps/api/**"]`.
+>
+> **If a deploy ever gets skipped again:** Railway → Deployments → find your commit →
+> **⋮ → Redeploy** (manual override that always works).
 
 ### 5b. Database change (schema / new tables / columns)
 Migrations live in `supabase/migrations/`. To change the DB you write a migration and push it
