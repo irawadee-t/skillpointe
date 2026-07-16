@@ -12,10 +12,15 @@ import sys
 from pathlib import Path
 from typing import Any
 
-# packages/extraction lives outside apps/api.
-_PKG = Path(__file__).resolve().parents[4] / "packages"
-if str(_PKG) not in sys.path:
-    sys.path.insert(0, str(_PKG))
+# packages/extraction lives outside apps/api. Add it to sys.path IF present.
+# Walk only existing parents (avoids IndexError when the deploy layout is
+# flatter than the repo — e.g. Railway Root Directory = apps/api).
+for _parent in Path(__file__).resolve().parents:
+    _pkg = _parent / "packages"
+    if _pkg.is_dir():
+        if str(_pkg) not in sys.path:
+            sys.path.insert(0, str(_pkg))
+        break
 
 
 MAX_UPLOAD_BYTES = 4 * 1024 * 1024  # 4 MB

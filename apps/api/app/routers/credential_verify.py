@@ -24,13 +24,27 @@ from app.auth.schemas import CurrentUser
 from app.config import get_settings
 from app.db import get_db
 
-# packages/verification is outside apps/api — make it importable.
-_PKG = Path(__file__).resolve().parents[4] / "packages"
-if str(_PKG) not in sys.path:
-    sys.path.insert(0, str(_PKG))
+# packages/verification is outside apps/api. Add it to sys.path IF present.
+# Walk only existing parents (avoids IndexError when the deploy layout is
+# flatter than the repo — e.g. Railway Root Directory = apps/api).
+for _parent in Path(__file__).resolve().parents:
+    _pkg = _parent / "packages"
+    if _pkg.is_dir():
+        if str(_pkg) not in sys.path:
+            sys.path.insert(0, str(_pkg))
+        break
 
-from verification import ctdl, nccer, nsc                # noqa: E402
-from verification.shared import VerificationStatus       # noqa: E402
+# The verification package may not be shipped in every deploy (e.g. Railway
+# Root Directory = apps/api excludes the sibling packages/). Degrade gracefully
+# instead of crashing the whole app at import.
+try:
+    from verification import ctdl, nccer, nsc                # noqa: E402
+    from verification.shared import VerificationStatus       # noqa: E402
+    _VERIFICATION_AVAILABLE = True
+except Exception:  # pragma: no cover - environment-dependent
+    ctdl = nccer = nsc = None                                # type: ignore
+    VerificationStatus = None                                # type: ignore
+    _VERIFICATION_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/applicant/me/credentials", tags=["applicant"])
@@ -84,6 +98,12 @@ async def verify_credential(
             raise HTTPException(
                 status_code=400,
                 detail="This credential is not yet linked to a verification-capable definition. Ask admin to align it to a CTDL entry first.",
+            )
+
+        if not _VERIFICATION_AVAILABLE:
+            raise HTTPException(
+                status_code=503,
+                detail="Credential verification is unavailable in this deployment (verification package not installed).",
             )
 
         # Dispatch to the right adapter.
