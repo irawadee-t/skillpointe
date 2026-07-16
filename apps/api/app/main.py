@@ -66,7 +66,7 @@ def create_app() -> FastAPI:
             "Bi-directional ranking, explanation, and planning platform. "
             "Roles: admin | applicant | employer."
         ),
-        version="0.1.0",
+        version="0.2.0",
         docs_url="/docs" if settings.is_local else None,
         redoc_url="/redoc" if settings.is_local else None,
         lifespan=lifespan,
