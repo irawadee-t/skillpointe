@@ -1024,16 +1024,21 @@ async def list_applicants(
                 a.city,
                 a.state::text,
                 a.program_name_raw,
-                -- completeness computed inline (no stored column)
-                (
-                  CASE WHEN a.first_name IS NOT NULL AND a.last_name IS NOT NULL THEN 10 ELSE 0 END +
-                  CASE WHEN a.program_name_raw IS NOT NULL THEN 10 ELSE 0 END +
-                  CASE WHEN a.canonical_job_family_id IS NOT NULL THEN 15 ELSE 0 END +
-                  CASE WHEN a.state IS NOT NULL THEN 10 ELSE 0 END +
-                  CASE WHEN a.city IS NOT NULL THEN 5 ELSE 0 END +
-                  CASE WHEN a.available_from_date IS NOT NULL OR a.expected_completion_date IS NOT NULL THEN 15 ELSE 0 END +
-                  CASE WHEN a.willing_to_relocate THEN 5 ELSE 0 END
-                ) AS profile_completeness,
+                -- Completeness computed inline (no stored column). The weights
+                -- below sum to 70, so scale to 100 -- rendering the raw sum as a
+                -- percentage made 100% unreachable and pinned every fully-filled
+                -- profile at 65%.
+                ROUND(
+                  (
+                    CASE WHEN a.first_name IS NOT NULL AND a.last_name IS NOT NULL THEN 10 ELSE 0 END +
+                    CASE WHEN a.program_name_raw IS NOT NULL THEN 10 ELSE 0 END +
+                    CASE WHEN a.canonical_job_family_id IS NOT NULL THEN 15 ELSE 0 END +
+                    CASE WHEN a.state IS NOT NULL THEN 10 ELSE 0 END +
+                    CASE WHEN a.city IS NOT NULL THEN 5 ELSE 0 END +
+                    CASE WHEN a.available_from_date IS NOT NULL OR a.expected_completion_date IS NOT NULL THEN 15 ELSE 0 END +
+                    CASE WHEN a.willing_to_relocate THEN 5 ELSE 0 END
+                  ) * 100.0 / 70
+                )::int AS profile_completeness,
                 a.willing_to_relocate,
                 COALESCE(a.available_from_date::text, a.expected_completion_date::text) AS available_from,
                 a.job_family_code,
