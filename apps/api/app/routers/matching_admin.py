@@ -38,24 +38,56 @@ from app.auth.schemas import CurrentUser
 from app.db import get_db
 from app.util.audit import write_audit
 
-# packages/ import path (matching engine is pure python, no DB I/O inside)
-_REPO_ROOT = Path(__file__).resolve().parents[4]
-_PKG_PATH = str(_REPO_ROOT / "packages")
-if _PKG_PATH not in sys.path:
-    sys.path.insert(0, _PKG_PATH)
+# packages/ import path (matching engine is pure python, no DB I/O inside).
+# Walk only existing parents: the deploy layout can be flatter than the repo
+# (Railway Root Directory = apps/api), where parents[4] does not exist.
+for _parent in Path(__file__).resolve().parents:
+    _pkg = _parent / "packages"
+    if _pkg.is_dir():
+        if str(_pkg) not in sys.path:
+            sys.path.insert(0, str(_pkg))
+        break
 
-from matching.config import (  # noqa: E402
-    _from_yaml,
-    config_to_dict,
-    load_config,
-    normalize_weights,
-    validate_config_dict,
-)
-from matching.engine import compute_match  # noqa: E402
+# Every endpoint here needs the matching engine. When packages/ is not shipped
+# with the deploy, keep the rest of the API alive and fail these routes with a
+# clear message instead of crashing the whole app at import.
+try:
+    from matching.config import (  # noqa: E402
+        _from_yaml,
+        config_to_dict,
+        load_config,
+        normalize_weights,
+        validate_config_dict,
+    )
+    from matching.engine import compute_match  # noqa: E402
+
+    MATCHING_AVAILABLE = True
+except ImportError:  # pragma: no cover - deploy-layout dependent
+    _from_yaml = config_to_dict = load_config = None  # type: ignore[assignment]
+    normalize_weights = validate_config_dict = compute_match = None  # type: ignore[assignment]
+    MATCHING_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/admin/matching", tags=["admin"])
+
+def _require_matching_engine() -> None:
+    """Guard every route in this router; see the import block above."""
+    if not MATCHING_AVAILABLE:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "The matching engine is not available in this deployment. "
+                "Ship the packages/ directory with the API to enable matching "
+                "configuration."
+            ),
+        )
+
+
+router = APIRouter(
+    prefix="/admin/matching",
+    tags=["admin"],
+    dependencies=[Depends(_require_matching_engine)],
+)
 
 
 # ---------------------------------------------------------------------------

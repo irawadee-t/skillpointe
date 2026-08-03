@@ -43,12 +43,21 @@ from app.db import get_db
 # packages/ import path (matching config is pure python, no DB I/O inside) —
 # same shim as matching_admin.py so the code-default ScoringConfig is the
 # threshold fallback when no policy_configs row is active.
-_REPO_ROOT = Path(__file__).resolve().parents[4]
-_PKG_PATH = str(_REPO_ROOT / "packages")
-if _PKG_PATH not in sys.path:
-    sys.path.insert(0, _PKG_PATH)
+# Walk only existing parents: the deploy layout can be flatter than the repo
+# (Railway Root Directory = apps/api), where parents[4] does not exist.
+for _parent in Path(__file__).resolve().parents:
+    _pkg = _parent / "packages"
+    if _pkg.is_dir():
+        if str(_pkg) not in sys.path:
+            sys.path.insert(0, str(_pkg))
+        break
 
-from matching.config import load_config  # noqa: E402
+# packages/ is not shipped in every deploy. Fall back to the documented
+# defaults rather than crashing the whole app at import.
+try:
+    from matching.config import load_config  # noqa: E402
+except ImportError:  # pragma: no cover - deploy-layout dependent
+    load_config = None
 
 router = APIRouter(prefix="/viz", tags=["viz"])
 
@@ -580,6 +589,9 @@ async def _active_match_labels(conn: Any) -> dict[str, float]:
             "good_fit_min": float(raw.get("good_fit_min", 60.0)),
             "strong_fit_min": float(raw.get("strong_fit_min", 80.0)),
         }
+    if load_config is None:
+        # Matching package absent in this deploy; use the documented defaults.
+        return {"moderate_fit_min": 40.0, "good_fit_min": 60.0, "strong_fit_min": 80.0}
     cfg = load_config()
     return {
         "moderate_fit_min": float(cfg.match_labels.moderate_fit_min),
