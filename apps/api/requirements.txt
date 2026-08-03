@@ -18,6 +18,10 @@ apscheduler>=3.10.0
 # HTTP
 httpx==0.28.1
 
+# HTML parsing — career-source scraping (app/skilled_pro/career_sources.py)
+# and every packages/scraper adapter import BeautifulSoup directly.
+beautifulsoup4>=4.12.0
+
 # LLM extraction (Phase 7)
 openai>=1.0.0
 
