@@ -37,3 +37,27 @@ AS $$ SELECT NULL::uuid $$;
 CREATE OR REPLACE FUNCTION auth.role() RETURNS text
   LANGUAGE sql STABLE
 AS $$ SELECT NULL::text $$;
+
+-- Supabase Storage. Only `storage.buckets` is touched by the migrations
+-- (20260721000004 registers the private `documents` bucket for credential
+-- uploads), so that is all we stand up. Columns mirror the ones Supabase
+-- defines that our migration writes to, plus the primary key it conflicts on.
+CREATE SCHEMA IF NOT EXISTS storage;
+
+CREATE TABLE IF NOT EXISTS storage.buckets (
+  id         text PRIMARY KEY,
+  name       text NOT NULL,
+  public     boolean DEFAULT false,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now()
+);
+
+-- Realtime publication. Supabase ships an empty `supabase_realtime`
+-- publication and migrations enrol tables into it (20260803090000 adds
+-- notifications + direct_messages). Recreated here with the same shape
+-- Supabase uses (all DML events, not FOR ALL TABLES).
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication WHERE pubname = 'supabase_realtime') THEN
+    CREATE PUBLICATION supabase_realtime;
+  END IF;
+END $$;
