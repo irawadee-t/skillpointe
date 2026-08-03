@@ -4,6 +4,7 @@ Uses pydantic-settings; will raise a clear error if required fields are missing.
 """
 from functools import lru_cache
 from typing import Literal
+from urllib.parse import urlparse
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -193,6 +194,25 @@ class ProductionConfigError(RuntimeError):
     """Raised when the app is misconfigured to run in production."""
 
 
+def _project_host_label(settings: Settings) -> str:
+    """First hostname label of the site we already trust, e.g. 'skilled-nation'
+    from https://skilled-nation.vercel.app.
+
+    Used to scope the CORS preview-origin regex to this project without naming
+    it in code, so a rebrand doesn't turn into a boot failure.
+    """
+    candidates = [settings.web_public_url, *settings.cors_origins_list]
+    for raw in candidates:
+        host = urlparse(raw.strip()).hostname if raw and "//" in raw else None
+        if not host or host in ("localhost", "127.0.0.1"):
+            continue
+        label = host.split(".")[0].lower()
+        # "www" and bare platform hosts carry no project identity.
+        if label and label not in ("www", "vercel", "api"):
+            return label
+    return ""
+
+
 def enforce_production_safety(settings: Settings, logger) -> None:
     """
     Validate config once at startup. In production, fail hard on missing
@@ -251,16 +271,38 @@ def enforce_production_safety(settings: Settings, logger) -> None:
             errors.append(f"{name} points at localhost in production ({val!r}).")
 
     # CORS: with allow_credentials=True, an over-broad origin regex trusts any
-    # matching site. A bare "*.vercel.app" pattern means anyone's Vercel deploy
-    # is a credentialed origin — refuse it and force a project-scoped pattern
-    # (e.g. https://skillpointe-[a-z0-9-]+\.vercel\.app or the exact prod host).
-    regex = (settings.cors_origin_regex or "").lower()
-    if regex and "vercel" in regex and "skillpointe" not in regex and "spf" not in regex:
-        errors.append(
-            "CORS_ORIGIN_REGEX is too broad for a credentialed API "
-            f"({settings.cors_origin_regex!r}). Scope it to your project's preview "
-            r"hosts, e.g. ^https://skillpointe-[a-z0-9-]+\.vercel\.app$."
-        )
+    # matching site. Judge the pattern's SHAPE, not its brand text — an earlier
+    # version required the literal project name, so renaming the project made
+    # even a correctly scoped regex unbootable.
+    regex_raw = (settings.cors_origin_regex or "").strip()
+    if regex_raw:
+        faults: list[str] = []
+        if not (regex_raw.startswith("^") and regex_raw.endswith("$")):
+            faults.append(
+                "it is not anchored with ^ and $, so it matches any origin that "
+                "merely contains the pattern"
+            )
+        if ".*" in regex_raw or ".+" in regex_raw:
+            faults.append(
+                "it contains an unbounded wildcard (.* or .+), which matches "
+                "arbitrary hosts"
+            )
+        # Scope it to this deployment's own project, derived from the hosts we
+        # already trust, so the check follows the project instead of a constant.
+        label = _project_host_label(settings)
+        if label and label not in regex_raw.lower():
+            faults.append(
+                f"it does not mention this project's host label ({label!r}), so it "
+                "can match another tenant's deploys on the same platform"
+            )
+        if faults:
+            joined_faults = "; ".join(faults)
+            example = f"^https://{label or 'your-project'}-[a-z0-9-]+\\.vercel\\.app$"
+            errors.append(
+                "CORS_ORIGIN_REGEX is unsafe for a credentialed API "
+                f"({settings.cors_origin_regex!r}): {joined_faults}. "
+                f"Use a pattern like {example}"
+            )
 
     if errors:
         joined = "\n  - ".join(errors)
