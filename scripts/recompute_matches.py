@@ -354,6 +354,10 @@ def _fetch_applicants(conn, applicant_id=None, limit=None) -> list[dict]:
             a.willing_to_relocate, a.willing_to_travel, a.commute_radius_miles,
             a.lat, a.lng,
             a.experience_raw, a.bio_raw, a.career_goals_raw,
+            -- Structured input for the seniority gate. Without this the gate
+            -- read a missing key, saw None, and treated every applicant as
+            -- having zero years.
+            a.years_experience,
             a.expected_completion_date, a.available_from_date,
             a.travel_preference::text, a.relocation_preference::text,
             a.relocation_states,

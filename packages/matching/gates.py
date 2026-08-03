@@ -657,6 +657,12 @@ def evaluate_seniority_gate(
             "entry-level position, appropriate for trade school graduates",
         )
 
+    # Unknown experience is NOT zero experience. Collapsing None into 0 made
+    # every senior/management posting a critical failure for every applicant
+    # whose years were never extracted, which is the default state -- and it
+    # hard-required LLM extraction for core ranking, contrary to the
+    # backward-compatible-extraction guardrail.
+    exp_known = applicant_experience_years is not None
     exp_years = applicant_experience_years or 0
 
     if level == "mid":
@@ -686,6 +692,11 @@ def evaluate_seniority_gate(
                 "seniority_compatibility", NEAR_FIT,
                 f"senior position, applicant has {exp_years} years (may be stretch)",
             )
+        if not exp_known:
+            return GateDetail(
+                "seniority_compatibility", NEAR_FIT,
+                "senior position and the applicant's years of experience are not on file yet",
+            )
         return GateDetail(
             "seniority_compatibility", FAIL,
             "senior-level position requires significant experience, not suitable for recent graduates",
@@ -697,6 +708,11 @@ def evaluate_seniority_gate(
             return GateDetail(
                 "seniority_compatibility", NEAR_FIT,
                 f"management position, applicant has {exp_years} years but management experience unclear",
+            )
+        if not exp_known:
+            return GateDetail(
+                "seniority_compatibility", NEAR_FIT,
+                "management position and the applicant's years of experience are not on file yet",
             )
         return GateDetail(
             "seniority_compatibility", FAIL,

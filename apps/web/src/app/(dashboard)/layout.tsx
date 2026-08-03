@@ -79,18 +79,40 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
 
-  if (!user) {
+  // getClaims() verifies the access token's ES256 signature against the
+  // project's cached JWKS, in-process. getUser() sent a request to the Auth
+  // server on every single dashboard navigation, and this layout re-renders on
+  // each one, so that round trip sat in front of every tab switch.
+  //
+  // This is still real verification, not decoding: the signature is checked and
+  // `exp` is enforced (allowExpired defaults to false), so expired or tampered
+  // tokens are rejected exactly as before. Requires asymmetric signing, which
+  // this project uses; on a symmetric secret the SDK falls back to a server
+  // call on its own, so the redirect below stays correct either way.
+  // getClaims THROWS on an expired token ("JWT has expired") rather than
+  // returning an error, so this has to catch: an expired session must land on
+  // /login, not on a 500. redirect() stays outside the try because it signals
+  // by throwing and must not be swallowed here.
+  type Claims = NonNullable<Awaited<ReturnType<typeof supabase.auth.getClaims>>["data"]>["claims"];
+  let claims: Claims | null = null;
+  try {
+    const { data, error } = await supabase.auth.getClaims();
+    if (!error) claims = data?.claims ?? null;
+  } catch {
+    claims = null;
+  }
+
+  if (!claims?.sub) {
     redirect("/login");
   }
 
-  const role = (user.app_metadata?.role as string) ?? "applicant";
+  const userId = claims.sub;
+  const role = (claims.app_metadata?.role as string) ?? "applicant";
   const isAdmin = role === "admin";
 
-  // Everything below depends only on `user`, so it all goes in one round trip.
+  // Everything below depends only on the verified claims, so it all goes in one
+  // round trip.
   // These used to run as three sequential awaits (view-as, then the name
   // lookups, then the session) and this layout re-renders on every dashboard
   // navigation, so each tab switch paid all three before the child page's
@@ -100,12 +122,12 @@ export default async function DashboardLayout({
     supabase
       .from("applicants")
       .select("first_name, last_name, preferred_name")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .maybeSingle(),
     supabase
       .from("employer_contacts")
       .select("first_name, last_name")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .maybeSingle(),
     // Fetched for admins up front; discarded below if "view as" is active, which
     // is cheaper than serialising this behind the view-as lookup.
@@ -136,11 +158,11 @@ export default async function DashboardLayout({
 
   return (
     <ToastProvider>
-      <TourProvider userId={user.id} role={chromeRole}>
+      <TourProvider userId={userId} role={chromeRole}>
       <div className="min-h-screen bg-canvas">
         <AppSidebar
           navItems={navItems}
-          email={user.email ?? ""}
+          email={(claims.email as string) ?? ""}
           role={chromeRole}
           homeHref={navItems[0]?.href ?? "/"}
           displayName={displayName}
