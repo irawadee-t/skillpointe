@@ -29,4 +29,5 @@ COPY SCORING_CONFIG.yaml ./SCORING_CONFIG.yaml
 WORKDIR /app/apps/api
 
 EXPOSE 8000
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --timeout-graceful-shutdown 25"]
+# No shell: serve.py reads PORT from the environment itself.
+CMD ["python", "serve.py"]

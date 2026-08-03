@@ -7,6 +7,7 @@
   "deploy": {
     "healthcheckPath": "/ready",
     "healthcheckTimeout": 30,
-    "restartPolicyType": "ON_FAILURE"
+    "restartPolicyType": "ON_FAILURE",
+    "startCommand": "python serve.py"
   }
 }
