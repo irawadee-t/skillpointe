@@ -20,8 +20,29 @@ from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-# Path to the repo root (apps/api/app/worker/ → repo root)
-_REPO_ROOT = Path(__file__).parent.parent.parent.parent.parent
+def _find_repo_root() -> Path:
+    """Locate the repo root by walking up for a marker.
+
+    A fixed ``.parent`` chain silently lands on ``/`` when the deploy layout is
+    flatter than the dev tree (Railway Root Directory = apps/api), because
+    ``Path.parent`` saturates at the filesystem root instead of raising.
+    """
+    here = Path(__file__).resolve()
+    chain = (here, *here.parents)
+    # Strong markers first: only the real repo root has these, so in the dev tree
+    # we skip past apps/api and land on the checkout root.
+    for candidate in chain:
+        if (candidate / ".git").exists() or (candidate / "scripts").is_dir():
+            return candidate
+    # Deployed layout: no .git, no scripts/. Settle for the app root so paths
+    # stay inside the image rather than resolving against "/".
+    for candidate in chain:
+        if (candidate / "pyproject.toml").exists():
+            return candidate
+    return Path("/app")
+
+
+_REPO_ROOT = _find_repo_root()
 
 
 async def _run_locked(lock_name: str, ttl: int, coro_factory) -> None:
@@ -557,9 +578,6 @@ async def _run_recompute_subprocess(
       * alert on repeated failures.
     """
     script = _REPO_ROOT / "scripts" / "recompute_matches.py"
-    if not script.exists():
-        logger.error("recompute_matches.py not found at %s", script)
-        return
 
     cmd = [sys.executable, str(script)]
     if job_id:
@@ -573,6 +591,15 @@ async def _run_recompute_subprocess(
     logger.info("Running recompute (%s)", label)
 
     run_id = await _record_run_start(kind, target)
+
+    # Record the miss as a failed run. Returning early here would leave no row in
+    # recompute_runs at all, so a deploy that ships without scripts/ looks
+    # identical to one where matches simply never needed recomputing.
+    if not script.exists():
+        msg = f"recompute_matches.py not found at {script}"
+        logger.error("%s — is scripts/ shipped with this deploy?", msg)
+        await _record_run_end(run_id, ok=False, error=msg)
+        return
 
     try:
         proc = await asyncio.create_subprocess_exec(
