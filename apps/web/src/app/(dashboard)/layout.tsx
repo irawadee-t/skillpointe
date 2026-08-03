@@ -88,48 +88,51 @@ export default async function DashboardLayout({
   }
 
   const role = (user.app_metadata?.role as string) ?? "applicant";
+  const isAdmin = role === "admin";
+
+  // Everything below depends only on `user`, so it all goes in one round trip.
+  // These used to run as three sequential awaits (view-as, then the name
+  // lookups, then the session) and this layout re-renders on every dashboard
+  // navigation, so each tab switch paid all three before the child page's
+  // loading state could even paint.
+  const [viewAs, { data: applicant }, { data: emp }, sessionResult] = await Promise.all([
+    isAdmin ? getViewAsTarget() : Promise.resolve(null),
+    supabase
+      .from("applicants")
+      .select("first_name, last_name, preferred_name")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    supabase
+      .from("employer_contacts")
+      .select("first_name, last_name")
+      .eq("user_id", user.id)
+      .maybeSingle(),
+    // Fetched for admins up front; discarded below if "view as" is active, which
+    // is cheaper than serialising this behind the view-as lookup.
+    isAdmin ? supabase.auth.getSession() : Promise.resolve(null),
+  ]);
 
   // Admin "view as applicant" debug mode (read-only). While active, the chrome
   // mirrors the applicant experience so the admin sees what the applicant sees;
   // the ViewAsBanner is the persistent reminder + exit path.
-  const viewAs = role === "admin" ? await getViewAsTarget() : null;
   const chromeRole = viewAs ? "applicant" : role;
   const navItems = NAV_ITEMS[chromeRole] ?? NAV_ITEMS.applicant;
   const search = SEARCH[chromeRole] ?? SEARCH.applicant;
 
   // Best-effort display name — applicant profile wins, then employer contact.
-  // Both lookups run concurrently: this layout renders on every dashboard
-  // navigation, so a sequential fallback here taxed every tab switch.
   let displayName: string | null = null;
-  {
-    const [{ data: applicant }, { data: emp }] = await Promise.all([
-      supabase
-        .from("applicants")
-        .select("first_name, last_name, preferred_name")
-        .eq("user_id", user.id)
-        .maybeSingle(),
-      supabase
-        .from("employer_contacts")
-        .select("first_name, last_name")
-        .eq("user_id", user.id)
-        .maybeSingle(),
-    ]);
-    if (applicant) {
-      const first = applicant.preferred_name || applicant.first_name;
-      displayName = [first, applicant.last_name].filter(Boolean).join(" ").trim() || null;
-    }
-    if (!displayName && emp) {
-      displayName = [emp.first_name, emp.last_name].filter(Boolean).join(" ").trim() || null;
-    }
+  if (applicant) {
+    const first = applicant.preferred_name || applicant.first_name;
+    displayName = [first, applicant.last_name].filter(Boolean).join(" ").trim() || null;
+  }
+  if (!displayName && emp) {
+    displayName = [emp.first_name, emp.last_name].filter(Boolean).join(" ").trim() || null;
   }
 
   // Live pending-work badges (Imports / Review / Credentials) need a token
   // client-side — admin chrome only, never while impersonating an applicant.
-  let badgeToken: string | null = null;
-  if (chromeRole === "admin") {
-    const { data: { session } } = await supabase.auth.getSession();
-    badgeToken = session?.access_token ?? null;
-  }
+  const badgeToken =
+    chromeRole === "admin" ? sessionResult?.data.session?.access_token ?? null : null;
 
   return (
     <ToastProvider>
