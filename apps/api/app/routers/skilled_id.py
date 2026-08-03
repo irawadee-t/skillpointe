@@ -27,7 +27,7 @@ from pydantic import BaseModel
 from app.db import get_db
 from app.skilled_pro import apikeys, keyring
 from app.skilled_pro.consent import RequesterCategory, parse_external_sharing
-from app.skilled_pro.ratelimit import TIERS, RateLimiter, RedisBackend, InMemoryBackend
+from app.skilled_pro.ratelimit import TIERS, InMemoryBackend, RateLimiter, RedisBackend
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,7 @@ CREDENTIAL_CATEGORY = "certifications"
 def _build_limiter() -> RateLimiter:
     try:
         import redis  # type: ignore
+
         from app.config import get_settings
         client = redis.from_url(get_settings().redis_url, socket_connect_timeout=1)
         client.ping()

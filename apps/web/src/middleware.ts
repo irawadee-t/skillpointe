@@ -16,6 +16,8 @@
 import { createServerClient } from "@supabase/ssr";
 import { type NextRequest, NextResponse } from "next/server";
 
+import { VIEW_AS_COOKIE } from "@/lib/viewAs";
+
 // Routes that require authentication
 const PROTECTED_PREFIXES = ["/applicant", "/employer", "/admin"];
 
@@ -65,6 +67,23 @@ export async function middleware(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // Admin "view as applicant" debug cookie is only meaningful for an admin
+  // session. If it outlives one (sign-out without exit, then another user logs
+  // in on the same browser), every API call would carry X-View-As-Applicant
+  // and the backend would correctly 403 non-admins — bricking their session
+  // with API errors. Self-heal: strip it from this request so SSR never sends
+  // the header, and expire it in the browser.
+  if (
+    request.cookies.has(VIEW_AS_COOKIE) &&
+    (!user || (user.app_metadata?.role as string | undefined) !== "admin")
+  ) {
+    request.cookies.delete(VIEW_AS_COOKIE);
+    const preserved = supabaseResponse.cookies.getAll();
+    supabaseResponse = NextResponse.next({ request });
+    for (const c of preserved) supabaseResponse.cookies.set(c);
+    supabaseResponse.cookies.set(VIEW_AS_COOKIE, "", { path: "/", maxAge: 0 });
+  }
 
   const { pathname } = request.nextUrl;
 

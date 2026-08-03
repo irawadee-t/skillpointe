@@ -42,6 +42,39 @@ class MappedApplicant:
     available_from_date: date | None = None
     timing_notes: str | None = None
 
+    # Scholarship review status ('Folder - Name' column in SPF exports).
+    # NEVER a person's name — it holds values like 'Internal Review'.
+    review_status: str | None = None
+
+    # Expanded profile (dedicated applicants columns, migration ...09)
+    enrollment_status: str | None = None      # enum: enrollment_status
+    degree_type: str | None = None            # enum: degree_type
+    school_name: str | None = None
+    school_campus: str | None = None
+    school_city: str | None = None
+    school_state: str | None = None
+    career_path: str | None = None
+    program_field: str | None = None
+    specific_career: str | None = None
+    program_start_date: date | None = None
+    gpa: float | None = None
+    age_range: str | None = None
+    gender: str | None = None
+    military_status: bool | None = None
+    military_dependent: bool | None = None
+    household_income: str | None = None
+    current_wages: str | None = None
+    has_internship: bool | None = None
+    internship_details: str | None = None
+    essay_background: str | None = None
+    essay_impact: str | None = None
+    activities: str | None = None
+    honor_societies: list[str] | None = None
+    remaining_program_costs: str | None = None
+
+    # True when identity fields were synthesized (no real name/email in source)
+    synthetic_identity: bool = False
+
     # Unmapped columns — stored in raw_data
     extra: dict[str, Any] = field(default_factory=dict)
 

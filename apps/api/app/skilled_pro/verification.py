@@ -38,10 +38,21 @@ class CredentialSource(str, Enum):
     SIS = "sis"                   # direct SIS integration feed (Banner/Workday/PeopleSoft)
     PARTNER_PORTAL = "partner_portal"   # uploaded by a partner institution
     DOCUMENT_UPLOAD = "document_upload" # user-uploaded doc run through OCR/verification
+    DIGITAL_BADGE = "digital_badge"     # verified Open Badge / Credly assertion (registry-grade)
+    BACKGROUND_CHECK = "background_check"  # third-party CRA report (Checkr) completed
 
 
-# Sources that constitute an institutional attestation.
-_INSTITUTIONAL_SOURCES = {CredentialSource.SIS, CredentialSource.PARTNER_PORTAL}
+# Sources that constitute an institutional attestation. A cryptographically
+# verifiable digital badge (Credly / Open Badges 3.0) is registry-grade — the
+# issuer signed the assertion — so it counts as institutional on its own. A
+# completed third-party background/license check (Checkr) likewise attests the
+# credential against an authoritative source.
+_INSTITUTIONAL_SOURCES = {
+    CredentialSource.SIS,
+    CredentialSource.PARTNER_PORTAL,
+    CredentialSource.DIGITAL_BADGE,
+    CredentialSource.BACKGROUND_CHECK,
+}
 
 
 @dataclass(frozen=True)

@@ -196,12 +196,16 @@ def insert_applicant(
     import_run_id: str,
 ) -> str:
     """
-    Insert a new applicant row and return its id (UUID string).
+    Upsert an applicant row and return its id (UUID string).
 
-    Each imported row is treated as a distinct applicant — no deduplication
-    by email or name.  The 'folder_name' / 'linked_personalized_account' fields
-    from the SkillPointe export are mapped and stored but are not used as
-    identity keys.  Sign-up linking (email → user_id) is handled in Phase 5/6.
+    Identity key is `email` (unique partial index on applicants.email).
+    The mapper guarantees every row has an email — real when the source
+    provides one, otherwise a deterministic synthetic address derived from
+    the row ordinal ('scholar-0007@scholarship-import.local').  Re-importing
+    the same file therefore UPDATES existing rows instead of duplicating them.
+
+    user_id is never touched here: imported applicants are non-auth rows
+    (user_id NULL) until a real sign-up links them.
     """
     applicant_id = str(uuid.uuid4())
     params = {
@@ -227,17 +231,55 @@ def insert_applicant(
         "expected_completion_date":     applicant.expected_completion_date,
         "available_from_date":          applicant.available_from_date,
         "timing_notes":                 applicant.timing_notes,
+        # Expanded profile columns (migration ...09) — all CSV-attributable
+        "enrollment_status":            applicant.enrollment_status,
+        "degree_type":                  applicant.degree_type,
+        "school_name":                  applicant.school_name,
+        "school_campus":                applicant.school_campus,
+        "school_city":                  applicant.school_city,
+        "school_state":                 applicant.school_state,
+        "career_path":                  applicant.career_path,
+        "program_field":                applicant.program_field,
+        "specific_career":              applicant.specific_career,
+        "program_start_date":           applicant.program_start_date,
+        "gpa":                          applicant.gpa,
+        "age_range":                    applicant.age_range,
+        "gender":                       applicant.gender,
+        "military_status":              applicant.military_status,
+        "military_dependent":           applicant.military_dependent,
+        "household_income":             applicant.household_income,
+        "current_wages":                applicant.current_wages,
+        "has_internship":               applicant.has_internship,
+        "internship_details":           applicant.internship_details,
+        "essay_background":             applicant.essay_background,
+        "essay_impact":                 applicant.essay_impact,
+        "activities":                   applicant.activities,
+        "honor_societies":              applicant.honor_societies,
+        "remaining_program_costs":      applicant.remaining_program_costs,
+        "scholarship_review_status":    applicant.review_status,
         "source":                       "import",
         "import_run_id":                import_run_id,
     }
+    # Everything except the identity keys is updated on re-import
+    update_cols = [k for k in params.keys() if k not in ("id", "email")]
+    set_clause = ",\n              ".join(
+        f"{c} = EXCLUDED.{c}" for c in update_cols
+    )
     with conn.cursor() as cur:
         cols = ", ".join(params.keys())
         vals = ", ".join(f"%({k})s" for k in params.keys())
         cur.execute(
-            f"INSERT INTO public.applicants ({cols}) VALUES ({vals})",
+            f"""
+            INSERT INTO public.applicants ({cols}) VALUES ({vals})
+            ON CONFLICT (email) WHERE email IS NOT NULL DO UPDATE SET
+              {set_clause},
+              updated_at = NOW()
+            RETURNING id
+            """,
             params,
         )
-    return applicant_id
+        row = cur.fetchone()
+        return str(row[0])
 
 
 # ---------------------------------------------------------------------------

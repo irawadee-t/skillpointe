@@ -23,7 +23,7 @@ import {
   ingestFromSis,
   parseCsv,
 } from "@/lib/api/ingest";
-import { PageHeader, MonoLabel, MetricCard, Breadcrumb } from "@/components/ui";
+import { MonoLabel, MetricCard } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
 const SAMPLE = `email,credential_name,issuer,issued_date,expires_date
@@ -120,15 +120,16 @@ export function IngestClient({ token }: { token: string }) {
     }
   }
 
+  // Embedded section — the page's chrome (breadcrumb, header, IA order)
+  // lives in page.tsx: the review queue comes first, ingestion second.
   return (
-    <main className="py-8">
-      <div className="page-shell space-y-6">
-        <Breadcrumb items={[{ label: "Admin", href: "/admin" }, { label: "Credentials" }]} />
-        <PageHeader
-          eyebrow="SKILLED Pro"
-          title="Credential ingestion"
-          lead="Import a partner institution's completion data. Matched applicants' credentials are raised to Institution-Verified with a signed audit record. Preview before committing."
-        />
+    <section className="space-y-6">
+      <p className="text-caption text-slate">
+        Import a partner institution&apos;s completion data. Matched applicants&apos;
+        credentials are raised to Institution-Verified with a signed audit record.
+        Preview before committing.
+      </p>
+      <div className="space-y-6">
 
         {/* Input card */}
         <div className="rounded-md border border-border-light bg-white p-5 space-y-4">
@@ -207,7 +208,7 @@ export function IngestClient({ token }: { token: string }) {
           <MonoLabel className="mb-1 block">Other ingestion lanes</MonoLabel>
           <p className="mb-3 text-caption text-slate">
             Beyond the CSV / API lane above, credentials also flow from a direct SIS feed and an
-            SFTP file-drop — all through the same match → normalize → Institution-Verified pipeline.
+            SFTP file-drop, all through the same match → normalize → Institution-Verified pipeline.
             A real SIS connector (Ellucian Ethos → Banner/Colleague) is an adapter swap once
             credentials are configured.
           </p>
@@ -287,7 +288,7 @@ export function IngestClient({ token }: { token: string }) {
           </div>
         )}
       </div>
-    </main>
+    </section>
   );
 }
 
@@ -313,7 +314,7 @@ function ResultBadge({ r }: { r: { status: string; action: string | null; verifi
       <Icon className="h-3.5 w-3.5" />
       <span className="capitalize">{r.action}</span>
       {r.verification_badge && (
-        <span className="ml-1 rounded-sm bg-wash-green px-1.5 py-0.5 text-micro text-cohere-green">
+        <span className="ml-1 inline-flex items-center rounded-full border border-cohere-green bg-cohere-green px-2 py-0.5 text-[11px] font-medium text-white">
           {r.verification_badge}
         </span>
       )}

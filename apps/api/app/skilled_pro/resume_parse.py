@@ -92,15 +92,25 @@ def parse_resume_signals(text: str, *, openai_api_key: str | None, model: str) -
 
     # Deterministic parses — fast, cheap, don't need an API key.
     signals.update(_regex_contact(text))
+    section_certs = _section_certifications(text)
+    if section_certs:
+        signals["certifications"] = section_certs
 
-    if openai_api_key:
-        from openai import OpenAI
-        client = OpenAI(api_key=openai_api_key)
+    # Shared client: treats .env.example placeholder keys as "not configured",
+    # so the deterministic path doesn't burn a doomed network call first.
+    # (openai_api_key is kept in the signature for callers/tests that pass it
+    # explicitly, but the placeholder check is what decides.)
+    from app.util.openai_client import get_openai_client
+
+    client = get_openai_client() if openai_api_key else None
+    if client is not None:
         try:
             llm_out = _call_llm(client, model, text)
+            # The LLM sees context the section parser can't; prefer its certs
+            # when it returns any.
             signals.update(llm_out)
         except Exception:
-            # Fall through with just the regex-parsed contact fields.
+            # Fall through with the deterministic fields.
             pass
 
     return signals
@@ -115,14 +125,24 @@ def _regex_contact(text: str) -> dict[str, Any]:
     out: dict[str, Any] = {}
     lines = [l.strip() for l in text.splitlines()[:15] if l.strip()]
 
-    # Name = first non-empty line with 2-4 title-cased words and no digits/at/URL markers.
-    for line in lines:
+    # Name = first non-empty line with 2-4 title-cased words and no digits/at/URL
+    # markers. Tokens may carry a middle-initial period ("Marcus T. Rivera") —
+    # strip separators before the alpha check, otherwise the real name line is
+    # rejected and a later title-cased line (a certification, a heading) gets
+    # mistaken for the name. Only the first 5 lines are name candidates; below
+    # that we're in the body of the resume.
+    for line in lines[:5]:
         if any(bad in line.lower() for bad in ["@", "http", "resume", "cv"]):
             continue
         parts = line.split()
-        if 2 <= len(parts) <= 4 and all(p[:1].isupper() and p.replace("-", "").isalpha() for p in parts if p):
+        if 2 <= len(parts) <= 4 and all(
+            p[:1].isupper() and p.replace("-", "").replace(".", "").replace("'", "").isalpha()
+            for p in parts if p
+        ):
             out["first_name"] = parts[0]
-            out["last_name"] = " ".join(parts[1:])
+            # Drop bare middle initials ("T." / "T") from the surname.
+            surname = [p for p in parts[1:] if not re.fullmatch(r"[A-Z]\.?", p)]
+            out["last_name"] = " ".join(surname) if surname else parts[-1]
             break
 
     if m := _EMAIL_RE.search(text):
@@ -137,6 +157,42 @@ def _regex_contact(text: str) -> dict[str, Any]:
             out["state"] = m.group(2)
             break
     return out
+
+
+# Section headings that end a certifications block.
+_SECTION_HEADING_RE = re.compile(
+    r"^\s*(experience|education|skills|summary|objective|references|projects|"
+    r"employment|work history|training|awards|volunteer)\b[\s:]*$",
+    re.I,
+)
+_CERT_HEADING_RE = re.compile(r"^\s*(certifications?|licenses?|certifications? & licenses?)\b[\s:]*$", re.I)
+
+
+def _section_certifications(text: str) -> list[str]:
+    """Deterministic certifications extraction: the lines under a
+    "Certifications"/"Licenses" heading, until the next section heading.
+    Keeps the no-API-key parse honest — the résumé→credentials bridge gets the
+    real cert names instead of an empty list."""
+    lines = text.splitlines()
+    certs: list[str] = []
+    in_section = False
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if _CERT_HEADING_RE.match(stripped):
+            in_section = True
+            continue
+        if in_section:
+            if _SECTION_HEADING_RE.match(stripped):
+                break
+            item = stripped.lstrip("-•*·").strip()
+            # Certification names are short lines, not sentences.
+            if item and len(item) <= 80 and not item.endswith((".", ":")):
+                certs.append(item)
+            if len(certs) >= 15:
+                break
+    return certs
 
 
 _LLM_SYSTEM = (

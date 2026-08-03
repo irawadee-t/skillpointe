@@ -29,9 +29,9 @@ from dataclasses import dataclass
 from typing import Any
 
 from .config import ScoringConfig
-from .normalizer import TimingResult, JOB_FAMILY_ADJACENCY
-from .text_scorer import _parse_education_required, _estimate_applicant_education
-
+from .geo import SAME_CITY_MILES, effective_radius_miles, haversine_miles
+from .normalizer import JOB_FAMILY_ADJACENCY, TimingResult
+from .text_scorer import _estimate_applicant_education, _parse_education_required
 
 # ---------------------------------------------------------------------------
 # Result dataclass
@@ -68,7 +68,7 @@ def score_trade_program_alignment(
         return DimensionScore(
             "trade_program_alignment", weight,
             null_default, weight * null_default / 100,
-            "program or job family not yet normalised — using null default",
+            "program or job family not yet normalised (using null default)",
             True, null_default,
         )
 
@@ -95,22 +95,72 @@ def score_geography_alignment(
     travel_preference: str | None = None,
     relocation_preference: str | None = None,
     relocation_states: list[str] | None = None,
+    applicant_lat: float | None = None,
+    applicant_lng: float | None = None,
+    job_lat: float | None = None,
+    job_lng: float | None = None,
+    commute_radius_miles: int | float | None = None,
+    applicant_city: str | None = None,
+    job_city: str | None = None,
 ) -> DimensionScore:
     """
     Geography alignment (weight 20).
-    Remote → 90, same state → 100, same region+willing → 80,
+
+    Distance-graded when coordinates exist for both sides (deterministic,
+    monotone non-increasing in distance):
+      <= 5 mi (same city)          → 100
+      5 mi .. radius               → linear decay 100 → 70 at the radius edge
+      beyond radius                → decays 70 → 20 by 2× radius;
+                                     floor 55 if willing to relocate / job state
+                                     is in relocation_states, floor 20 otherwise
+
+    Without coordinates: Remote → 90, same state → 100, same region+willing → 80,
     diff region+willing → 55, infeasible → 20, unknown → config defaults.
     """
     dim = "geography_alignment"
     ws = (job_work_setting or "").lower()
 
     if ws == "remote":
-        s, r = 90.0, "fully remote job — geography not a constraint"
+        s, r = 90.0, "fully remote job, geography not a constraint"
+        return DimensionScore(dim, weight, s, weight * s / 100, r)
+
+    # Distance-graded path — both sides have pre-resolved coordinates.
+    if (applicant_lat is not None and applicant_lng is not None
+            and job_lat is not None and job_lng is not None):
+        dist = haversine_miles(applicant_lat, applicant_lng, job_lat, job_lng)
+        radius = effective_radius_miles(commute_radius_miles)
+        home = applicant_city or applicant_state or "home"
+        relocatable = bool(
+            (relocation_states and job_state
+             and job_state.upper() in {rs.upper() for rs in relocation_states})
+            or (willing_to_relocate and not relocation_states)
+        )
+
+        if dist <= SAME_CITY_MILES:
+            s = 100.0
+            r = f"in your city, ~{dist:.0f} mi away"
+        elif dist <= radius:
+            # Smooth decay 100 → 70 across the radius circle.
+            span = max(radius - SAME_CITY_MILES, 1.0)
+            s = round(100.0 - 30.0 * ((dist - SAME_CITY_MILES) / span), 1)
+            r = f"~{dist:.0f} mi from {home}, inside your {radius:.0f} mi radius"
+        else:
+            # Beyond the radius: keep decaying, floored by relocation willingness.
+            over = min((dist - radius) / radius, 1.0)
+            base = 70.0 - 50.0 * over
+            floor = 55.0 if relocatable else 20.0
+            s = round(max(floor, base), 1)
+            if relocatable:
+                r = (f"~{dist:.0f} mi away, beyond your {radius:.0f} mi radius, "
+                     "but relocation is on the table")
+            else:
+                r = (f"~{dist:.0f} mi away, beyond your {radius:.0f} mi radius; "
+                     "consider relocation settings")
         return DimensionScore(dim, weight, s, weight * s / 100, r)
 
     if not applicant_state and not job_state:
         s = null_handling.geography_fully_unknown
-        r = "no location data for either party — fully unknown"
+        r = "no location data for either party (fully unknown)"
         return DimensionScore(dim, weight, s, weight * s / 100, r, True, s)
 
     # Derive effective preferences from enums, falling back to booleans
@@ -128,9 +178,9 @@ def score_geography_alignment(
         elif t_pref in ("regional", "within_region", "nationwide", "anywhere"):
             s, r = 80.0, f"same region ({applicant_region}), willing to travel regionally"
         elif t_pref == "within_state" or r_pref == "within_state":
-            s, r = 35.0, f"same region ({applicant_region}) but different state — prefers in-state"
+            s, r = 35.0, f"same region ({applicant_region}) but different state, prefers in-state"
         else:
-            s, r = 20.0, f"same region ({applicant_region}) but different state — not willing to move"
+            s, r = 20.0, f"same region ({applicant_region}) but different state, not willing to move"
     elif r_pref == "anywhere":
         s, r = 70.0, f"open to relocating anywhere (applicant={applicant_state}, job={job_state})"
     elif t_pref in ("nationwide", "anywhere"):
@@ -181,7 +231,7 @@ def score_credential_readiness(
         else:
             sub_scores.append((20.0, f"education gap: {applicant_education} vs {job_min_education}", 2.0))
     elif job_min_education:
-        sub_scores.append((45.0, f"job requires {job_min_education} — applicant education unknown", 1.0))
+        sub_scores.append((45.0, f"job requires {job_min_education}, applicant education unknown", 1.0))
 
     # B) Specific credentials
     if required_credentials:
@@ -209,13 +259,13 @@ def score_credential_readiness(
         if app_exp >= job_required_experience_years:
             sub_scores.append((95.0, f"experience: {app_exp}+ yrs meets {job_required_experience_years} required", 1.0))
         elif job_required_experience_years <= 1:
-            sub_scores.append((85.0, f"job prefers {job_required_experience_years} yr — trade training qualifies", 1.0))
+            sub_scores.append((85.0, f"job prefers {job_required_experience_years} yr, trade training qualifies", 1.0))
         elif job_required_experience_years == 2:
-            sub_scores.append((55.0, f"job needs {job_required_experience_years} yrs — stretch for new grad", 1.0))
+            sub_scores.append((55.0, f"job needs {job_required_experience_years} yrs, stretch for new grad", 1.0))
         elif job_required_experience_years <= 4:
-            sub_scores.append((20.0, f"job needs {job_required_experience_years} yrs — requires field time", 1.0))
+            sub_scores.append((20.0, f"job needs {job_required_experience_years} yrs, requires field time", 1.0))
         else:
-            sub_scores.append((10.0, f"job needs {job_required_experience_years}+ yrs — significant gap", 1.0))
+            sub_scores.append((10.0, f"job needs {job_required_experience_years}+ yrs, significant gap", 1.0))
 
     if not sub_scores:
         s, r = 80.0, "no explicit credential, education, or experience requirements on job"
@@ -251,7 +301,7 @@ def score_timing_readiness(
         s, r = 20.0, f"materially delayed (~{timing.months_to_available} months)"
     else:
         s = null_default
-        r = "no timing information — null default"
+        r = "no timing information (null default)"
         return DimensionScore(dim, weight, s, weight * s / 100, r, True, s)
 
     return DimensionScore(dim, weight, s, weight * s / 100, r)
@@ -327,7 +377,7 @@ def score_industry_alignment(
 
     if applicant_family_code is None or job_family_code is None:
         return DimensionScore(dim, weight, null_default, weight * null_default / 100,
-                              "unknown family — null default", True, null_default)
+                              "unknown family (null default)", True, null_default)
 
     if applicant_family_code == job_family_code:
         s, r = 80.0, f"same industry: {applicant_family_code}"
@@ -355,13 +405,13 @@ def score_compensation_alignment(
     dim = "compensation_alignment"
     if job_pay_min is None:
         return DimensionScore(dim, weight, null_default, weight * null_default / 100,
-                              "no pay data on job — null default", True, null_default)
+                              "no pay data on job (null default)", True, null_default)
 
     avg = (job_pay_min + (job_pay_max or job_pay_min)) / 2
     pay_label = job_pay_type or "unknown"
 
     if job_pay_type == "hourly" and avg >= 20:
-        s, r = 75.0, f"competitive hourly pay: ${job_pay_min}–${job_pay_max or job_pay_min}/hr"
+        s, r = 75.0, f"competitive hourly pay: ${float(job_pay_min):g}–${float(job_pay_max or job_pay_min):g}/hr"
     elif job_pay_type == "annual" and avg >= 40_000:
         s, r = 75.0, f"competitive salary: ${job_pay_min:,.0f}–${job_pay_max or job_pay_min:,.0f}/yr"
     else:
@@ -390,7 +440,7 @@ def score_work_style_alignment(
 
     if not ws:
         return DimensionScore(dim, weight, null_default, weight * null_default / 100,
-                              "no work setting info — null default", True, null_default)
+                              "no work setting info (null default)", True, null_default)
 
     if ws == "remote":
         s, r = 80.0, "fully remote"
@@ -399,16 +449,16 @@ def score_work_style_alignment(
     elif ws == "on_site":
         if "frequent" in travel or "heavy" in travel:
             if willing_to_travel:
-                s, r = 65.0, "on-site with frequent travel — willing"
+                s, r = 65.0, "on-site with frequent travel, willing"
             else:
-                s, r = 40.0, "on-site with frequent travel — not willing"
+                s, r = 40.0, "on-site with frequent travel, not willing"
         else:
             s, r = 75.0, "on-site (standard)"
     elif ws == "flexible":
         s, r = 75.0, "flexible work arrangement"
     else:
         return DimensionScore(dim, weight, null_default, weight * null_default / 100,
-                              f"unrecognised setting '{ws}' — null default", True, null_default)
+                              f"unrecognised setting '{ws}' (null default)", True, null_default)
 
     return DimensionScore(dim, weight, s, weight * s / 100, r)
 
@@ -491,9 +541,15 @@ def score_employer_soft_pref(
         app_signals = _extract_soft_signals(app_text)
         job_signals = _extract_soft_signals(job_text_val)
 
-        # Trade school students have baseline soft skills from their training
+        # Trade school students have baseline soft skills from their training.
+        # This is an ASSUMPTION, not observed applicant data — the rationale
+        # marks it so the explanation layer never presents it as a verified
+        # strength ("matches employer preferences" must not be claimed from
+        # an empty profile).
+        assumed_baseline = False
         if not app_signals and not app_text.strip():
             app_signals = {"safety-conscious", "teamwork", "problem-solving", "reliability"}
+            assumed_baseline = True
 
         if not job_signals:
             s, r = 60.0, "no specific soft preferences detected in job posting"
@@ -504,7 +560,10 @@ def score_employer_soft_pref(
             ratio = len(overlap) / len(job_signals)
             s = 55.0 + ratio * 40.0
             matched = sorted(overlap)[:3]
-            r = f"soft skill alignment: {', '.join(matched)}"
+            if assumed_baseline:
+                r = f"likely soft-skill fit (assumed from trade training): {', '.join(matched)}"
+            else:
+                r = f"soft skill alignment: {', '.join(matched)}"
         else:
             s, r = 45.0, "limited soft-skill overlap with employer preferences"
 
@@ -575,6 +634,13 @@ def compute_structured_score(
             travel_preference=applicant.get("travel_preference"),
             relocation_preference=applicant.get("relocation_preference"),
             relocation_states=applicant.get("relocation_states"),
+            applicant_lat=applicant.get("lat"),
+            applicant_lng=applicant.get("lng"),
+            job_lat=job.get("lat"),
+            job_lng=job.get("lng"),
+            commute_radius_miles=applicant.get("commute_radius_miles"),
+            applicant_city=applicant.get("city"),
+            job_city=job.get("city"),
         ),
         score_credential_readiness(
             job.get("required_credentials") or [],

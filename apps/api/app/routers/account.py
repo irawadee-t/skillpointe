@@ -41,6 +41,9 @@ from app.schemas.account import (
     HardDeleteResponse,
 )
 from app.skilled_pro.notifications import notify
+from app.skilled_pro.senders import send_email, send_sms
+from app.util.audit import write_audit
+from app.util.rate_limit import rate_limit_sensitive
 
 logger = logging.getLogger(__name__)
 
@@ -48,10 +51,65 @@ user_router  = APIRouter(prefix="/me/account", tags=["me"])
 admin_router = APIRouter(prefix="/admin/account-recovery", tags=["admin"])
 
 _TOKEN_TTL_MIN = 20
+# After this many wrong codes the pending request is burned and a new one must
+# be requested — caps brute-force at a handful of tries per issued code.
+_MAX_CONFIRM_ATTEMPTS = 5
 
 
 def _hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
+
+
+async def _deliver_code(channel: str, target: str, token: str) -> None:
+    """Deliver a confirmation code out-of-band to the target email/phone.
+
+    - Sends via Resend (email) or Twilio (SMS) when those providers are
+      configured — the real, secure path.
+    - Logs the code to the console ONLY in local dev, and only when no real
+      provider delivered it, so a developer can still complete the flow. The
+      code is never logged in staging/production.
+    """
+    msg = (
+        f"Your SkillPointe confirmation code is {token}. "
+        f"It expires in {_TOKEN_TTL_MIN} minutes. If you didn't request this, ignore this message."
+    )
+    if channel == "email":
+        result = await send_email(target, "Your SkillPointe confirmation code", msg)
+    else:
+        result = await send_sms(target, msg)
+
+    if not result.delivered and get_settings().is_local:
+        logger.info("[%s dev] Code for %s: %s", channel, target, token)
+    elif not result.delivered and not result.skipped:
+        # Real provider was configured but failed — surface for ops, no code.
+        logger.error("Confirmation code delivery failed for %s via %s: %s", target, channel, result.detail)
+
+
+async def _consume_confirmation(conn, user_id, kind: str, token: str):
+    """Look up the latest pending change request for (user, kind) and validate
+    the supplied code with a per-request attempt lockout. Returns the row on
+    success; raises HTTPException otherwise. Fetching by (user, kind) rather than
+    by token hash is what lets us count wrong guesses and lock the request."""
+    row = await conn.fetchrow(
+        "SELECT id, new_value, expires_at, status, token_hash, attempts "
+        "FROM public.account_change_requests "
+        "WHERE user_id = $1 AND kind = $2 AND status = 'pending_confirmation' "
+        "ORDER BY created_at DESC LIMIT 1",
+        user_id, kind,
+    )
+    if not row:
+        raise HTTPException(status_code=400, detail="Invalid or expired code.")
+    if row["expires_at"] and row["expires_at"] < datetime.now(timezone.utc):
+        await conn.execute("UPDATE public.account_change_requests SET status = 'expired' WHERE id = $1", row["id"])
+        raise HTTPException(status_code=400, detail="Code expired. Request a new one.")
+    if row["attempts"] >= _MAX_CONFIRM_ATTEMPTS:
+        await conn.execute("UPDATE public.account_change_requests SET status = 'cancelled' WHERE id = $1", row["id"])
+        raise HTTPException(status_code=429, detail="Too many incorrect codes. Request a new one.")
+    if row["token_hash"] != _hash(token.strip()):
+        await conn.execute("UPDATE public.account_change_requests SET attempts = attempts + 1 WHERE id = $1", row["id"])
+        remaining = max(0, _MAX_CONFIRM_ATTEMPTS - int(row["attempts"]) - 1)
+        raise HTTPException(status_code=400, detail=f"Incorrect code. {remaining} attempt(s) left.")
+    return row
 
 
 def _mint_token() -> str:
@@ -101,7 +159,11 @@ class RecoveryTicketOut(BaseModel):
 # User: email
 # ---------------------------------------------------------------------------
 
-@user_router.post("/email/change", response_model=ChangeRequestOut)
+@user_router.post(
+    "/email/change",
+    response_model=ChangeRequestOut,
+    dependencies=[Depends(rate_limit_sensitive("email_change"))],
+)
 async def request_email_change(
     body: EmailChangeIn,
     request: Request,
@@ -125,33 +187,23 @@ async def request_email_change(
             request.headers.get("user-agent"),
             str(_TOKEN_TTL_MIN),
         )
-        # Notify the NEW email address — stubbed via notifications table so worker can flush.
-        await notify(
-            conn,
-            recipient_user_id=None,               # no user for the new address yet
-            recipient_role=None,
-            kind="account_email_change_code",
-            title="Confirm your new SkillPointe email",
-            body=f"Enter this 6-digit code within {_TOKEN_TTL_MIN} minutes: {token}",
-            payload={"email": str(body.new_email), "expires_at": row["expires_at"].isoformat()},
-        )
-        logger.info(f"[email-change stub] Code for {body.new_email}: {token}")
+        # The code goes ONLY to the new address, out-of-band (email). It is
+        # deliberately NOT written to an in-app notification — surfacing a
+        # confirmation code inside the already-authenticated session would
+        # defeat the point of confirming a second factor.
+        await _deliver_code("email", str(body.new_email), token)
 
     return _out(row["id"], "email_change", "pending_confirmation", row["created_at"], row["expires_at"], _mask_email(str(body.new_email)))
 
 
-@user_router.post("/email/confirm", response_model=ChangeRequestOut)
+@user_router.post(
+    "/email/confirm",
+    response_model=ChangeRequestOut,
+    dependencies=[Depends(rate_limit_sensitive("email_confirm"))],
+)
 async def confirm_email_change(body: TokenIn, user: CurrentUser = Depends(get_current_user)):
     async with get_db() as conn:
-        row = await conn.fetchrow(
-            "SELECT id, new_value, expires_at, status FROM public.account_change_requests WHERE user_id = $1 AND kind = 'email_change' AND token_hash = $2 ORDER BY created_at DESC LIMIT 1",
-            user.user_id, _hash(body.token.strip()),
-        )
-        if not row or row["status"] != "pending_confirmation":
-            raise HTTPException(status_code=400, detail="Invalid or expired code.")
-        if row["expires_at"] and row["expires_at"] < datetime.now(timezone.utc):
-            await conn.execute("UPDATE public.account_change_requests SET status = 'expired' WHERE id = $1", row["id"])
-            raise HTTPException(status_code=400, detail="Code expired. Request a new one.")
+        row = await _consume_confirmation(conn, user.user_id, "email_change", body.token)
 
         # Supabase Admin update
         from app.auth.dependencies import _get_admin_client
@@ -174,7 +226,11 @@ async def confirm_email_change(body: TokenIn, user: CurrentUser = Depends(get_cu
 # User: phone
 # ---------------------------------------------------------------------------
 
-@user_router.post("/phone/change", response_model=ChangeRequestOut)
+@user_router.post(
+    "/phone/change",
+    response_model=ChangeRequestOut,
+    dependencies=[Depends(rate_limit_sensitive("phone_change"))],
+)
 async def request_phone_change(
     body: PhoneChangeIn,
     request: Request,
@@ -198,32 +254,21 @@ async def request_phone_change(
             request.headers.get("user-agent"),
             str(_TOKEN_TTL_MIN),
         )
-        # SMS stub via notifications
-        await notify(
-            conn,
-            recipient_user_id=user.user_id,
-            kind="account_phone_change_code",
-            title="Confirm your new phone",
-            body=f"Your SkillPointe verification code is {token}. Expires in {_TOKEN_TTL_MIN} min.",
-            payload={"phone": body.new_phone, "expires_at": row["expires_at"].isoformat()},
-        )
-        logger.info(f"[phone-change stub] Code for {body.new_phone}: {token}")
+        # Code goes out-of-band via SMS only — never as an in-app notification
+        # to the logged-in session (see the email flow above for why).
+        await _deliver_code("sms", body.new_phone, token)
 
     return _out(row["id"], "phone_change", "pending_confirmation", row["created_at"], row["expires_at"], _mask_phone(body.new_phone))
 
 
-@user_router.post("/phone/confirm", response_model=ChangeRequestOut)
+@user_router.post(
+    "/phone/confirm",
+    response_model=ChangeRequestOut,
+    dependencies=[Depends(rate_limit_sensitive("phone_confirm"))],
+)
 async def confirm_phone_change(body: TokenIn, user: CurrentUser = Depends(get_current_user)):
     async with get_db() as conn:
-        row = await conn.fetchrow(
-            "SELECT id, new_value, expires_at, status FROM public.account_change_requests WHERE user_id = $1 AND kind = 'phone_change' AND token_hash = $2 ORDER BY created_at DESC LIMIT 1",
-            user.user_id, _hash(body.token.strip()),
-        )
-        if not row or row["status"] != "pending_confirmation":
-            raise HTTPException(status_code=400, detail="Invalid or expired code.")
-        if row["expires_at"] and row["expires_at"] < datetime.now(timezone.utc):
-            await conn.execute("UPDATE public.account_change_requests SET status = 'expired' WHERE id = $1", row["id"])
-            raise HTTPException(status_code=400, detail="Code expired.")
+        row = await _consume_confirmation(conn, user.user_id, "phone_change", body.token)
         await conn.execute("UPDATE public.account_change_requests SET status = 'confirmed', confirmed_at = NOW() WHERE id = $1", row["id"])
         # Store on applicant/employer contact profile
         await conn.execute("UPDATE public.applicants SET phone = $2 WHERE user_id = $1", user.user_id, row["new_value"])
@@ -314,21 +359,119 @@ async def resolve_ticket(ticket_id: UUID, body: ResolveIn, user: CurrentUser = D
         )
         if not row:
             raise HTTPException(status_code=409, detail="Ticket not open for review.")
+        # Audit: an admin resolved an account-recovery ticket (grant/deny access).
+        await write_audit(
+            conn,
+            action="account_recovery_granted" if body.granted else "account_recovery_denied",
+            actor_id=user.user_id,
+            actor_role=user.role,
+            entity_type="account_change_requests",
+            entity_id=str(ticket_id),
+            metadata={"granted": body.granted, "note": (body.note or "")[:2000]},
+        )
         # Notify the user
+        # Templated body — the admin's note is never the raw body copy; it
+        # appears (if at all) as a labeled detail line after the template.
+        resolved_body = (
+            "Your account recovery request was approved. Sign in to continue."
+            if body.granted
+            else "Your account recovery request was not approved."
+        )
+        if body.note and body.note.strip():
+            resolved_body += f' Reviewer note: "{body.note.strip()[:300]}"'
         await notify(
             conn,
             recipient_user_id=str(row["user_id"]),
             kind="account_recovery_resolved",
-            title=f"Recovery {'granted' if body.granted else 'denied'}",
-            body=body.note,
+            title=f"Account recovery {'approved' if body.granted else 'denied'}",
+            body=resolved_body,
             link_href="/account/settings",
             payload={"ticket_id": str(ticket_id), "granted": body.granted},
+            dedupe_key=f"account_recovery_resolved:{ticket_id}",
         )
     return RecoveryTicketOut(
         id=row["id"], user_id=row["user_id"], kind=row["kind"], status=row["status"],
         reason=row["reason"], created_at=row["created_at"].isoformat(),
         reviewer_user_id=row["reviewer_user_id"], reviewer_note=row["reviewer_note"],
     )
+
+
+# ---------------------------------------------------------------------------
+# DSAR — self-serve data export (GDPR Art. 15 / CCPA right to know)
+# ---------------------------------------------------------------------------
+
+# (table, key column) for the user's own data. Applicant/employer-keyed tables
+# are resolved via the applicant/employer_contact id looked up from user_id.
+_EXPORT_USER_KEYED = [
+    "user_profiles", "notifications", "chat_sessions", "chat_messages",
+    "conversations", "direct_messages", "account_change_requests",
+]
+_EXPORT_APPLICANT_KEYED = [
+    "credentials", "applications", "saved_jobs", "matches",
+    "match_dimension_scores", "extracted_applicant_signals",
+    "applicant_resume_uploads", "hire_outcomes",
+]
+
+
+@user_router.get("/export")
+async def export_my_data(request: Request, user: CurrentUser = Depends(get_current_user)):
+    """Return a machine-readable export of all data held about the requester.
+
+    Satisfies GDPR Article 15 (right of access) and CCPA "right to know" as a
+    self-serve, user-initiated download. The export is itself audit-logged."""
+    export: dict[str, object] = {
+        "exported_at": datetime.now(timezone.utc).isoformat(),
+        "user_id": user.user_id,
+        "email": user.email,
+        "data": {},
+    }
+    data: dict[str, object] = export["data"]  # type: ignore[assignment]
+
+    async with get_db() as conn:
+        applicant_id = await conn.fetchval(
+            "SELECT id::text FROM public.applicants WHERE user_id = $1", user.user_id
+        )
+
+        async def _dump(table: str, where_col: str, value) -> None:
+            if value is None:
+                return
+            try:
+                rows = await conn.fetch(
+                    f"SELECT * FROM public.{table} WHERE {where_col} = $1::uuid", value
+                )
+                # asyncpg Records → plain dicts; str() default handles dates/uuids.
+                dicts = [dict(r) for r in rows]
+                # Decrypt any at-rest-encrypted PII so the export is readable.
+                if table == "applicant_resume_uploads":
+                    from app.util.crypto import decrypt_str
+                    for d in dicts:
+                        if "raw_text" in d:
+                            d["raw_text"] = decrypt_str(d["raw_text"])
+                data[table] = dicts
+            except Exception as exc:  # table may not have that column
+                logger.debug("Export skipped %s.%s: %s", table, where_col, exc)
+
+        for t in _EXPORT_USER_KEYED:
+            await _dump(t, "user_id", user.user_id)
+        # The applicants profile row itself is keyed by user_id.
+        await _dump("applicants", "user_id", user.user_id)
+        for t in _EXPORT_APPLICANT_KEYED:
+            await _dump(t, "applicant_id", applicant_id)
+
+        await write_audit(
+            conn,
+            action="data_export_requested",
+            actor_id=user.user_id, actor_role=user.role,
+            entity_type="user_profiles", entity_id=user.user_id,
+            ip_address=request.client.host if request.client else None,
+            metadata={"tables": list(data.keys())},
+        )
+
+    # default=str so uuids/dates/decimals serialize cleanly.
+    import json as _json
+
+    from fastapi.responses import JSONResponse
+    return JSONResponse(content=_json.loads(_json.dumps(export, default=str)))
 
 
 # ---------------------------------------------------------------------------
@@ -401,7 +544,6 @@ async def request_account_deletion(
     On success, `user_profiles.pending_deletion_at` is set. A scheduled worker
     (see app.worker.scheduler) hard-deletes accounts whose grace has elapsed.
     """
-    from app.auth.dependencies import _get_admin_client
     from supabase import create_client
 
     settings = get_settings()
@@ -432,12 +574,13 @@ async def request_account_deletion(
 
         await conn.execute(
             """
-            INSERT INTO public.audit_logs (actor_user_id, action, target_table, target_id, payload)
-            VALUES ($1, 'account_deletion_requested', 'user_profiles', $1::text, $2::jsonb)
+            INSERT INTO public.audit_logs
+              (actor_id, actor_role, action, entity_type, entity_id, ip_address, metadata)
+            VALUES ($1::uuid, 'user', 'account_deletion_requested', 'user_profiles', $1::uuid, $2, $3::jsonb)
             """,
             user.user_id,
+            request.client.host if request.client else None,
             {
-                "ip": request.client.host if request.client else None,
                 "reason": (body.reason or "").strip()[:2000] or None,
                 "hard_delete_after": hard_delete_after.isoformat(),
             },
@@ -486,8 +629,8 @@ async def cancel_account_deletion(
             raise HTTPException(status_code=409, detail="No pending deletion to cancel.")
         await conn.execute(
             """
-            INSERT INTO public.audit_logs (actor_user_id, action, target_table, target_id)
-            VALUES ($1, 'account_deletion_cancelled', 'user_profiles', $1::text)
+            INSERT INTO public.audit_logs (actor_id, actor_role, action, entity_type, entity_id)
+            VALUES ($1::uuid, 'user', 'account_deletion_cancelled', 'user_profiles', $1::uuid)
             """,
             user.user_id,
         )
@@ -509,11 +652,18 @@ async def _hard_delete_user(conn, user_id: str) -> list[str]:
             # Some tables key on `user_id`, others on `applicant_id`/`employer_id`
             # via joins — we defer to Postgres FK cascades where they exist and
             # explicitly clear user-keyed rows here.
+            #
+            # Each DELETE runs in its OWN savepoint (nested transaction): a table
+            # without a `user_id` column raises, and in Postgres a raised
+            # statement poisons the whole transaction until rollback. The
+            # savepoint contains that failure so the remaining deletes — and the
+            # audit tombstone below — still commit.
             try:
-                await conn.execute(
-                    f"DELETE FROM public.{table} WHERE user_id = $1",
-                    user_id,
-                )
+                async with conn.transaction():
+                    await conn.execute(
+                        f"DELETE FROM public.{table} WHERE user_id = $1",
+                        user_id,
+                    )
                 cleared.append(table)
             except Exception as exc:
                 # Table may not have user_id (e.g. matches, engagement_events);
@@ -532,8 +682,8 @@ async def _hard_delete_user(conn, user_id: str) -> list[str]:
         # audit_logs is preserved — write a final tombstone.
         await conn.execute(
             """
-            INSERT INTO public.audit_logs (actor_user_id, action, target_table, target_id, payload)
-            VALUES (NULL, 'account_hard_deleted', 'user_profiles', $1::text, $2::jsonb)
+            INSERT INTO public.audit_logs (actor_id, actor_role, action, entity_type, entity_id, metadata)
+            VALUES (NULL, 'system', 'account_hard_deleted', 'user_profiles', $1::uuid, $2::jsonb)
             """,
             user_id,
             {"tables_cleared": cleared},

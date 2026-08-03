@@ -38,8 +38,8 @@ for _parent in Path(__file__).resolve().parents:
 # Root Directory = apps/api excludes the sibling packages/). Degrade gracefully
 # instead of crashing the whole app at import.
 try:
-    from verification import ctdl, nccer, nsc                # noqa: E402
-    from verification.shared import VerificationStatus       # noqa: E402
+    from verification import ctdl, nccer, nsc  # noqa: E402
+    from verification.shared import VerificationStatus  # noqa: E402
     _VERIFICATION_AVAILABLE = True
 except Exception:  # pragma: no cover - environment-dependent
     ctdl = nccer = nsc = None                                # type: ignore
@@ -191,7 +191,7 @@ def _level_for_status(status: str, previous: Optional[int]) -> int:
 
 def _human_message(result) -> str:
     if result.stubbed:
-        return f"Partner ({result.provider.upper()}) key not configured yet — this result is a stub for testing."
+        return f"Partner ({result.provider.upper()}) key not configured yet, so this result is a stub for testing."
     if result.status == VerificationStatus.VERIFIED:
         return f"Verified by {result.provider.upper()}."
     if result.status == VerificationStatus.NOT_FOUND:
@@ -200,7 +200,7 @@ def _human_message(result) -> str:
         return f"{result.provider.upper()} shows this credential as expired."
     if result.status == VerificationStatus.REVOKED:
         return f"{result.provider.upper()} shows this credential as revoked."
-    return f"{result.provider.upper()} could not be reached — try again later."
+    return f"{result.provider.upper()} could not be reached. Try again later."
 
 
 async def _append_record(

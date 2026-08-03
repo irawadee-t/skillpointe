@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { fetchJobMapData } from "@/lib/api/admin";
-import { JobMapClient } from "./JobMapClient";
+import { MapExplorerClient } from "./MapExplorerClient";
 
 export default async function MapPage() {
   const supabase = await createClient();
@@ -22,5 +22,5 @@ export default async function MapPage() {
     error = "Failed to load map data.";
   }
 
-  return <JobMapClient clusters={clusters ?? []} error={error} accessToken={session.access_token} />;
+  return <MapExplorerClient clusters={clusters ?? []} error={error} accessToken={session.access_token} />;
 }

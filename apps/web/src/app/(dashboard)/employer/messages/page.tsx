@@ -6,27 +6,9 @@ import { redirect } from "next/navigation";
 import { MessageSquare } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { Card, MonoLabel, Reveal, Stagger, StaggerItem } from "@/components/ui";
-
-interface Conversation {
-  conversation_id: string;
-  other_party_name: string;
-  job_title: string | null;
-  last_message_at: string;
-  unread_count: number;
-  message_count: number;
-}
-
-async function fetchConversations(token: string): Promise<Conversation[]> {
-  const API_URL =
-    process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-  const res = await fetch(`${API_URL}/conversations`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-  });
-  if (!res.ok) return [];
-  return res.json();
-}
+import { Card, Reveal } from "@/components/ui";
+import { fetchConversations } from "@/lib/api/messages";
+import { EmployerMessagesListClient } from "./EmployerMessagesListClient";
 
 export default async function EmployerMessagesPage() {
   const supabase = await createClient();
@@ -64,36 +46,7 @@ export default async function EmployerMessagesPage() {
             </Card>
           </Reveal>
         ) : (
-          <Stagger className="space-y-3">
-            {conversations.map((c) => (
-              <StaggerItem key={c.conversation_id}>
-                <Card interactive href={`/employer/messages/${c.conversation_id}`} className="flex items-center justify-between px-5 py-4">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-cohere-ink truncate">
-                        {c.other_party_name}
-                      </p>
-                      {c.unread_count > 0 && (
-                        <span className="shrink-0 inline-flex items-center justify-center min-w-5 h-5 px-1.5 rounded-full bg-cohere-green text-white text-micro font-bold tabular-nums">
-                          {c.unread_count}
-                        </span>
-                      )}
-                    </div>
-                    {c.job_title && (
-                      <p className="text-body text-slate mt-0.5 truncate">
-                        Re: {c.job_title}
-                      </p>
-                    )}
-                    <p className="text-body text-slate mt-0.5 tabular-nums">
-                      {c.message_count} message{c.message_count !== 1 ? "s" : ""},{" "}
-                      {new Date(c.last_message_at).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <MessageSquare className="w-4 h-4 text-slate shrink-0 ml-3" />
-                </Card>
-              </StaggerItem>
-            ))}
-          </Stagger>
+          <EmployerMessagesListClient conversations={conversations} />
         )}
       </div>
     </main>

@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     # Database (direct Postgres — used by applicant/employer API routes)
     database_url: str = "postgresql://postgres:postgres@localhost:54322/postgres"
 
+    # Connection pool sizing (per process — see app/db.py). With N replicas the
+    # DB sees up to N × db_pool_max_size connections, so in production point
+    # database_url at Supabase's pooler and set db_use_pgbouncer=true.
+    db_pool_min_size: int = 2
+    db_pool_max_size: int = 10
+    db_command_timeout: float = 30.0
+    db_use_pgbouncer: bool = False
+
     # Redis
     redis_url: str = "redis://localhost:6379"
 
@@ -35,6 +43,27 @@ class Settings(BaseSettings):
     openai_api_key: str = ""
     llm_model: str = "gpt-4o"
     llm_extraction_model: str = "gpt-4o-mini"
+    # Resilience & latency budget. A user should never wait through a long
+    # retry storm — that reads as "broken" long before it succeeds. So:
+    #   * ONE retry (not many): a single transient blip (429/5xx/network) is
+    #     retried once with the SDK's short backoff; a second retry almost never
+    #     converts a failure to a success and just doubles the tail latency.
+    #   * A short CONNECT timeout so a dead/unreachable host fails fast (~5s)
+    #     instead of making the user wait the full read budget just to connect.
+    #   * A generous READ timeout because real LLM generation legitimately takes
+    #     10-30s; that's answer latency, not a fault, so we don't cut it short.
+    # Worst-case user wait on a hard outage ≈ (connect+read) × (1 retry) ≈ ~50s
+    # then a clean graceful fallback — versus ~60s+ before, and it usually
+    # resolves on the first attempt in well under the read budget.
+    openai_timeout_seconds: float = 30.0
+    openai_connect_timeout_seconds: float = 5.0
+    openai_max_retries: int = 1
+
+    # Headless (Playwright Chromium) LISTING-ONLY fallback for JS-walled
+    # careers sites (see app/skilled_pro/headless.py). Scheduler/background
+    # only — never on the request path. Default ON for local/dev; set
+    # HEADLESS_SCRAPE_ENABLED=false where Chromium isn't provisioned.
+    headless_scrape_enabled: bool = True
 
     # Sentry
     sentry_dsn: str = ""
@@ -58,16 +87,79 @@ class Settings(BaseSettings):
     google_maps_api_key: str = ""
     mapbox_access_token: str = ""
 
-    # SMS / email delivery — stubbed until keys land.
+    # Calendar OAuth sync — the READ (free/busy overlay) tier is BUILT
+    # (app/routers/calendar_sync.py + app/skilled_pro/calendar_sync.py).
+    # When a pair is set, the UI shows the corresponding "Connect …" button via
+    # GET /me/calendar/providers and the button leads to the working
+    # auth-code + PKCE flow; leaving them unset (the local default) hides the
+    # buttons entirely. Scopes actually requested (minimal, free/busy only):
+    #   Google:  https://www.googleapis.com/auth/calendar.freebusy  (+ openid email)
+    #   Microsoft Graph:  Calendars.Read (delegated)  (+ openid email offline_access)
+    # Redirect URIs to register on the OAuth apps:
+    #   {API_PUBLIC_URL}/calendar/callback/google
+    #   {API_PUBLIC_URL}/calendar/callback/microsoft
+    google_calendar_client_id: str = ""
+    google_calendar_client_secret: str = ""
+    ms_graph_client_id: str = ""
+    ms_graph_client_secret: str = ""
+
+    # Public origin of THIS API (used to build the OAuth redirect_uri that must
+    # exactly match the provider app registration) and of the web app (where
+    # the callback sends the browser afterwards; defaults to the first CORS
+    # origin when unset).
+    api_public_url: str = "http://localhost:8000"
+    web_public_url: str = ""
+
+    # Local-only demo calendar: a "Connect demo calendar" button whose
+    # connection produces deterministic busy blocks through the SAME
+    # storage/fetch/overlay pipeline as real providers — so the whole UX is
+    # verifiable without OAuth keys. Refused in production (see
+    # enforce_production_safety AND the endpoint's own guard).
+    calendar_fake_provider: bool = False
+
+    # SMS / email delivery.
+    # Email picks the first configured path: Resend (production) → SMTP
+    # (smtp_host/smtp_port; locally this is Supabase's Inbucket/Mailpit at
+    # localhost:54325, so every email is really sent and inspectable at
+    # http://localhost:54324) → skipped with an honest SendResult.
+    # In APP_ENV=local the SMTP fallback defaults to Inbucket automatically.
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""
     twilio_from_number: str = ""
     resend_api_key: str = ""
+    smtp_host: str = ""
+    smtp_port: int = 0
+
+    @property
+    def web_origin(self) -> str:
+        """Absolute origin of the web app — for links inside emails (team
+        invites, scheduling deep links). Uses web_public_url when set, else
+        the first CORS origin (which is the web app in every environment)."""
+        if self.web_public_url:
+            return self.web_public_url.rstrip("/")
+        origins = self.cors_origins_list
+        return (origins[0] if origins else "http://localhost:3000").rstrip("/")
 
     # Credential-verification partners. All optional — adapters return well-formed
     # stubbed results when a key is missing so the flow keeps working end-to-end.
     nccer_api_key: str = ""       # Contact partners@nccer.org for a Registry key
     nsc_api_key: str = ""         # NSC DegreeVerify service account key
+
+    # Checkr — background checks, MVR/CDLIS, professional license verification.
+    # Employer-initiated + employer-paid so Checkr owns the FCRA flow. Unset =
+    # the hosted invitation is simulated in local and unavailable in production.
+    checkr_api_key: str = ""
+    checkr_webhook_secret: str = ""   # verifies inbound webhook signatures
+    checkr_default_package: str = "driver_pro"  # Checkr package slug to invite into
+
+    # Pluggable OCR + SIS providers. These were previously read via getattr() but
+    # never declared, so `extra="ignore"` silently dropped them and the app was
+    # locked to the heuristic OCR + mock SIS feed. Declaring them makes the env
+    # vars actually take effect. Empty string = "use the environment default"
+    # (heuristic/mock in local, safe null provider everywhere else — see
+    # get_ocr_provider / get_sis_provider).
+    ocr_provider: str = ""        # "" | "heuristic" | "textract" | "null"
+    sis_provider: str = ""        # "" | "mock" | "ethos" | "null"
 
     # App-layer encryption for sensitive at-rest fields (screening answers).
     # Generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
@@ -142,6 +234,13 @@ def enforce_production_safety(settings: Settings, logger) -> None:
             "`python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\"`."
         )
 
+    # The demo calendar provider is a dev fixture; it must not exist in prod.
+    if settings.calendar_fake_provider:
+        errors.append(
+            "CALENDAR_FAKE_PROVIDER must be false in production — the demo "
+            "calendar is a local development fixture only."
+        )
+
     # No localhost URLs in prod
     for name, val in (
         ("supabase_url", settings.supabase_url),
@@ -150,6 +249,18 @@ def enforce_production_safety(settings: Settings, logger) -> None:
     ):
         if val and ("localhost" in val or "127.0.0.1" in val):
             errors.append(f"{name} points at localhost in production ({val!r}).")
+
+    # CORS: with allow_credentials=True, an over-broad origin regex trusts any
+    # matching site. A bare "*.vercel.app" pattern means anyone's Vercel deploy
+    # is a credentialed origin — refuse it and force a project-scoped pattern
+    # (e.g. https://skillpointe-[a-z0-9-]+\.vercel\.app or the exact prod host).
+    regex = (settings.cors_origin_regex or "").lower()
+    if regex and "vercel" in regex and "skillpointe" not in regex and "spf" not in regex:
+        errors.append(
+            "CORS_ORIGIN_REGEX is too broad for a credentialed API "
+            f"({settings.cors_origin_regex!r}). Scope it to your project's preview "
+            r"hosts, e.g. ^https://skillpointe-[a-z0-9-]+\.vercel\.app$."
+        )
 
     if errors:
         joined = "\n  - ".join(errors)

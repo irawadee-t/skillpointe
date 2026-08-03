@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { fetchMyMatches } from "@/lib/api/applicant";
 import { createClient } from "@/lib/supabase/server";
+import { canViewApplicantPages } from "@/lib/viewAs.server";
 import { MatchesClient } from "./MatchesClient";
 
 export default async function MatchesPage() {
@@ -10,7 +11,7 @@ export default async function MatchesPage() {
   } = await supabase.auth.getSession();
 
   if (!session) redirect("/login");
-  if (session.user.app_metadata?.role !== "applicant") redirect("/login");
+  if (!(await canViewApplicantPages(session.user.app_metadata?.role))) redirect("/login");
 
   const token = session.access_token;
   let matches;

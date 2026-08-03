@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { AlertTriangle, Loader2, Bell, Check } from "lucide-react";
 
 import { DormantApplication, SLASummary, getSLASummary, nudgeEmployer } from "@/lib/api/transactions";
-import { MonoLabel } from "@/components/ui";
 
 /**
  * Admin dashboard card — flags applications where the employer hasn't clicked
@@ -43,21 +42,22 @@ export function DormantApplicationsCard({ token }: { token: string }) {
   const isEmpty = items.length === 0;
 
   return (
-    <section className="rounded-xl border border-hairline bg-white p-6 shadow-[0_1px_2px_rgba(12,10,9,0.04)]">
+    <section className="rounded-xl border border-hairline bg-white p-6">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
             <AlertTriangle className={`h-5 w-5 ${isEmpty ? "text-cohere-green" : "text-studio-maroon"}`} strokeWidth={1.75} />
-            <h3 className="font-display text-feature text-cohere-ink">Response-time SLA</h3>
+            <h3 className="text-[1.0625rem] font-medium text-cohere-ink">Response-time SLA</h3>
           </div>
           <p className="mt-1 text-caption text-slate">
             Applications employers haven't opened for {summary.threshold_days}+ days.
           </p>
         </div>
-        <div className="text-right">
-          <div className="font-display text-heading text-cohere-ink">{summary.dormant_count}</div>
-          <MonoLabel>dormant, {summary.dormant_employers} employer{summary.dormant_employers === 1 ? "" : "s"}</MonoLabel>
-        </div>
+        <p className="text-body text-slate">
+          <span className="font-medium text-cohere-ink tabular-nums">{summary.dormant_count}</span> dormant
+          <span className="mx-1.5 text-slate-muted">·</span>
+          <span className="font-medium text-cohere-ink tabular-nums">{summary.dormant_employers}</span> employer{summary.dormant_employers === 1 ? "" : "s"}
+        </p>
       </div>
 
       {isEmpty ? (
@@ -78,7 +78,7 @@ export function DormantApplicationsCard({ token }: { token: string }) {
                 </div>
               </div>
               {nudged.has(it.application_id) ? (
-                <span className="inline-flex items-center gap-1 rounded-full border border-cohere-green/30 bg-wash-green px-2.5 py-0.5 text-micro text-cohere-green">
+                <span className="inline-flex items-center gap-1 rounded-full border border-cohere-green bg-cohere-green px-2.5 py-0.5 text-micro text-white">
                   <Check className="h-3 w-3" /> Nudged
                 </span>
               ) : (

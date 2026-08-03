@@ -2,64 +2,56 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, User, Building2, Briefcase, ArrowRight } from "lucide-react";
+import { Search, User, Building2, Briefcase, BadgeCheck, ArrowRight } from "lucide-react";
+
+import { AnimatePresence } from "motion/react";
 
 import { createClient } from "@/lib/supabase/client";
 import { NotificationTray } from "./NotificationTray";
 import { useTypeahead } from "@/hooks/useTypeahead";
+import { HighlightMatch, SuggestShell } from "@/components/ui/SearchSuggest";
 
 type SearchResult =
-  | { kind: "applicant"; id: string; label: string; subtitle: string; href: string }
-  | { kind: "employer";  id: string; label: string; subtitle: string; href: string }
-  | { kind: "job";       id: string; label: string; subtitle: string; href: string };
+  | { kind: "applicant";  id: string; label: string; subtitle: string; href: string }
+  | { kind: "employer";   id: string; label: string; subtitle: string; href: string }
+  | { kind: "credential"; id: string; label: string; subtitle: string; href: string }
+  | { kind: "job";        id: string; label: string; subtitle: string; href: string };
+
+const GROUP_LABELS: Record<SearchResult["kind"], string> = {
+  applicant: "Applicants",
+  employer: "Employers",
+  credential: "Credentials",
+  job: "Jobs",
+};
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
 /**
  * Fetch per-role search results, unifying the response shape.
  *
- * The three roles hit different endpoints today (no unified /search yet); this
- * function papers over that so the UI can render a clean dropdown regardless.
+ * Admin hits the combined GET /admin/search endpoint (applicants + employers +
+ * credentials in one round trip); other roles map their own endpoints into the
+ * same dropdown shape.
  */
 async function fetchResults(role: string, token: string | null, q: string, signal: AbortSignal): Promise<SearchResult[]> {
   if (!token) return [];
   const auth = { Authorization: `Bearer ${token}` };
 
   if (role === "admin") {
-    // Admin can search applicants + employers.
-    const [aRes, eRes] = await Promise.all([
-      fetch(`${API_URL}/admin/applicants?q=${encodeURIComponent(q)}&page=1`, { headers: auth, signal }).catch(() => null),
-      fetch(`${API_URL}/admin/employers?q=${encodeURIComponent(q)}&page=1`, { headers: auth, signal }).catch(() => null),
-    ]);
-    const results: SearchResult[] = [];
-    if (aRes?.ok) {
-      const data = await aRes.json();
-      const apps: Array<{ id: string; first_name?: string; last_name?: string; email?: string; city?: string; state?: string }> = data.applicants ?? [];
-      for (const a of apps.slice(0, 4)) {
-        const name = [a.first_name, a.last_name].filter(Boolean).join(" ") || a.email || "Unnamed";
-        results.push({
-          kind: "applicant",
-          id: a.id,
-          label: name,
-          subtitle: [a.email, [a.city, a.state].filter(Boolean).join(", ")].filter(Boolean).join(", "),
-          href: `/admin/applicants?q=${encodeURIComponent(name)}`,
-        });
-      }
-    }
-    if (eRes?.ok) {
-      const data = await eRes.json();
-      const emps: Array<{ id: string; name: string; industry?: string; city?: string; state?: string }> = data.employers ?? [];
-      for (const e of emps.slice(0, 4)) {
-        results.push({
-          kind: "employer",
-          id: e.id,
-          label: e.name,
-          subtitle: [e.industry, [e.city, e.state].filter(Boolean).join(", ")].filter(Boolean).join(", "),
-          href: `/admin/employers/${e.id}`,
-        });
-      }
-    }
-    return results;
+    interface Row { id: string; label: string; subtitle: string | null; href: string }
+    // Throw on failure so the dropdown shows a distinct error state instead
+    // of a misleading "no results".
+    const res = await fetch(`${API_URL}/admin/search?q=${encodeURIComponent(q)}`, { headers: auth, signal });
+    if (!res.ok) throw new Error(`Search failed (${res.status})`);
+    const data: { applicants?: Row[]; employers?: Row[]; credentials?: Row[] } = await res.json();
+    const toResult = (kind: "applicant" | "employer" | "credential") => (r: Row): SearchResult => ({
+      kind, id: r.id, label: r.label, subtitle: r.subtitle ?? "", href: r.href,
+    });
+    return [
+      ...(data.applicants ?? []).map(toResult("applicant")),
+      ...(data.employers ?? []).map(toResult("employer")),
+      ...(data.credentials ?? []).map(toResult("credential")),
+    ];
   }
 
   if (role === "applicant") {
@@ -87,8 +79,9 @@ async function fetchResults(role: string, token: string | null, q: string, signa
 }
 
 function IconFor({ kind }: { kind: SearchResult["kind"] }) {
-  if (kind === "applicant") return <User className="h-3.5 w-3.5 text-studio-maroon" strokeWidth={2} />;
-  if (kind === "employer")  return <Building2 className="h-3.5 w-3.5 text-studio-forest" strokeWidth={2} />;
+  if (kind === "applicant")  return <User className="h-3.5 w-3.5 text-studio-maroon" strokeWidth={2} />;
+  if (kind === "employer")   return <Building2 className="h-3.5 w-3.5 text-cohere-green" strokeWidth={2} />;
+  if (kind === "credential") return <BadgeCheck className="h-3.5 w-3.5 text-cohere-green" strokeWidth={2} />;
   return <Briefcase className="h-3.5 w-3.5 text-slate" strokeWidth={2} />;
 }
 
@@ -106,10 +99,11 @@ export function Topbar({ searchHref, placeholder, role = "admin" }: { searchHref
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  const { results, loading } = useTypeahead(
+  // Live type-ahead from the FIRST character — results narrow per keystroke.
+  const { results, loading, error: searchError } = useTypeahead(
     query,
     (q, signal) => fetchResults(role, token, q, signal),
-    { minChars: 2, debounceMs: 180 },
+    { minChars: 1, debounceMs: 250 },
   );
 
   useEffect(() => { setActiveIdx(0); }, [results]);
@@ -131,7 +125,7 @@ export function Topbar({ searchHref, placeholder, role = "admin" }: { searchHref
     else if (e.key === "Escape") setOpen(false);
   };
 
-  const showDropdown = open && query.trim().length >= 2;
+  const showDropdown = open && query.trim().length >= 1;
 
   return (
     <header
@@ -143,6 +137,7 @@ export function Topbar({ searchHref, placeholder, role = "admin" }: { searchHref
         <input
           role="combobox"
           aria-expanded={showDropdown}
+          aria-controls="topbar-search-listbox"
           aria-autocomplete="list"
           aria-label={placeholder}
           value={query}
@@ -154,18 +149,32 @@ export function Topbar({ searchHref, placeholder, role = "admin" }: { searchHref
           className="h-10 w-full rounded-md border border-hairline bg-white pl-9 pr-4 text-body text-cohere-ink placeholder:text-slate-muted focus-visible:border-studio-maroon focus-visible:outline-none focus-visible:shadow-focus"
         />
 
+        {/* Same entrance/exit as every other suggestion dropdown (SuggestShell):
+            150ms fade/rise, hairline card, shadow-float — one motion language. */}
+        <AnimatePresence>
         {showDropdown && (
-          <div className="absolute left-0 right-0 top-full z-40 mt-1 max-h-96 overflow-auto rounded-md border border-hairline bg-white shadow-medium">
+          <SuggestShell className="max-h-96">
             {loading && results.length === 0 ? (
               <div className="px-3 py-3 text-caption text-slate">Searching…</div>
+            ) : searchError ? (
+              // Distinct error state — "the search broke" is not "no results".
+              <div className="px-3 py-3 text-caption text-error-red" role="alert">
+                Search is unavailable right now ({searchError}). Try again in a moment.
+              </div>
             ) : results.length === 0 ? (
               <div className="px-3 py-3 text-caption text-slate">
                 No matches. Press Enter to search all of <span className="font-medium">{placeholder.replace("Search ", "").replace("…", "")}</span>.
               </div>
             ) : (
-              <ul role="listbox">
+              <ul id="topbar-search-listbox" role="listbox">
                 {results.map((r, i) => (
                   <li key={`${r.kind}:${r.id}`}>
+                    {/* Group header when the kind changes (Applicants / Employers / Credentials) */}
+                    {(i === 0 || results[i - 1].kind !== r.kind) && (
+                      <div aria-hidden className="border-b border-hairline/60 bg-stone/40 px-3 py-1 text-micro font-medium text-slate-muted">
+                        {GROUP_LABELS[r.kind]}
+                      </div>
+                    )}
                     <button
                       type="button"
                       role="option"
@@ -180,7 +189,9 @@ export function Topbar({ searchHref, placeholder, role = "admin" }: { searchHref
                         <IconFor kind={r.kind} />
                       </span>
                       <span className="min-w-0 flex-1">
-                        <span className="block truncate text-caption font-medium text-cohere-ink">{r.label}</span>
+                        <span className="block truncate text-caption font-medium text-cohere-ink">
+                          <HighlightMatch text={r.label} query={query} />
+                        </span>
                         {r.subtitle && (
                           <span className="block truncate text-micro text-slate-muted">{r.subtitle}</span>
                         )}
@@ -203,8 +214,9 @@ export function Topbar({ searchHref, placeholder, role = "admin" }: { searchHref
                 )}
               </ul>
             )}
-          </div>
+          </SuggestShell>
         )}
+        </AnimatePresence>
       </div>
       <div className="ml-auto relative">
         {token && <NotificationTray token={token} />}

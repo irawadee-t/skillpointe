@@ -375,7 +375,7 @@ def _resolve_family_id(conn, family_code: Optional[str]) -> Optional[str]:
 # though the classifier uses more specific names internally.
 _FAMILY_ALIAS: dict[str, str] = {
     "manufacturing_production": "manufacturing",
-    "industrial_maintenance":   "manufacturing",   # closest existing bucket
+    "industrial_maintenance":   "industrial_maintenance",  # dedicated family since 2026-08 taxonomy expansion
     "automotive_diesel":        "automotive",
     "machining_cnc":            "manufacturing",
     "construction_skilled":     "construction",
@@ -383,7 +383,10 @@ _FAMILY_ALIAS: dict[str, str] = {
     "logistics_warehouse":      "logistics",
     "utilities_energy":         "energy_lineman",  # nearest existing bucket
     "hvac_r":                   "hvac",
-    # Same-name passes through:
+    # Same-name passes through (classifier code == canonical code), including
+    # the 2026-08 expansion families: power_plant, building_automation,
+    # rail_transit, marine, field_service, civil_survey, security, electronics,
+    # data_center, and the healthcare families.
     "electrical": "electrical", "welding": "welding", "plumbing": "plumbing",
 }
 

@@ -1,9 +1,7 @@
 "use client";
 
-import { motion } from "motion/react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
-import { easeCohere } from "@/lib/motion";
 
 type CardTone = "white" | "stone" | "parchment" | "ink" | "green";
 type CardAccent = "coral" | "green" | "blue" | "gold" | "ink";
@@ -26,16 +24,16 @@ type CardProps = {
    * industry bands, etc.
    */
   accent?: CardAccent;
-  /** Lift on hover — for clickable / linked cards. */
+  /** Hover feedback (tone deepen / soft shadow) — for clickable / linked cards. */
   interactive?: boolean;
   href?: string;
 };
 
 const TONE_CLASS: Record<CardTone, string> = {
-  white:     "bg-white border border-hairline shadow-[0_1px_2px_rgba(12,10,9,0.04)]",
+  white:     "bg-white border border-hairline",
   stone:     "bg-stone border border-transparent",
   parchment: "bg-parchment border border-transparent",
-  ink:       "bg-studio-dark-cork border border-transparent text-white",
+  ink:       "bg-ink border border-transparent text-white",
   green:     "bg-cohere-green border border-transparent text-white",
 };
 
@@ -44,7 +42,7 @@ const ACCENT_CLASS: Record<CardAccent, string> = {
   green: "before:bg-cohere-green",
   blue:  "before:bg-cohere-blue",
   gold:  "before:bg-[#c9a24d]",
-  ink:   "before:bg-studio-dark-cork",
+  ink:   "before:bg-ink",
 };
 
 /**
@@ -60,7 +58,8 @@ export function Card({
   href,
 }: CardProps) {
   const base = cn(
-    "relative rounded-xl transition-shadow duration-300",
+    // Airbnb card: 14px radius, flat at rest, one hover elevation tier, no lift.
+    "relative rounded-[14px] transition-[color,background-color,border-color,box-shadow] duration-200 ease-cohere",
     TONE_CLASS[tone],
     // Colored accent rule — a 3px top band rendered via a ::before pseudo,
     // clipped to the card's rounded corners.
@@ -69,33 +68,22 @@ export function Card({
       "before:absolute before:left-0 before:top-0 before:h-[3px] before:w-full before:content-['']",
       ACCENT_CLASS[accent],
     ),
-    interactive && tone === "white" && "hover:shadow-[0_8px_28px_-12px_rgba(12,10,9,0.12)]",
+    interactive && tone === "white" && "hover:shadow-float",
     interactive && (tone === "stone" || tone === "parchment") && "hover:bg-parchment",
-    interactive && tone === "ink" && "hover:bg-studio-dark-cork/95",
+    interactive && tone === "ink" && "hover:bg-ink/95",
     interactive && tone === "green" && "hover:bg-cohere-green/95",
     className,
   );
 
   if (href) {
     return (
-      <motion.div
-        whileHover={interactive ? { y: -4 } : undefined}
-        transition={{ duration: 0.3, ease: easeCohere }}
-      >
+      <div>
         <Link href={href} className={cn(base, "block")}>
           {children}
         </Link>
-      </motion.div>
+      </div>
     );
   }
 
-  return (
-    <motion.div
-      className={base}
-      whileHover={interactive ? { y: -4 } : undefined}
-      transition={{ duration: 0.3, ease: easeCohere }}
-    >
-      {children}
-    </motion.div>
-  );
+  return <div className={base}>{children}</div>;
 }

@@ -26,7 +26,7 @@ export function TrainingRecs({ token, matchId }: { token: string; matchId: strin
     <section className="rounded-xl border border-cohere-blue/30 bg-wash-blue p-6">
       <div className="flex items-center gap-2">
         <GraduationCap className="h-5 w-5 text-cohere-blue" strokeWidth={1.75} />
-        <h3 className="font-display text-feature text-cohere-ink">One credential away</h3>
+        <h3 className="text-[1.0625rem] font-medium text-cohere-ink">One credential away</h3>
       </div>
       <p className="mt-2 text-body text-slate">
         {data.recommendations.length === 1

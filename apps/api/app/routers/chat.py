@@ -16,18 +16,21 @@ import logging
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel, Field, field_validator
 
 from app.auth.dependencies import require_applicant
 from app.auth.schemas import CurrentUser
 from app.db import get_db
 from app.services.chat import (
-    generate_chat_response,
     _build_context_snapshot,
     _build_job_focused_snapshot,
     _generate_opening_message,
+    generate_guarded_chat_response,
 )
+from app.services.chat_guardrails import suggested_questions
 from app.util.rate_limit import rate_limit_llm
+from app.util.sse import SSE_HEADERS, chunk_text, paced_text_stream
 
 logger = logging.getLogger(__name__)
 
@@ -62,14 +65,23 @@ class ChatSessionDetail(BaseModel):
     created_at: str
     is_active: bool
     messages: list[ChatMessageOut]
+    # Deterministic, context-aware starter questions the UI renders as chips.
+    suggested_questions: list[str] = []
 
 
 class SendMessageRequest(BaseModel):
-    content: str
+    content: str = Field(min_length=1, max_length=5000)
+
+    @field_validator("content")
+    @classmethod
+    def _content_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("content must not be blank")
+        return v
 
 
 class CreateSessionRequest(BaseModel):
-    title: str | None = None
+    title: str | None = Field(default=None, max_length=200)
     job_id: str | None = None  # when set, session is focused on this specific job
 
 
@@ -82,7 +94,7 @@ async def list_sessions(
     current_user: Annotated[CurrentUser, Depends(require_applicant)],
 ) -> list[ChatSessionSummary]:
     async with get_db() as conn:
-        applicant_id = await _get_applicant_id(conn, current_user.user_id)
+        applicant_id = await _get_applicant_id(conn, current_user)
         rows = await conn.fetch(
             """
             SELECT
@@ -128,7 +140,7 @@ async def create_session(
     current_user: Annotated[CurrentUser, Depends(require_applicant)],
 ) -> ChatSessionSummary:
     async with get_db() as conn:
-        applicant_id = await _get_applicant_id(conn, current_user.user_id)
+        applicant_id = await _get_applicant_id(conn, current_user)
 
         # Fetch applicant profile (needed for both paths)
         profile_row = await conn.fetchrow(
@@ -177,7 +189,7 @@ async def create_session(
             snapshot = _build_job_focused_snapshot(profile, job, match)
             job_title = job.get("title_normalized") or job.get("title_raw") or "job"
             employer_name = job.get("employer_name") or ""
-            title = body.title or f"Planning chat — {job_title} at {employer_name}"
+            title = body.title or f"Planning chat: {job_title} at {employer_name}"
             opening_message = _generate_opening_message(snapshot)
         else:
             # General session: build snapshot from top matches
@@ -247,10 +259,10 @@ async def get_session(
     current_user: Annotated[CurrentUser, Depends(require_applicant)],
 ) -> ChatSessionDetail:
     async with get_db() as conn:
-        applicant_id = await _get_applicant_id(conn, current_user.user_id)
+        applicant_id = await _get_applicant_id(conn, current_user)
         session_row = await conn.fetchrow(
             """
-            SELECT id::text, title, created_at::text, is_active
+            SELECT id::text, title, created_at::text, is_active, context_snapshot
             FROM public.chat_sessions
             WHERE id = $1::uuid AND applicant_id = $2
             """,
@@ -286,6 +298,7 @@ async def get_session(
             )
             for r in msg_rows
         ],
+        suggested_questions=suggested_questions(session_row["context_snapshot"] or {}),
     )
 
 
@@ -293,22 +306,25 @@ async def get_session(
 # POST /applicant/me/chat/sessions/{session_id}/messages
 # ---------------------------------------------------------------------------
 
-@router.post(
-    "/sessions/{session_id}/messages",
-    response_model=ChatMessageOut,
-    status_code=201,
-    dependencies=[Depends(rate_limit_llm("chat"))],
-)
-async def send_message(
+async def _process_user_message(
     session_id: str,
     body: SendMessageRequest,
-    current_user: Annotated[CurrentUser, Depends(require_applicant)],
+    current_user: CurrentUser,
 ) -> ChatMessageOut:
+    """Shared core for the JSON and SSE message endpoints.
+
+    Persists the user message, runs the FULL guardrail pipeline (moderation →
+    grounded generation → deterministic validation → regen/fallback) to
+    completion, persists the validated assistant reply, and queues tripped
+    guardrails for admin review. Only fully-validated text ever leaves here —
+    the SSE endpoint streams the returned message AFTER this completes, so no
+    unvalidated token can reach a client.
+    """
     if not body.content.strip():
         raise HTTPException(status_code=422, detail="Message content cannot be empty")
 
     async with get_db() as conn:
-        applicant_id = await _get_applicant_id(conn, current_user.user_id)
+        applicant_id = await _get_applicant_id(conn, current_user)
 
         # Verify session ownership
         session_row = await conn.fetchrow(
@@ -360,27 +376,41 @@ async def send_message(
             {"session_id": session_id},
         )
 
-    # Generate LLM response (outside the DB connection to avoid holding it open)
-    try:
-        ai_text = await generate_chat_response(
-            session_id=session_id,
-            user_message=body.content,
-            history=history,
-            context_snapshot=context_snapshot,
-        )
-    except RuntimeError:
-        ai_text = "I'm having trouble generating a response right now. Please try again in a moment."
+    # Guarded LLM pipeline (outside the DB connection to avoid holding it open):
+    # moderation → grounded generation → validation → regen → safe fallback.
+    ai_text, guard = await generate_guarded_chat_response(
+        session_id=session_id,
+        user_message=body.content,
+        history=history,
+        context_snapshot=context_snapshot,
+    )
 
     async with get_db() as conn:
         msg_row = await conn.fetchrow(
             """
-            INSERT INTO public.chat_messages (session_id, role, content, llm_model)
-            VALUES ($1::uuid, 'assistant', $2, 'gpt-4o-mini')
+            INSERT INTO public.chat_messages (session_id, role, content, llm_model, guardrail_meta)
+            VALUES ($1::uuid, 'assistant', $2, 'gpt-4o-mini', $3::jsonb)
             RETURNING id::text AS message_id, role::text, content, created_at::text
             """,
             session_id,
             ai_text,
+            None if guard.ok else guard.meta(),
         )
+
+        # Tripped guardrails go to the admin review queue for auditing — we want
+        # human eyes on what the model tried to say, without blocking the user.
+        if not guard.ok:
+            await conn.execute(
+                """
+                INSERT INTO public.review_queue_items
+                    (item_type, entity_type, entity_id, description, flags, priority)
+                VALUES ('chat_guardrail', 'chat_session', $1::uuid, $2, $3::jsonb, 3)
+                """,
+                session_id,
+                f"Chat guardrail action={guard.action}: {', '.join(guard.checks_failed)[:200]}",
+                {"checks_failed": guard.checks_failed, "action": guard.action,
+                 "message_id": msg_row["message_id"]},
+            )
 
     return ChatMessageOut(
         message_id=msg_row["message_id"],
@@ -390,13 +420,70 @@ async def send_message(
     )
 
 
+@router.post(
+    "/sessions/{session_id}/messages",
+    response_model=ChatMessageOut,
+    status_code=201,
+    dependencies=[Depends(rate_limit_llm("chat"))],
+)
+async def send_message(
+    session_id: str,
+    body: SendMessageRequest,
+    current_user: Annotated[CurrentUser, Depends(require_applicant)],
+) -> ChatMessageOut:
+    return await _process_user_message(session_id, body, current_user)
+
+
+# ---------------------------------------------------------------------------
+# POST /applicant/me/chat/sessions/{session_id}/messages/stream  (SSE)
+# ---------------------------------------------------------------------------
+
+# Chunking/pacing/framing live in app.util.sse — shared with the employer
+# analytics chat stream so both surfaces deliver identically.
+# (_chunk_text kept as a module-level name: tests pin its exact behavior.)
+_chunk_text = chunk_text
+
+
+@router.post(
+    "/sessions/{session_id}/messages/stream",
+    dependencies=[Depends(rate_limit_llm("chat"))],
+)
+async def send_message_stream(
+    session_id: str,
+    body: SendMessageRequest,
+    current_user: Annotated[CurrentUser, Depends(require_applicant)],
+) -> StreamingResponse:
+    """Same pipeline as POST /messages, delivered as Server-Sent Events.
+
+    The guardrail chain runs to completion on the COMPLETE response before the
+    response starts (buffer-then-stream): any auth/ownership/validation error
+    surfaces as a normal HTTP error the client can fall back on, and only the
+    stored, validated text is chunked out. Framing:
+
+        event: chunk  data: {"delta": "..."}     (repeated)
+        event: done   data: {ChatMessageOut}     (terminal)
+    """
+    message = await _process_user_message(session_id, body, current_user)
+
+    return StreamingResponse(
+        paced_text_stream(message.content, message.model_dump()),
+        media_type="text/event-stream",
+        headers=SSE_HEADERS,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-async def _get_applicant_id(conn: Any, user_id: str) -> Any:
+async def _get_applicant_id(conn: Any, user: CurrentUser) -> Any:
+    # Admin view-as resolves by applicant id directly (works for bulk-imported
+    # applicants with no linked auth user); otherwise by the caller's user id.
     applicant_id = await conn.fetchval(
-        "SELECT id FROM public.applicants WHERE user_id = $1", user_id
+        "SELECT id FROM public.applicants "
+        "WHERE id = COALESCE($2::uuid, (SELECT id FROM public.applicants WHERE user_id = $1::uuid))",
+        user.user_id,
+        user.view_as_applicant_id,
     )
     if not applicant_id:
         raise HTTPException(
@@ -409,5 +496,5 @@ async def _get_applicant_id(conn: Any, user_id: str) -> Any:
 def _auto_title(snapshot: dict[str, Any]) -> str:
     matches = snapshot.get("top_matches", [])
     if matches:
-        return f"Planning chat — {matches[0].get('job_title', 'job search')}"
+        return f"Planning chat: {matches[0].get('job_title', 'job search')}"
     return "Career planning chat"

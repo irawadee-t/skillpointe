@@ -60,6 +60,12 @@ export function EditJobFormClient({
       if (isActiveRaw !== null) {
         payload["is_active"] = isActiveRaw === "true";
       }
+      // Internal-apply config — always sent explicitly (checkbox → hidden input).
+      const acceptsInternalRaw = formData.get("accepts_internal_applications");
+      if (acceptsInternalRaw !== null) {
+        payload["accepts_internal_applications"] = acceptsInternalRaw === "true";
+        payload["required_profile_fields"] = formData.getAll("required_profile_fields").map(String);
+      }
       const res = await fetch(`${API_URL}/employer/me/jobs/${jobId}`, {
         method: "PATCH",
         headers: {

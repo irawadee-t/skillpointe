@@ -24,6 +24,45 @@ logger = logging.getLogger(__name__)
 _REPO_ROOT = Path(__file__).parent.parent.parent.parent.parent
 
 
+async def _run_locked(lock_name: str, ttl: int, coro_factory) -> None:
+    """Run an async job under a Redis distributed lock so that, across N API
+    replicas, only ONE runs the job per tick. If Redis is unavailable we fall
+    back to running unlocked (a single-replica dev box, or a Redis outage where
+    a possibly-duplicated run is safer than skipping the job entirely).
+
+    ``coro_factory`` is a zero-arg callable returning the coroutine to run, so we
+    only construct it once we hold the lock.
+    """
+    try:
+        import redis.asyncio as aioredis  # type: ignore
+    except ImportError:
+        logger.warning("redis package not installed — running %s unlocked", lock_name)
+        await coro_factory()
+        return
+
+    try:
+        r = aioredis.from_url(get_settings().redis_url, decode_responses=True)
+        lock = r.lock(f"skillpointe:sched:{lock_name}", timeout=ttl)
+        acquired = await lock.acquire(blocking=False)
+    except Exception as exc:
+        logger.warning("Lock backend error for %s (%s) — running unlocked", lock_name, exc)
+        await coro_factory()
+        return
+
+    if not acquired:
+        logger.debug("Scheduler job %s held by another instance — skipping", lock_name)
+        await r.aclose()
+        return
+    try:
+        await coro_factory()
+    finally:
+        try:
+            await lock.release()
+        except Exception:
+            pass
+        await r.aclose()
+
+
 def create_scheduler() -> AsyncIOScheduler:
     """Create and configure the APScheduler instance."""
     scheduler = AsyncIOScheduler()
@@ -37,7 +76,7 @@ def create_scheduler() -> AsyncIOScheduler:
         misfire_grace_time=600,  # 10-min grace if server was down
     )
     scheduler.add_job(
-        _interview_reminders_tick,
+        _locked_interview_reminders,
         trigger="interval",
         minutes=5,
         id="interview_reminders",
@@ -45,18 +84,46 @@ def create_scheduler() -> AsyncIOScheduler:
         replace_existing=True,
         misfire_grace_time=600,
     )
+    # Career-source auto-sync — keeps connected careers pages fresh using the
+    # learned-profile incremental path (one conditional listing fetch; details
+    # only for changed jobs), so a frequent tick is cheap. Cadence/backoff per
+    # source lives on employer_career_sources (next_auto_sync_at).
     scheduler.add_job(
-        _ats_auto_resync_tick,
+        _locked_career_source_auto_sync,
         trigger="interval",
-        hours=1,
-        id="ats_auto_resync",
-        name="ATS auto-resync (per-batch cadence)",
+        minutes=15,
+        id="career_source_auto_sync",
+        name="Career-source auto-sync (per-source cadence)",
         replace_existing=True,
-        misfire_grace_time=1800,  # 30-min grace
+        misfire_grace_time=600,
+    )
+    # Headless listing sweep — DAILY, one rendered page per JS-walled source
+    # (platform undetected / no_jobs) when HEADLESS_SCRAPE_ENABLED. Sources it
+    # converts are marked profile.headless and keep syncing daily via the
+    # regular auto-sync tick's headless routing.
+    scheduler.add_job(
+        _locked_headless_sweep,
+        trigger="interval",
+        hours=24,
+        id="headless_listing_sweep",
+        name="Headless listing sweep for JS-walled sources (daily)",
+        replace_existing=True,
+        misfire_grace_time=3600,
+    )
+    # Apply-link revalidation — dead apply links on active scraped/imported
+    # jobs get flagged for admin review instead of 404ing on applicants.
+    scheduler.add_job(
+        _locked_apply_link_recheck,
+        trigger="interval",
+        hours=12,
+        id="apply_link_recheck",
+        name="Apply-link revalidation (12h)",
+        replace_existing=True,
+        misfire_grace_time=3600,
     )
     # GDPR deletion sweep — daily hard-delete of accounts whose grace elapsed.
     scheduler.add_job(
-        _deletion_sweep_tick,
+        _locked_deletion_sweep,
         trigger="interval",
         hours=24,
         id="deletion_sweep",
@@ -82,6 +149,144 @@ async def _deletion_sweep_tick() -> None:
         await sweep_expired_deletions()
     except Exception as exc:
         logger.exception("Deletion sweep failed: %s", exc)
+
+
+# Lock-wrapped entrypoints — one instance runs each job per tick across replicas.
+async def _locked_interview_reminders() -> None:
+    await _run_locked("interview_reminders", ttl=280, coro_factory=_interview_reminders_tick)
+
+
+async def _locked_career_source_auto_sync() -> None:
+    await _run_locked("career_source_auto_sync", ttl=840, coro_factory=_career_source_auto_sync_tick)
+
+
+async def _locked_deletion_sweep() -> None:
+    await _run_locked("deletion_sweep", ttl=3600, coro_factory=_deletion_sweep_tick)
+
+
+async def _locked_apply_link_recheck() -> None:
+    await _run_locked("apply_link_recheck", ttl=3300, coro_factory=_apply_link_recheck_tick)
+
+
+async def _locked_headless_sweep() -> None:
+    await _run_locked("headless_listing_sweep", ttl=3300, coro_factory=_headless_sweep_tick)
+
+
+# ---------------------------------------------------------------------------
+# Headless listing sweep — JS-walled careers sources (platform undetected or
+# stuck at no_jobs) get ONE rendered-listing attempt per day. Successes mark
+# the source profile {"headless": true}; the auto-sync tick then keeps them
+# fresh on a daily headless cadence. Failures keep the honest no_jobs state.
+# ---------------------------------------------------------------------------
+
+_HEADLESS_SWEEP_BATCH = 3   # rendered pages per daily tick — headless is heavy
+
+
+async def _headless_sweep_tick() -> None:
+    if not get_settings().headless_scrape_enabled:
+        return
+    from app.db import get_db
+    from app.skilled_pro.career_sources import profile_is_headless, run_headless_pull
+
+    async with get_db() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT s.*, e.name AS employer_name
+              FROM public.employer_career_sources s
+              JOIN public.employers e ON e.id = s.employer_id
+             WHERE (s.platform IS NULL OR s.last_status IN ('no_jobs', 'error'))
+               AND COALESCE(s.extraction_profile->>'headless', '') <> 'true'
+               AND (s.last_pulled_at IS NULL
+                    OR s.last_pulled_at < now() - INTERVAL '20 hours')
+             ORDER BY s.last_pulled_at ASC NULLS FIRST
+             LIMIT $1
+            """,
+            _HEADLESS_SWEEP_BATCH,
+        )
+        if not rows:
+            return
+        logger.info("Headless sweep: %d JS-walled candidate source(s)", len(rows))
+        for r in rows:
+            if profile_is_headless(r["extraction_profile"]):
+                continue  # belt-and-braces; the SQL already filters these
+            try:
+                result = await run_headless_pull(conn, dict(r), triggered_by=None)
+                logger.info(
+                    "Headless pull %s: %s — %d found / %d new",
+                    str(r["id"]), result["status"],
+                    result["jobs_found"], result["jobs_new"],
+                )
+            except Exception as exc:
+                logger.exception("Headless pull failed for source %s: %s", str(r["id"]), exc)
+
+
+# ---------------------------------------------------------------------------
+# Apply-link revalidation — periodic HEAD/GET (through the SSRF guard) of the
+# apply/source URL on active scraped or imported jobs. Dead links flag the job
+# for admin review; nothing is deactivated automatically.
+# ---------------------------------------------------------------------------
+
+_LINK_RECHECK_BATCH = 150          # jobs per tick — keeps the tick bounded
+_LINK_RECHECK_STALE_DAYS = 7       # recheck cadence per job
+
+
+async def _apply_link_recheck_tick() -> None:
+    from app.db import get_db
+    from app.skilled_pro.career_sources import check_apply_links
+
+    async with get_db() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT id, source_url FROM public.jobs
+             WHERE is_active = TRUE
+               AND source_url IS NOT NULL
+               AND source_url ~* '^https?://'
+               AND (apply_link_checked_at IS NULL
+                    OR apply_link_checked_at < NOW() - make_interval(days => $1))
+             ORDER BY apply_link_checked_at ASC NULLS FIRST
+             LIMIT $2
+            """,
+            _LINK_RECHECK_STALE_DAYS, _LINK_RECHECK_BATCH,
+        )
+        if not rows:
+            return
+        results = await asyncio.to_thread(
+            check_apply_links, [r["source_url"] for r in rows]
+        )
+        newly_broken = 0
+        for r in rows:
+            link_status = results.get(r["source_url"])
+            if not link_status:
+                continue
+            await conn.execute(
+                "UPDATE public.jobs SET apply_link_status = $2, apply_link_checked_at = NOW() "
+                "WHERE id = $1::uuid",
+                str(r["id"]), link_status,
+            )
+            if link_status in ("broken", "blocked"):
+                # Flag for admin review once per job (skip if a pending item exists).
+                pending = await conn.fetchval(
+                    "SELECT 1 FROM public.review_queue_items "
+                    "WHERE item_type = 'broken_apply_link' AND entity_id = $1::uuid "
+                    "AND status = 'pending' LIMIT 1",
+                    str(r["id"]),
+                )
+                if not pending:
+                    await conn.execute(
+                        """
+                        INSERT INTO public.review_queue_items
+                            (item_type, entity_type, entity_id, description, flags, priority)
+                        VALUES ('broken_apply_link', 'job', $1::uuid, $2,
+                                $3::jsonb, 3)
+                        """,
+                        str(r["id"]),
+                        f"Apply link no longer resolves ({link_status}): {r['source_url']}",
+                        '[{"flag_type": "broken_apply_link"}]',
+                    )
+                    newly_broken += 1
+        logger.info(
+            "Apply-link recheck: %d checked, %d newly flagged", len(rows), newly_broken,
+        )
 
 
 async def _recover_stuck_recomputes() -> None:
@@ -153,109 +358,62 @@ async def _record_run_end(run_id: str | None, ok: bool, error: str | None = None
 
 
 # ---------------------------------------------------------------------------
-# ATS auto-resync — runs hourly, resyncs URL-based import batches that the
-# employer/admin has opted into. Cadence lives on the batch row via a JSON
-# `auto_sync_interval_days` field; batches without opt-in are skipped.
+# Career-source auto-sync — every 15 minutes, syncs connected careers pages
+# whose next_auto_sync_at has elapsed. Uses run_pull, which routes through the
+# learned-profile incremental path (so a no-change sync is ~1 fetch), records
+# the pull in the activity log, and handles failure backoff + next scheduling
+# itself. Never publishes on its own — approval still goes through admins.
+#
+# (This consolidates and replaces the old reviewer_note-based ATS resync tick,
+# which was never persisted anywhere — see the former TODO(#143).)
 # ---------------------------------------------------------------------------
 
-async def _ats_auto_resync_tick() -> None:
-    """Look at URL-based batches with an auto-sync opt-in and re-scrape if
-    the interval has elapsed. Marks source-removed rows as `stale` and
-    inserts newly-found rows as `staged`. Never publishes on its own — the
-    employer/admin still has to approve.
-    """
+_CS_AUTO_SYNC_BATCH = 5   # sources per tick — incremental syncs are cheap,
+                          # but a relearn can be slow; keep the tick bounded.
+
+
+async def _career_source_auto_sync_tick() -> None:
     from app.db import get_db
-    from app.skilled_pro.job_imports import universal_scrape
+    from app.skilled_pro.career_sources import (
+        profile_is_headless,
+        run_headless_pull,
+        run_pull,
+    )
 
     async with get_db() as conn:
-        # Read batches with an opt-in cadence stored in reviewer_note JSON.
-        # (Using reviewer_note rather than adding a new column keeps the
-        # migration surface small; task #143 can promote this to its own field.)
         rows = await conn.fetch(
             """
-            SELECT b.id, b.source_label, b.updated_at, b.employer_id,
-                   e.name AS employer_name,
-                   COALESCE(
-                     NULLIF(b.reviewer_note, '')::jsonb->>'auto_sync_interval_days',
-                     ''
-                   ) AS interval_days
-              FROM public.job_import_batches b
-              JOIN public.employers e ON e.id = b.employer_id
-             WHERE b.source = 'url'
-               AND b.reviewer_note IS NOT NULL
-               AND b.reviewer_note LIKE '%%auto_sync_interval_days%%'
-            """
+            SELECT s.*, e.name AS employer_name
+              FROM public.employer_career_sources s
+              JOIN public.employers e ON e.id = s.employer_id
+             WHERE s.auto_sync_enabled
+               AND (s.next_auto_sync_at IS NULL OR s.next_auto_sync_at <= now())
+             ORDER BY s.next_auto_sync_at ASC NULLS FIRST
+             LIMIT $1
+            """,
+            _CS_AUTO_SYNC_BATCH,
         )
         if not rows:
             return
-
-        from datetime import datetime, timezone, timedelta
-        now = datetime.now(timezone.utc)
-        eligible = []
+        logger.info("Career-source auto-sync: %d source(s) due", len(rows))
         for r in rows:
             try:
-                days = int(r["interval_days"] or 0)
-            except ValueError:
-                continue
-            if days <= 0:
-                continue
-            last = r["updated_at"] or now
-            if now - last >= timedelta(days=days):
-                eligible.append(r)
-
-        if not eligible:
-            return
-
-        logger.info("ATS auto-resync: %d batches eligible", len(eligible))
-        for r in eligible:
-            batch_id = str(r["id"])
-            source_url = r["source_label"]
-            emp_name = r["employer_name"]
-            try:
-                platform, scraped = universal_scrape(source_url, employer_name=emp_name, max_jobs=200)
-                if platform == "unknown" or not scraped:
-                    logger.info("Auto-resync skipped %s — unrecognised platform", batch_id)
-                    continue
-                fresh_urls = {j.source_url for j in scraped if j.source_url}
-                # Insert new rows
-                new_rows = [
-                    {
-                        "title_raw": j.title, "description_raw": j.description,
-                        "responsibilities_raw": j.responsibilities, "requirements_raw": j.requirements,
-                        "preferred_qualifications_raw": j.qualifications, "city": j.city, "state": j.state,
-                        "country": j.country or "US", "work_setting": j.work_setting, "pay_raw": j.pay_raw,
-                        "experience_level": j.experience_level, "employment_type": j.employment_type,
-                        "req_id": j.req_id, "source_url": j.source_url, "job_category": j.job_category,
-                        "posted_date": j.posted_date,
-                    }
-                    for j in scraped
-                ]
-                # Late-import helper to avoid circular deps at module import time.
-                from app.routers.job_imports import _insert_rows
-                await _insert_rows(conn, batch_id, new_rows)
-
-                # Flag rows whose source_url is no longer present.
-                if fresh_urls:
-                    existing = await conn.fetch(
-                        "SELECT id, source_url FROM public.job_import_rows "
-                        "WHERE batch_id = $1::uuid AND source_url IS NOT NULL AND status = 'staged'",
-                        batch_id,
-                    )
-                    stale_ids = [row["id"] for row in existing if row["source_url"] not in fresh_urls]
-                    if stale_ids:
-                        await conn.execute(
-                            "UPDATE public.job_import_rows SET status = 'stale', updated_at = now() "
-                            "WHERE id = ANY($1::uuid[])",
-                            stale_ids,
-                        )
-                        logger.info("Auto-resync %s: marked %d stale", batch_id, len(stale_ids))
-
-                await conn.execute(
-                    "UPDATE public.job_import_batches SET updated_at = now() WHERE id = $1::uuid",
-                    batch_id,
+                # JS-walled sources (profile.headless) sync via the daily
+                # rendered-listing path; everything else takes the cheap
+                # learned-profile incremental path.
+                if profile_is_headless(r["extraction_profile"]):
+                    result = await run_headless_pull(conn, dict(r), triggered_by=None)
+                else:
+                    result = await run_pull(conn, dict(r), triggered_by=None)
+                logger.info(
+                    "Auto-sync %s: %s (%s) in %sms — %d new / %d updated / %d removed",
+                    str(r["id"]), result["status"], result["sync_mode"],
+                    result["duration_ms"], result["jobs_new"], result["jobs_updated"],
+                    result["jobs_removed"],
                 )
             except Exception as exc:
-                logger.exception("Auto-resync failed for batch %s: %s", batch_id, exc)
+                # run_pull records its own failures; this guards the tick itself.
+                logger.exception("Auto-sync failed for source %s: %s", str(r["id"]), exc)
 
 
 # ---------------------------------------------------------------------------
@@ -268,7 +426,6 @@ async def _interview_reminders_tick() -> None:
     Uses a `sent_reminders` payload key on the notifications row to dedupe so
     we never fire the same reminder twice for the same slot.
     """
-    import asyncpg
     from app.db import get_db
     from app.skilled_pro.notifications import notify
 
@@ -318,7 +475,7 @@ async def _interview_reminders_tick() -> None:
                 body  = f"{r['employer_name']} for {r['title_raw']}."
             elif 0.9 < hours_until < 1.1:
                 kind_slug = "reminder_1h"
-                title = f"Interview in an hour"
+                title = "Interview in an hour"
                 loc = r["location"] or r["meeting_url"] or ""
                 body  = f"{r['employer_name']} at {r['start_at'].strftime('%-I:%M %p')}" + (f" · {loc}" if loc else "")
             elif 1.9 < hours_since < 2.1:
@@ -442,17 +599,44 @@ async def _run_recompute_subprocess(
         await _record_run_end(run_id, ok=False, error=str(exc))
 
 
+async def _acquire_recompute_slot(target_key: str, ttl: int = 90) -> bool:
+    """Best-effort Redis debounce: return True if no recompute is already
+    pending/running for this target within the window. Coalesces bursts of edits
+    (e.g. an employer saving a job five times) into a single recompute instead
+    of five overlapping subprocesses. Falls back to allowing the run if Redis is
+    unavailable, since the periodic full recompute is the safety net either way."""
+    try:
+        import redis.asyncio as aioredis  # type: ignore
+
+        r = aioredis.from_url(get_settings().redis_url, socket_connect_timeout=1)
+        # SET NX EX — only the first trigger in the window wins the slot.
+        got = await r.set(f"recompute:pending:{target_key}", "1", nx=True, ex=ttl)
+        await r.aclose()
+        return bool(got)
+    except Exception as exc:  # Redis down — don't block the recompute
+        logger.warning("Recompute debounce unavailable (%s) — allowing run", exc)
+        return True
+
+
+async def _debounced_recompute(*, job_id: str | None = None, applicant_id: str | None = None) -> None:
+    target_key = f"job:{job_id}" if job_id else f"applicant:{applicant_id}"
+    if not await _acquire_recompute_slot(target_key):
+        logger.debug("Recompute for %s already pending — skipping duplicate trigger", target_key)
+        return
+    await _run_recompute_subprocess(job_id=job_id, applicant_id=applicant_id)
+
+
 async def trigger_recompute_for_job(job_id: str) -> None:
     """
-    Fire-and-forget: recompute matches for a specific job.
-    Called after a new job is created.
+    Fire-and-forget: recompute matches for a specific job, debounced so repeated
+    edits don't spawn overlapping subprocesses. Called after a job is created/edited.
     """
-    asyncio.create_task(_run_recompute_subprocess(job_id=job_id))
+    asyncio.create_task(_debounced_recompute(job_id=job_id))
 
 
 async def trigger_recompute_for_applicant(applicant_id: str) -> None:
     """
-    Fire-and-forget: recompute matches for a specific applicant.
+    Fire-and-forget: recompute matches for a specific applicant, debounced.
     Called after an applicant profile is materially updated.
     """
-    asyncio.create_task(_run_recompute_subprocess(applicant_id=applicant_id))
+    asyncio.create_task(_debounced_recompute(applicant_id=applicant_id))

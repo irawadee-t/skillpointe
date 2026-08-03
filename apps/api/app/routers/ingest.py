@@ -15,7 +15,6 @@ from __future__ import annotations
 from datetime import date
 from typing import Annotated, Optional
 
-import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
@@ -193,8 +192,11 @@ async def ingest_credentials(
                         INSERT INTO public.credentials
                             (applicant_id, raw_name, canonical_code, canonical_name,
                              credential_type, issuer, normalization_confidence, needs_review,
-                             source, verification_level, issued_date, expires_date, metadata)
-                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'partner_portal',$9,$10,$11,$12::jsonb)
+                             source, verification_level, issued_date, expires_date, metadata,
+                             definition_id)
+                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'partner_portal',$9,$10,$11,$12::jsonb,
+                                (SELECT d.id FROM public.credential_definitions d
+                                  WHERE d.canonical_code = $3 AND d.active))
                         RETURNING id::text AS id
                         """,
                         appl["id"], plan.credential_name,

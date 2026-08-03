@@ -163,11 +163,18 @@ async def partner_health(user: Annotated[CurrentUser, Depends(require_admin)]):
     def _name(src: str) -> str:
         return PARTNER_LABELS.get(src, src.replace("_", " ").title())
 
+    # Silence is NOT health. A partner with no relay activity for QUIET_DAYS
+    # gets its own state ("quiet") — an integration that went dark looks
+    # exactly like a healthy idle one unless we distinguish them.
+    QUIET_DAYS = 3
+
     def _classify(backlog: int, last_sync: Any, oldest_pending: Any) -> str:
         # Down: real drift — backlog exists and oldest pending is > 1h old.
-        # Delayed: some backlog OR last successful sync > 30m ago.
-        # Healthy: no backlog and (no history OR recent successful relay).
-        from datetime import datetime, timezone
+        # Delayed: some backlog OR pending events aging past 5 minutes.
+        # Quiet: nothing pending, but no successful relay in QUIET_DAYS
+        #        (or none ever) — needs a look, not a green light.
+        # Healthy: no backlog AND a recent successful relay.
+        from datetime import datetime, timedelta, timezone
         now = datetime.now(timezone.utc)
         if oldest_pending is not None:
             age = (now - oldest_pending).total_seconds()
@@ -179,10 +186,8 @@ async def partner_health(user: Annotated[CurrentUser, Depends(require_admin)]):
             return "down"
         if backlog > 0:
             return "delayed"
-        if last_sync is not None:
-            age = (now - last_sync).total_seconds()
-            if age > 1800:  # 30 minutes with nothing new is not "down", just quiet
-                return "healthy"
+        if last_sync is None or (now - last_sync) > timedelta(days=QUIET_DAYS):
+            return "quiet"
         return "healthy"
 
     partners: list[PartnerHealth] = []
@@ -211,7 +216,8 @@ async def partner_health(user: Annotated[CurrentUser, Depends(require_admin)]):
     for src in (events.THIS_SOURCE, events.PEER_SOURCE):
         if src not in seen:
             partners.append(PartnerHealth(
-                source=src, name=_name(src), status="healthy",
+                # Never-synced is "quiet", not "healthy" — no evidence either way.
+                source=src, name=_name(src), status="quiet",
                 last_sync_at=None, events_24h=0, backlog=0, oldest_pending_at=None,
             ))
 

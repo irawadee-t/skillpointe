@@ -10,6 +10,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Field } from "@/components/ui";
 
 const inputClass = "input-cohere";
 
@@ -26,7 +27,22 @@ export interface JobFormDefaults {
   requirements_raw?: string;
   experience_level?: string;
   is_active?: boolean;
+  /** Per-job flag; null/undefined = inherit the company default. */
+  accepts_internal_applications?: boolean | null;
+  /** Effective value (per-job override folded with the company default). */
+  internal_apply_effective?: boolean;
+  required_profile_fields?: string[];
 }
+
+/** Profile-sourced groups an employer can require at apply time. */
+const PROFILE_FIELD_OPTIONS: { key: string; label: string; hint: string }[] = [
+  { key: "contact",      label: "Contact info",        hint: "Phone or email" },
+  { key: "location",     label: "Location",            hint: "City and state" },
+  { key: "program",      label: "Program or trade",    hint: "What they're trained in" },
+  { key: "availability", label: "Availability",        hint: "Start date or program end" },
+  { key: "credentials",  label: "Credentials",         hint: "At least one on their profile" },
+  { key: "resume",       label: "Resume",              hint: "A file on their profile" },
+];
 
 export function JobFormFields({
   defaults,
@@ -36,6 +52,14 @@ export function JobFormFields({
   onValidChange?: (valid: boolean) => void;
 }) {
   const [title, setTitle] = useState<string>(defaults?.title_raw ?? "");
+  // Internal-apply config. New jobs default to accepting applications on the
+  // platform; edit pre-fills the stored/effective value.
+  const [acceptsInternal, setAcceptsInternal] = useState<boolean>(
+    defaults?.accepts_internal_applications ?? defaults?.internal_apply_effective ?? true,
+  );
+  const [requiredFields, setRequiredFields] = useState<string[]>(
+    defaults?.required_profile_fields ?? ["contact", "location", "program"],
+  );
   const [payMin, setPayMin] = useState<string>(
     defaults?.pay_min != null ? String(defaults.pay_min) : "",
   );
@@ -171,33 +195,65 @@ export function JobFormFields({
           placeholder="List required qualifications, certifications, or experience..."
         />
       </Field>
-    </>
-  );
-}
 
-function Field({
-  label,
-  required,
-  error,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  error?: string | null;
-  children: React.ReactNode;
-}) {
-  return (
-    <div>
-      <label className="mb-2 block text-caption font-medium tracking-[0.01em] text-slate">
-        {label}
-        {required && <span className="text-error-red ml-0.5">*</span>}
-      </label>
-      {children}
-      {error && (
-        <p className="mt-1 text-micro text-error-red" role="alert">
-          {error}
-        </p>
-      )}
-    </div>
+      {/* Applications — internal apply configuration */}
+      <div className="border-t border-hairline pt-5">
+        <input type="hidden" name="accepts_internal_applications" value={acceptsInternal ? "true" : "false"} />
+        <label className="flex cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            checked={acceptsInternal}
+            onChange={(e) => setAcceptsInternal(e.target.checked)}
+            className="mt-1 accent-studio-maroon"
+          />
+          <span>
+            <span className="block text-body font-medium text-cohere-ink">
+              Accept applications on SKILLED Nation
+            </span>
+            <span className="mt-0.5 block text-caption text-slate">
+              Applicants apply with their profile in two clicks. You pick what you need
+              from them. Anything missing, they complete right in the apply form.
+            </span>
+          </span>
+        </label>
+
+        {acceptsInternal && (
+          <div className="mt-4 rounded-[10px] border border-hairline bg-white">
+            <p className="px-4 pt-3 text-caption text-slate">
+              What do you need from applicants? These come from their profile automatically.
+            </p>
+            <div className="mt-2">
+              {PROFILE_FIELD_OPTIONS.map((opt, i) => (
+                <label
+                  key={opt.key}
+                  className={`flex cursor-pointer items-center justify-between gap-3 px-4 py-2.5 ${i > 0 ? "border-t border-hairline" : ""}`}
+                >
+                  <span className="flex items-center gap-3">
+                    <input
+                      type="checkbox"
+                      name="required_profile_fields"
+                      value={opt.key}
+                      checked={requiredFields.includes(opt.key)}
+                      onChange={(e) =>
+                        setRequiredFields((prev) =>
+                          e.target.checked ? [...prev, opt.key] : prev.filter((k) => k !== opt.key),
+                        )
+                      }
+                      className="accent-studio-maroon"
+                    />
+                    <span className="text-body text-cohere-ink">{opt.label}</span>
+                  </span>
+                  <span className="text-caption text-slate-muted">{opt.hint}</span>
+                </label>
+              ))}
+            </div>
+            <p className="border-t border-hairline px-4 py-3 text-caption text-slate-muted">
+              Need anything beyond the profile? Add extra questions in the
+              &ldquo;Screening questions&rdquo; section after saving.
+            </p>
+          </div>
+        )}
+      </div>
+    </>
   );
 }

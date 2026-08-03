@@ -1,41 +1,20 @@
-import type { Variants, Transition } from "motion/react";
+import type { Transition } from "motion/react";
 
 /** Cohere easing — carved, decisive settle. */
 export const easeCohere: Transition["ease"] = [0.16, 1, 0.3, 1];
 
-/** Rise-and-fade, the workhorse reveal. */
-export const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 20 },
-  show: {
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.6, ease: easeCohere },
-  },
-};
+/**
+ * RISE_IN — subtle entrance for newly appended thread content: 200ms
+ * ease-out, 8px rise (the `fade-up` keyframe in tailwind.config.ts). The
+ * global prefers-reduced-motion rule in globals.css collapses it to an
+ * instant appearance, so it is motion-safe by construction.
+ *
+ * Apply it ONLY to content that is genuinely new (a message that just
+ * arrived, a row that just appeared) — never to content re-rendered by a
+ * poll cycle. Callers keep key stability and track "seen" ids so existing
+ * messages never re-animate.
+ */
+export const RISE_IN = "animate-[fade-up_200ms_cubic-bezier(0.16,1,0.3,1)_both]";
 
-/** Plain fade. */
-export const fadeIn: Variants = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { duration: 0.5, ease: easeCohere } },
-};
-
-/** Soft scale-in for cards and media. */
-export const scaleIn: Variants = {
-  hidden: { opacity: 0, scale: 0.96 },
-  show: {
-    opacity: 1,
-    scale: 1,
-    transition: { duration: 0.5, ease: easeCohere },
-  },
-};
-
-/** Parent that staggers its children's reveals. */
-export const stagger = (gap = 0.08, delay = 0): Variants => ({
-  hidden: {},
-  show: {
-    transition: { staggerChildren: gap, delayChildren: delay },
-  },
-});
-
-/** Standard viewport trigger — animate once when ~20% in view. */
-export const inView = { once: true, amount: 0.2 } as const;
+/** Quicker variant for micro-elements (badges, pills): 150ms fade. */
+export const FADE_IN_FAST = "animate-[fade-in_150ms_ease_both]";

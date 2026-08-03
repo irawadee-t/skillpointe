@@ -1,17 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "motion/react";
 import {
   ShieldCheck,
   BadgeCheck,
   MapPin,
-  Search,
   X,
-  Loader2,
-  Award,
   CircleDashed,
   CalendarDays,
+  Loader2,
+  MessageSquare,
 } from "lucide-react";
 
 import {
@@ -21,17 +21,57 @@ import {
   searchVerifiedWorkers,
   verifyWorker,
 } from "@/lib/api/verifiedWorkers";
-import { PageHeader, MonoLabel, MetricCard } from "@/components/ui";
+import {
+  PageHeader,
+  SearchSuggestField,
+  UrlSearchField,
+  UrlSelectField,
+  UrlMultiSelectField,
+  UrlDateField,
+  ActiveFilterChips,
+  FilterBar,
+  FilterGroup,
+  describeActiveFilters,
+  type FilterChipDef,
+  CREDENTIAL_CHIP_CLASS,
+  VERIFICATION_LEVEL_META,
+  statusChipClass,
+} from "@/components/ui";
+import { apiFetch } from "@/lib/api/client";
 import { easeCohere } from "@/lib/motion";
-import { cn } from "@/lib/utils";
+import { toSearchParams } from "./searchParams";
 
-const PAGE_SIZE = 25;
+const CREDENTIAL_TYPE_OPTIONS = [
+  { value: "certification", label: "Certification" },
+  { value: "license", label: "License" },
+  { value: "degree", label: "Degree" },
+  { value: "apprenticeship", label: "Apprenticeship" },
+  { value: "safety", label: "Safety" },
+  { value: "union", label: "Union" },
+];
 
-function badgeClass(level: number) {
-  if (level >= 2) return "bg-cohere-green text-white border-cohere-green";
-  if (level >= 1) return "bg-wash-blue text-cohere-blue border-cohere-blue/25";
-  return "bg-stone text-slate border-hairline";
-}
+const VERIFICATION_OPTIONS = [
+  { value: "1", label: "Institution-verified or higher" },
+  { value: "2", label: "SKILLED-verified" },
+];
+
+const AVAILABILITY_NOW = [{ value: "now", label: "Available now" }];
+
+const ACTIVITY_OPTIONS = [
+  { value: "30", label: "Active in last 30 days" },
+  { value: "90", label: "Active in last 90 days" },
+  { value: "365", label: "Active in last year" },
+];
+
+const RELOCATE_OPTIONS = [
+  { value: "true", label: "Open to relocation" },
+  { value: "false", label: "Not relocating" },
+];
+
+/* Credential-name chips share ONE base style everywhere (CREDENTIAL_CHIP_CLASS).
+ * Verification level is an affix — a small green check + label — never a
+ * recolor of the credential name. See DESIGN_CONTRACT.md, "Status & chip
+ * color semantics". */
 
 export function VerifiedWorkersClient({
   initial,
@@ -40,127 +80,253 @@ export function VerifiedWorkersClient({
   initial: SearchResponse;
   token: string;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
   const [data, setData] = useState<SearchResponse>(initial);
-  const [trade, setTrade] = useState("");
-  const [credential, setCredential] = useState("");
-  const [stateFilter, setStateFilter] = useState("");
-  const [q, setQ] = useState("");
-  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<WorkerCard | null>(null);
 
-  async function runSearch(nextPage = 1) {
+  const abortRef = useRef<AbortController | null>(null);
+  const firstRun = useRef(true);
+
+  const spRecord = useMemo(() => {
+    const rec: Record<string, string | undefined> = {};
+    searchParams.forEach((v, k) => {
+      rec[k] = v;
+    });
+    return rec;
+  }, [searchParams]);
+
+  // Every filter is URL-synced (the Url* fields write the query string), so
+  // ONE effect keyed on the URL drives all fetches — back/forward and shared
+  // links restore and re-run the exact same search.
+  useEffect(() => {
+    if (firstRun.current) {
+      firstRun.current = false;
+      return; // initial data was fetched server-side from the same URL
+    }
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading(true);
     setError(null);
-    try {
-      const res = await searchVerifiedWorkers(token, {
-        trade: trade || undefined,
-        credential: credential || undefined,
-        state: stateFilter || undefined,
-        q: q || undefined,
-        page: nextPage,
-        page_size: PAGE_SIZE,
+    searchVerifiedWorkers(token, toSearchParams(spRecord), { signal: controller.signal })
+      .then((res) => {
+        if (controller.signal.aborted) return;
+        setData(res);
+      })
+      .catch((e) => {
+        if (controller.signal.aborted || (e instanceof DOMException && e.name === "AbortError")) return;
+        setError(
+          spRecord.near_city
+            ? `Search failed. Check the city name ("${spRecord.near_city}") and try again.`
+            : "Search failed. Please try again.",
+        );
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
       });
-      setData(res);
-      setPage(nextPage);
-    } catch {
-      setError("Search failed. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  }
+  }, [spRecord, token]);
 
+  const setPage = (nextPage: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (nextPage > 1) params.set("page", String(nextPage));
+    else params.delete("page");
+    const qs = params.toString();
+    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+  };
+
+  const page = spRecord.page ? Math.max(1, parseInt(spRecord.page)) : 1;
   const totalPages = Math.max(1, Math.ceil(data.total / data.page_size));
+
+  const chipFields: FilterChipDef[] = [
+    { param: "q", label: "Keyword" },
+    { param: "trades", label: "Trade", multi: true, options: data.facets.trades.map((t) => ({ value: t.code, label: t.name })) },
+    { param: "credential", label: "Credential", options: data.facets.credentials.map((c) => ({ value: c.code, label: c.name })) },
+    { param: "credential_types", label: "Type", multi: true, options: CREDENTIAL_TYPE_OPTIONS },
+    { param: "min_level", label: "Verification", options: VERIFICATION_OPTIONS },
+    { param: "state", label: "State" },
+    { param: "available_by", label: "Available", options: AVAILABILITY_NOW },
+    { param: "relocate", label: "Relocation", options: RELOCATE_OPTIONS },
+    { param: "near_city", label: "Near" },
+    { param: "near_state", label: "City's state" },
+    { param: "active_within_days", label: "Activity", options: ACTIVITY_OPTIONS },
+  ];
+  const hasFilters = chipFields.some((f) => !!spRecord[f.param]);
+  const hasKeywordQuery = !!spRecord.q?.trim();
+  const filterSentence = describeActiveFilters(spRecord, chipFields);
+
+  const from = data.total === 0 ? 0 : (data.page - 1) * data.page_size + 1;
+  const to = Math.min(data.page * data.page_size, data.total);
 
   return (
     <main className="py-8">
       <div className="page-shell space-y-6">
         <PageHeader
-          eyebrow="SKILLED Pro"
+          eyebrow="Hiring"
           title="Verified workers"
           lead="Discover skilled-trades workers with SKILLED-verified credentials. Only workers who consented to share with employers appear here."
         />
 
-        {/* Filters */}
-        <div className="rounded-md border border-border-light bg-white p-4">
-          <label className="mb-3 block">
-            <span className="mono-label mb-1.5 block">Keyword (ranks by relevance)</span>
-            <input
-              className="input-cohere"
-              placeholder="e.g. welding, EPA, forklift…"
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              onKeyDown={(e) => { if (e.key === "Enter") runSearch(1); }}
-            />
-          </label>
-          <div className="grid gap-3 sm:grid-cols-[1.4fr_1.4fr_0.6fr_auto] sm:items-end">
-            <label className="block">
-              <span className="mono-label mb-1.5 block">Trade</span>
-              <select className="input-cohere" value={trade} onChange={(e) => setTrade(e.target.value)}>
-                <option value="">All trades</option>
-                {data.facets.trades.map((t) => (
-                  <option key={t.code} value={t.code}>{t.name}</option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="mono-label mb-1.5 block">Credential</span>
-              <select className="input-cohere" value={credential} onChange={(e) => setCredential(e.target.value)}>
-                <option value="">Any credential</option>
-                {data.facets.credentials.map((c) => (
-                  <option key={c.code} value={c.code}>{c.name}</option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="mono-label mb-1.5 block">State</span>
-              <input
-                className="input-cohere"
-                maxLength={2}
-                placeholder="GA"
-                value={stateFilter}
-                onChange={(e) => setStateFilter(e.target.value)}
+        {/* Filters — URL-synced, instant-apply; 3 primary controls, the rest
+            behind "More filters". Applied hidden filters stay visible as chips. */}
+        <div data-tour-id="workers-filters">
+        <FilterBar
+          footer={<ActiveFilterChips fields={chipFields} className="mt-3" />}
+          moreParams={[
+              "credential",
+              "credential_types",
+              "min_level",
+              "available_by",
+              "relocate",
+              "near_city",
+              "near_state",
+              "active_within_days",
+            ]}
+            primary={
+              <>
+                <SearchSuggestField
+                  param="q"
+                  suggest="verified-workers"
+                  token={token}
+                  label="Keyword (ranks by relevance)"
+                  placeholder="e.g. welding, EPA, forklift…"
+                  className="flex-1 min-w-[200px]"
+                  inputClassName="px-3 py-2 pl-9 text-body"
+                />
+                <UrlMultiSelectField
+                  param="trades"
+                  label="Trade"
+                  options={data.facets.trades.map((t) => ({ value: t.code, label: t.name }))}
+                  className="min-w-[170px]"
+                />
+                <UrlSearchField
+                  param="state"
+                  label="State"
+                  placeholder="GA"
+                  maxLength={2}
+                  uppercase
+                  className="min-w-[90px]"
+                  inputClassName="px-3 py-2 pl-9 text-body"
+                />
+              </>
+            }
+          >
+            <FilterGroup label="Credentials">
+              <UrlSelectField
+                param="credential"
+                label="Credential"
+                className="min-w-[160px]"
+                selectClassName="px-2 py-2 text-body"
+                options={[
+                  { value: "", label: "Any credential" },
+                  ...data.facets.credentials.map((c) => ({ value: c.code, label: c.name })),
+                ]}
               />
-            </label>
-            <button onClick={() => runSearch(1)} disabled={loading} className="btn-primary">
-              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
-              Search
-            </button>
-          </div>
+              <UrlMultiSelectField
+                param="credential_types"
+                label="Credential type"
+                options={CREDENTIAL_TYPE_OPTIONS}
+                className="min-w-[150px]"
+              />
+              <UrlSelectField
+                param="min_level"
+                label="Verification"
+                className="min-w-[160px]"
+                selectClassName="px-2 py-2 text-body"
+                options={[{ value: "", label: "Any verified" }, ...VERIFICATION_OPTIONS]}
+              />
+            </FilterGroup>
+            <FilterGroup label="Availability">
+              <UrlSelectField
+                param="available_by"
+                label="Availability"
+                className="min-w-[140px]"
+                selectClassName="px-2 py-2 text-body"
+                options={[{ value: "", label: "Any" }, ...AVAILABILITY_NOW]}
+              />
+              <UrlDateField
+                param="available_by"
+                label="…or available by"
+                className="min-w-[140px]"
+                inputClassName="px-2 py-1.5 text-body"
+              />
+              <UrlSelectField
+                param="relocate"
+                label="Relocation"
+                className="min-w-[140px]"
+                selectClassName="px-2 py-2 text-body"
+                options={[{ value: "", label: "Any" }, ...RELOCATE_OPTIONS]}
+              />
+              <UrlSelectField
+                param="active_within_days"
+                label="Last active"
+                className="min-w-[160px]"
+                selectClassName="px-2 py-2 text-body"
+                options={[{ value: "", label: "Any time" }, ...ACTIVITY_OPTIONS]}
+              />
+            </FilterGroup>
+            {/* One reachability control: the city being commuted to, plus the
+                2-letter state that disambiguates it for geocoding. Distinct
+                from the primary "State" filter, which is the worker's home
+                state. */}
+            <FilterGroup label="Reachable from a city (worker's commute radius covers it)">
+              <UrlSearchField
+                param="near_city"
+                label="City"
+                placeholder="Carrollton…"
+                className="min-w-[150px]"
+                inputClassName="px-3 py-2 pl-9 text-body"
+              />
+              <UrlSearchField
+                param="near_state"
+                label="City's state"
+                placeholder="GA"
+                maxLength={2}
+                uppercase
+                className="min-w-[90px]"
+                inputClassName="px-3 py-2 pl-9 text-body"
+              />
+            </FilterGroup>
+        </FilterBar>
         </div>
 
-        {/* Summary */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-          <MetricCard label="Verified workers" value={data.total} icon={ShieldCheck} />
-          <MetricCard
-            label="Trades represented"
-            value={data.facets.trades.length}
-            icon={Award}
-            tone="stone"
-          />
-          <MetricCard
-            label="Distinct credentials"
-            value={data.facets.credentials.length}
-            icon={BadgeCheck}
-            tone="white"
-            className="col-span-2 sm:col-span-1"
-          />
-        </div>
+        {/* Result count — same predicates as the list (server-enforced parity) */}
+        <p className="text-body text-slate" aria-live="polite">
+          {loading
+            ? "Searching…"
+            : `Showing ${from}–${to} of ${data.total} ${hasFilters ? "matching " : ""}verified workers`}
+        </p>
 
         {error && (
-          <p className="rounded-sm border border-error-red/20 bg-error-red/5 p-3 text-caption text-error-red">
+          <p className="rounded-sm border border-error-red/20 bg-error-red/5 p-3 text-caption text-cohere-ink">
             {error}
           </p>
         )}
 
-        {/* Results */}
+        {/* Results — the grid softens (opacity) while a new search is in
+            flight and the fresh set fades in: a smooth narrowing, never a
+            flash. Motion-safe: collapses to an instant swap. */}
+        <div
+          data-tour-id="workers-results"
+          className={
+            "transition-opacity duration-150 motion-reduce:transition-none " +
+            (loading ? "opacity-60" : "opacity-100")
+          }
+        >
         {data.workers.length === 0 ? (
-          <div className="rounded-md border border-border-light bg-white p-10 text-center">
+          <div className="rounded-[10px] border border-hairline bg-white p-10 text-center">
             <ShieldCheck className="mx-auto h-8 w-8 text-slate-muted" strokeWidth={1.5} />
-            <p className="mt-3 font-display text-feature text-cohere-ink">No verified workers match</p>
+            <p className="mt-3 text-[1.0625rem] font-medium text-cohere-ink">
+              {hasFilters ? "No verified workers match these filters" : "No verified workers yet"}
+            </p>
             <p className="mt-1 text-body text-slate">
-              Try widening your filters. Only workers who opted into employer sharing appear here.
+              {hasFilters
+                ? `Active filters: ${filterSentence || "none"}. Remove one, or clear all to widen the results.`
+                : "Only workers who opted into employer sharing appear here."}
             </p>
           </div>
         ) : (
@@ -169,11 +335,11 @@ export function VerifiedWorkersClient({
               <button
                 key={w.applicant_id}
                 onClick={() => setSelected(w)}
-                className="rounded-md border border-border-light bg-white p-5 text-left transition-colors hover:border-cohere-ink"
+                className="rounded-[14px] border border-hairline bg-white p-5 text-left transition-[color,background-color,border-color,box-shadow] duration-200 ease-cohere hover:shadow-float"
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <h3 className="font-display text-feature text-cohere-ink">{w.name}</h3>
+                    <h3 className="text-[1.0625rem] font-medium text-cohere-ink">{w.name}</h3>
                     <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-caption text-slate">
                       {w.trade && <span>{w.trade}</span>}
                       {(w.city || w.state) && (
@@ -183,24 +349,35 @@ export function VerifiedWorkersClient({
                         </span>
                       )}
                       {w.willing_to_relocate && <span className="text-cohere-green">Open to relocate</span>}
+                      {w.available_from && <span>Available {w.available_from}</span>}
                     </div>
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-1">
-                    <span className="flex items-center gap-1 rounded-sm bg-cohere-green px-2.5 py-1 text-micro font-medium text-white">
+                    <span className={statusChipClass("positive")}>
                       <ShieldCheck className="h-3 w-3" /> {w.verified_count} verified
                     </span>
-                    <span className="text-micro text-slate-muted tabular-nums" title="Relevance to your search">
-                      {Math.round(w.relevance * 100)}% match
-                    </span>
+                    {/* Relevance is a SEARCH signal, not a match score — only
+                        meaningful (and only shown) when a keyword query ranks
+                        the list. Never labeled "match". */}
+                    {hasKeywordQuery && (
+                      <span className="text-micro text-slate-muted tabular-nums" title="How closely this worker matches your keyword search">
+                        {Math.round(w.relevance * 100)}% search relevance
+                      </span>
+                    )}
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap gap-1.5">
                   {w.top_credentials.map((c, i) => (
                     <span
                       key={i}
-                      className={cn("rounded-sm border px-2 py-0.5 text-micro", badgeClass(c.verification_level))}
+                      className={CREDENTIAL_CHIP_CLASS}
+                      title={VERIFICATION_LEVEL_META[c.verification_level]?.label}
                     >
+                      {c.verification_level >= 1 && (
+                        <BadgeCheck className="h-3 w-3 text-cohere-green" aria-hidden="true" />
+                      )}
                       {c.canonical_name}
+                      {c.verification_level >= 1 && <span className="sr-only">, verified</span>}
                     </span>
                   ))}
                 </div>
@@ -209,6 +386,7 @@ export function VerifiedWorkersClient({
             ))}
           </div>
         )}
+        </div>
 
         {/* Pagination */}
         {totalPages > 1 && (
@@ -218,14 +396,14 @@ export function VerifiedWorkersClient({
             </span>
             <div className="flex gap-2">
               <button
-                onClick={() => runSearch(page - 1)}
+                onClick={() => setPage(page - 1)}
                 disabled={page <= 1 || loading}
                 className="btn-pill-outline disabled:opacity-40"
               >
                 Previous
               </button>
               <button
-                onClick={() => runSearch(page + 1)}
+                onClick={() => setPage(page + 1)}
                 disabled={page >= totalPages || loading}
                 className="btn-pill-outline disabled:opacity-40"
               >
@@ -254,8 +432,29 @@ function VerifyModal({
   token: string;
   onClose: () => void;
 }) {
+  const router = useRouter();
   const [data, setData] = useState<VerifyResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [messaging, setMessaging] = useState(false);
+  const [messageError, setMessageError] = useState<string | null>(null);
+
+  // This worker consented to employer discovery, and the messaging flow is the
+  // sanctioned contact channel (contact details are never shown here) — so the
+  // modal ends in a real next step, not a cul-de-sac.
+  async function startConversation() {
+    setMessaging(true);
+    setMessageError(null);
+    try {
+      const conv = await apiFetch<{ conversation_id: string }>("/conversations", token, {
+        method: "POST",
+        body: JSON.stringify({ applicant_id: worker.applicant_id }),
+      });
+      router.push(`/employer/messages/${conv.conversation_id}`);
+    } catch {
+      setMessageError("Could not open a conversation. Please try again.");
+      setMessaging(false);
+    }
+  }
 
   // Fetch verified credentials when the modal opens.
   useEffect(() => {
@@ -270,7 +469,7 @@ function VerifyModal({
 
   return (
     <motion.div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-studio-dark-cork/40 p-0 sm:items-center sm:p-6"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/40 p-0 sm:items-center sm:p-6"
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
@@ -284,19 +483,22 @@ function VerifyModal({
         transition={{ duration: 0.3, ease: easeCohere }}
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Green verify header */}
-        <div className="bg-cohere-green p-5 text-white">
+        {/* White header — the green lives in a small verification affix, not a
+            solid block (contract: verification is an affix, never a recolor). */}
+        <div className="border-b border-hairline bg-white p-5">
           <div className="flex items-start justify-between">
             <div>
-              <MonoLabel className="text-white/60">SKILLED Verify</MonoLabel>
-              <h2 className="mt-1 font-display text-card text-white">{worker.name}</h2>
-              <p className="mt-0.5 text-caption text-white/70">
+              <span className="inline-flex items-center gap-1.5 text-caption font-medium text-cohere-green">
+                <ShieldCheck className="h-4 w-4" /> SKILLED Verify
+              </span>
+              <h2 className="mt-1 text-[1.25rem] font-semibold text-cohere-ink">{worker.name}</h2>
+              <p className="mt-0.5 text-caption text-slate">
                 {[worker.trade, [worker.city, worker.state].filter(Boolean).join(", ")]
                   .filter(Boolean)
                   .join(", ")}
               </p>
             </div>
-            <button onClick={onClose} aria-label="Close" className="text-white/70 hover:text-white">
+            <button onClick={onClose} aria-label="Close" className="text-slate-muted hover:text-cohere-ink">
               <X className="h-5 w-5" />
             </button>
           </div>
@@ -330,7 +532,7 @@ function VerifyModal({
             <>
               <p className="mb-3 flex items-center gap-2 text-caption text-cohere-green">
                 <ShieldCheck className="h-4 w-4" />
-                {data.verified_count} credential{data.verified_count !== 1 ? "s" : ""} verified by SKILLED — cryptographically signed.
+                {data.verified_count} verified credential{data.verified_count !== 1 ? "s" : ""} checked by SKILLED, tamper-proof.
               </p>
               <ul className="space-y-2.5">
                 {data.credentials.map((c, i) => {
@@ -351,7 +553,7 @@ function VerifyModal({
                             )}
                           </div>
                         </div>
-                        <span className={cn("flex shrink-0 items-center gap-1 rounded-sm border px-2 py-1 text-micro font-medium", badgeClass(c.verification_level))}>
+                        <span className={statusChipClass(VERIFICATION_LEVEL_META[c.verification_level]?.tone ?? "neutral", "shrink-0")}>
                           <Icon className="h-3 w-3" /> {c.verification_badge}
                         </span>
                       </div>
@@ -361,6 +563,32 @@ function VerifyModal({
               </ul>
             </>
           )}
+        </div>
+
+        {/* Footer — the next step. Consented workers can be messaged directly
+            through the DM flow (the platform's contact channel; contact
+            details stay private). */}
+        <div className="border-t border-hairline bg-white p-4">
+          {messageError && (
+            <p className="mb-2 text-caption text-error-red" role="alert">{messageError}</p>
+          )}
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-micro text-slate-muted">
+              This worker consented to be contacted by employers on SKILLED.
+            </p>
+            <button
+              onClick={startConversation}
+              disabled={messaging}
+              className="btn-primary inline-flex shrink-0 items-center gap-1.5 disabled:opacity-50"
+            >
+              {messaging ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <MessageSquare className="h-4 w-4" />
+              )}
+              {messaging ? "Opening…" : "Message"}
+            </button>
+          </div>
         </div>
       </motion.div>
     </motion.div>

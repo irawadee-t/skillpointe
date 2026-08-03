@@ -18,7 +18,7 @@ export function SectionBand({
   const surfaces = {
     parchment: "bg-parchment/70",
     stone: "bg-stone/60",
-    ink: "bg-studio-dark-cork text-white",
+    ink: "bg-ink text-white",
   } as const;
   return (
     <section className={cn("-mx-6 rounded-2xl px-6 py-6 sm:-mx-8 sm:px-8 sm:py-8", surfaces[tone], className)}>

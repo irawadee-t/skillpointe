@@ -12109,4 +12109,25 @@ SELECT pg_catalog.setval('public.geocode_cache_id_seq', 5, true);
 -- PostgreSQL database dump complete
 --
 
+--
+-- Data for Name: employer_career_sources; Type: TABLE DATA; Schema: public; Owner: -
+--
+-- The six scraped partners registered as career sources so the
+-- /admin/career-sources console starts populated. created_by is NULL because
+-- auth users are seeded later (scripts/seed_test_users.py). Platform values
+-- reflect what the pipeline detects on first pull; sources start in the
+-- "never pulled" state — run a Sync from the console (or wait for auto-sync)
+-- to learn each site's extraction profile. Note: Delta's Avature site sits
+-- behind an AWS WAF and cannot be fetched without a headless browser, so its
+-- pulls honestly report no_jobs.
+
+INSERT INTO public.employer_career_sources (id, employer_id, url, platform) VALUES
+	('59f6b032-e8c2-45e2-a0c3-7c4570f0a2cb', '22443ea6-1955-4fab-abca-1ff36da9a308', 'https://careers.southwire.com/search/', 'generic'),
+	('a1b20001-0000-4000-8000-000000000001', '499cc8db-9d22-40cb-8b23-728bbd7acbd8', 'https://jobs.ball.com/search/', 'generic'),
+	('a1b20001-0000-4000-8000-000000000002', '89f29d7c-723f-4203-9349-d81228744f3d', 'https://careers.gevernova.com/jobs', 'generic'),
+	('a1b20001-0000-4000-8000-000000000003', '0d514c38-b3b5-4d86-ad49-dafd6a6691f1', 'https://delta.avature.net/en_US/careers/SearchJobs/', 'avature'),
+	('a1b20001-0000-4000-8000-000000000004', '7446fe00-d88f-4264-a00a-7d40ce4f218d', 'https://careers.se.com/jobs', NULL),
+	('a1b20001-0000-4000-8000-000000000005', 'b447c002-7ba2-449b-926b-090b157fcfc6', 'https://www.careers.ford.com/search-jobs', 'generic')
+ON CONFLICT (employer_id, url) DO NOTHING;
+
 SET session_replication_role = DEFAULT;

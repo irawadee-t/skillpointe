@@ -103,16 +103,24 @@ def _normalize_csv_row(raw: dict[str, Any]) -> Optional[dict[str, Any]]:
 def universal_scrape(url: str, *, employer_name: str, max_jobs: int = 500):
     """Detect the platform behind a careers URL and run the universal adapter.
     Returns (platform_str, list_of_ScrapedJob)."""
-    from scraper.platform import detect_from_url, detect_from_html, Platform  # type: ignore
+    from scraper.platform import Platform, detect_from_html, detect_from_url  # type: ignore
     from scraper.universal import scrape_by_platform  # type: ignore
-    import httpx
+
+    from app.util.net_guard import BlockedURLError, safe_get_sync, validate_public_url
+
+    # SSRF guard: the URL is user-supplied. Reject internal/metadata targets
+    # BEFORE any fetch (this also covers the subsequent scrape_by_platform call,
+    # which fetches the same host).
+    try:
+        validate_public_url(url)
+    except BlockedURLError:
+        return "blocked", []
 
     platform = detect_from_url(url)
     if platform == Platform.UNKNOWN:
-        # Fetch once and fingerprint the body.
+        # Fetch once and fingerprint the body — redirects re-validated per hop.
         try:
-            r = httpx.get(url, timeout=15.0, follow_redirects=True,
-                          headers={"User-Agent": "Mozilla/5.0"})
+            r = safe_get_sync(url, timeout=15.0, headers={"User-Agent": "Mozilla/5.0"})
             platform = detect_from_html(r.text)
         except Exception:
             platform = Platform.UNKNOWN

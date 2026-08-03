@@ -57,3 +57,8 @@ htmlcov/
 
 # Personal Claude Code config (launch/permissions are per-machine)
 .claude/
+.next-prod/
+.next-turbo/
+
+# Local audit artifacts (uxaudit screenshots/workspaces) — large, not source
+.agents/

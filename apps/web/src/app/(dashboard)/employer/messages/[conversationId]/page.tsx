@@ -5,25 +5,10 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { MessageThread } from "@/components/messages/MessageThread";
+import { fetchConversation } from "@/lib/api/messages";
 
 interface PageProps {
   params: Promise<{ conversationId: string }>;
-}
-
-async function fetchConversation(id: string, token: string) {
-  const API_URL =
-    process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-  const res = await fetch(`${API_URL}/conversations/${id}/messages`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-  });
-  if (!res.ok) return null;
-  return res.json() as Promise<{
-    conversation_id: string;
-    other_party_name: string;
-    job_title: string | null;
-    messages: unknown[];
-  }>;
 }
 
 export default async function EmployerConversationPage({ params }: PageProps) {

@@ -10,6 +10,7 @@ import {
 } from "@/lib/api/institution";
 import type { IngestSummary } from "@/lib/api/ingest";
 import { PageHeader, MonoLabel, MetricCard } from "@/components/ui";
+import { formatDateShort } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
 const SAMPLE = `email,credential_name,issuer,issued_date
@@ -55,7 +56,7 @@ export function InstitutionClient({
     <main className="py-8">
       <div className="page-shell space-y-6">
         <PageHeader
-          eyebrow="SKILLED Pro, Partner portal"
+          eyebrow="Partner portal"
           title={inst.name}
           lead="Upload your program completions to issue Institution-Verified credentials on SKILLED. Every upload runs through the same match → normalize → signed-record pipeline, scoped to your institution."
         />
@@ -99,7 +100,7 @@ export function InstitutionClient({
                     <div className="mono-label">{label}</div>
                   </div>
                 ))}
-              {summary.dry_run && <p className="col-span-full text-micro text-slate-muted">Preview only — nothing was written.</p>}
+              {summary.dry_run && <p className="col-span-full text-micro text-slate-muted">Preview only. Nothing was written.</p>}
             </div>
           )}
         </div>
@@ -119,14 +120,16 @@ export function InstitutionClient({
               </thead>
               <tbody className="divide-y divide-hairline">
                 {roster.length === 0 ? (
-                  <tr><td colSpan={4} className="px-4 py-8 text-center text-body text-slate">No credentials issued yet — upload a batch above.</td></tr>
+                  <tr><td colSpan={4} className="px-4 py-8 text-center text-body text-slate">No credentials issued yet. Upload a batch above.</td></tr>
                 ) : roster.map((r, i) => (
                   <tr key={i}>
                     <td className="px-4 py-2.5 font-semibold text-cohere-ink">{r.applicant_name}</td>
                     <td className="px-4 py-2.5 text-slate">{r.credential_name}</td>
                     <td className="px-4 py-2.5">
-                      <span className={cn("rounded-sm px-1.5 py-0.5 text-micro",
-                        r.verification_badge === "Self-Reported" ? "bg-stone text-slate" : "bg-wash-green text-cohere-green")}>
+                      <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                        /self.reported/i.test(r.verification_badge ?? "")
+                          ? "border-hairline bg-white text-slate"
+                          : "border-cohere-green bg-cohere-green text-white")}>
                         {r.verification_badge}
                       </span>
                     </td>
@@ -147,11 +150,15 @@ export function InstitutionClient({
                 <li key={im.id} className="flex items-center justify-between px-4 py-2.5 text-caption">
                   <span className="text-slate-muted">{im.id.slice(0, 8)}</span>
                   <span className="text-slate">{im.success_count}/{im.row_count} matched, {im.error_count} errors</span>
-                  <span className={cn("rounded-sm px-1.5 py-0.5 text-micro",
-                    im.status === "complete" ? "bg-wash-green text-cohere-green" : "bg-studio-maroon/10 text-cohere-ink")}>
+                  <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-medium",
+                    im.status === "complete"
+                      ? "border-cohere-green bg-cohere-green text-white"
+                      : im.status === "failed" || im.status === "error"
+                        ? "border-error-red bg-error-red text-white"
+                        : "border-cohere-blue bg-cohere-blue text-white")}>
                     {im.status}
                   </span>
-                  <span className="text-slate-muted">{new Date(im.created_at).toLocaleDateString()}</span>
+                  <span className="text-slate-muted">{formatDateShort(im.created_at)}</span>
                 </li>
               ))}
             </ul>

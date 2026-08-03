@@ -20,6 +20,7 @@ export interface EmployerCompanySummary {
   is_partner: boolean;
   total_jobs: number;
   active_jobs: number;
+  accepts_internal_applications_default: boolean;
 }
 
 export interface EmployerJobSummary {
@@ -34,6 +35,42 @@ export interface EmployerJobSummary {
   total_visible: number;
   eligible_count: number;
   near_fit_count: number;
+  family_code: string | null;
+  family_name: string | null;
+  employment_type: string | null;
+  pay_min: number | null;
+  pay_max: number | null;
+  pay_type: string | null;
+  pay_raw: string | null;
+  source: string | null;
+  source_site: string | null;
+  is_stale: boolean;
+  apply_link_status: string | null;
+  /** Lifecycle: active | paused | filled | closed (is_active ⇔ 'active'). */
+  status: JobLifecycleStatus;
+  previous_status: JobLifecycleStatus | null;
+  /** True when the job has applications/interest/outreach/hire history —
+   *  Delete is refused (Close is the honest action). */
+  has_activity: boolean;
+  /** Career-source freshness (source-synced jobs only). */
+  source_last_seen_at: string | null;
+  source_vanished_at: string | null;
+}
+
+export type JobLifecycleStatus = "active" | "paused" | "filled" | "closed";
+
+export interface JobStatusOut {
+  job_id: string;
+  status: JobLifecycleStatus;
+  previous_status: JobLifecycleStatus | null;
+  is_active: boolean;
+}
+
+export interface EmployerJobFacets {
+  families: { value: string; label: string }[];
+  states: string[];
+  sources: string[];
+  employment_types: string[];
 }
 
 export interface EmployerJobsListResponse {
@@ -41,6 +78,27 @@ export interface EmployerJobsListResponse {
   company_name: string;
   jobs: EmployerJobSummary[];
   total_jobs: number;
+  unfiltered_total: number | null;
+  supports_internal_apply: boolean;
+  facets: EmployerJobFacets;
+}
+
+export interface EmployerJobFilters {
+  q?: string;
+  families?: string;
+  states?: string;
+  city?: string;
+  employment_types?: string;
+  sources?: string;
+  status?: string;          // active | inactive | stale
+  apply_link?: string;      // ok | broken | unchecked
+  has_pay?: boolean;
+  pay_gte?: number;
+  internal_apply?: boolean;
+  posted_from?: string;
+  posted_to?: string;
+  candidates?: string;      // none | 1_9 | 10_49 | over_50
+  sort?: string;            // newest | posted | title | pay
 }
 
 export interface ApplicantMatchSummary {
@@ -81,13 +139,11 @@ export interface RankedApplicantsResponse {
   filter_min_score: number | null;
   filter_state: string | null;
   filter_willing_to_relocate: boolean | null;
-}
-
-export interface JobCreateResponse {
-  job_id: string;
-  title_raw: string;
-  is_active: boolean;
-  created_at: string;
+  /** Pagination over the FILTERED list. */
+  filtered_total: number;
+  page: number;
+  per_page: number;
+  total_pages: number;
 }
 
 export interface ApplicantFilters {
@@ -95,6 +151,11 @@ export interface ApplicantFilters {
   minScore?: number;
   state?: string;
   willingToRelocate?: boolean;
+  /** Partial, case-insensitive name search — narrows live as the user types. */
+  q?: string;
+  /** 1-based page over the filtered list. */
+  page?: number;
+  perPage?: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -107,10 +168,57 @@ export async function fetchMyCompany(
   return apiFetch<EmployerCompanySummary>("/employer/me/company", token);
 }
 
+/** Employer-editable company settings (partial update). */
+export async function patchMyCompany(
+  token: string,
+  payload: { accepts_internal_applications_default: boolean },
+): Promise<EmployerCompanySummary> {
+  return apiFetch<EmployerCompanySummary>("/employer/me/company", token, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function fetchMyJobs(
   token: string,
+  filters: EmployerJobFilters = {},
 ): Promise<EmployerJobsListResponse> {
-  return apiFetch<EmployerJobsListResponse>("/employer/me/jobs", token);
+  const qs = new URLSearchParams();
+  for (const [k, v] of Object.entries(filters)) {
+    if (v !== undefined && v !== "") qs.set(k, String(v));
+  }
+  const q = qs.toString();
+  return apiFetch<EmployerJobsListResponse>(`/employer/me/jobs${q ? `?${q}` : ""}`, token);
+}
+
+/** Move a job through its lifecycle. 409 = illegal transition or a
+ *  concurrent change; the caller should refresh. */
+export async function patchJobStatus(
+  token: string,
+  jobId: string,
+  status: JobLifecycleStatus,
+): Promise<JobStatusOut> {
+  return apiFetch<JobStatusOut>(`/employer/me/jobs/${jobId}/status`, token, {
+    method: "PATCH",
+    body: JSON.stringify({ status }),
+  });
+}
+
+/** REAL undo for the last lifecycle transition (restores previous_status). */
+export async function revertJobStatus(
+  token: string,
+  jobId: string,
+): Promise<JobStatusOut> {
+  return apiFetch<JobStatusOut>(`/employer/me/jobs/${jobId}/status/revert`, token, {
+    method: "POST",
+  });
+}
+
+/** Delete a zero-activity posting. 409 when it has history — close instead. */
+export async function deleteJob(token: string, jobId: string): Promise<void> {
+  await apiFetch<{ ok: boolean }>(`/employer/me/jobs/${jobId}`, token, {
+    method: "DELETE",
+  });
 }
 
 export async function fetchJobApplicants(
@@ -131,55 +239,18 @@ export async function fetchJobApplicants(
   if (filters?.willingToRelocate !== undefined) {
     params.set("willing_to_relocate", String(filters.willingToRelocate));
   }
+  if (filters?.q) {
+    params.set("q", filters.q);
+  }
+  if (filters?.page && filters.page > 1) {
+    params.set("page", String(filters.page));
+  }
+  if (filters?.perPage) {
+    params.set("per_page", String(filters.perPage));
+  }
   const qs = params.toString();
   const path = `/employer/me/jobs/${jobId}/applicants${qs ? `?${qs}` : ""}`;
   return apiFetch<RankedApplicantsResponse>(path, token);
-}
-
-export async function createJob(
-  payload: {
-    title_raw: string;
-    city?: string;
-    state?: string;
-    work_setting?: string;
-    travel_requirement?: string;
-    pay_min?: number;
-    pay_max?: number;
-    pay_type?: string;
-    description_raw?: string;
-    requirements_raw?: string;
-    experience_level?: string;
-  },
-  token: string,
-): Promise<JobCreateResponse> {
-  return apiFetch<JobCreateResponse>("/employer/me/jobs", token, {
-    method: "POST",
-    body: JSON.stringify(payload),
-  });
-}
-
-export async function updateJob(
-  jobId: string,
-  payload: Partial<{
-    title_raw: string;
-    city: string;
-    state: string;
-    work_setting: string;
-    travel_requirement: string;
-    pay_min: number;
-    pay_max: number;
-    pay_type: string;
-    description_raw: string;
-    requirements_raw: string;
-    experience_level: string;
-    is_active: boolean;
-  }>,
-  token: string,
-): Promise<JobCreateResponse> {
-  return apiFetch<JobCreateResponse>(`/employer/me/jobs/${jobId}`, token, {
-    method: "PATCH",
-    body: JSON.stringify(payload),
-  });
 }
 
 // ---------------------------------------------------------------------------

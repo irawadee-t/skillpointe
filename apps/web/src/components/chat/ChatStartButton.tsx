@@ -7,6 +7,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Loader2 } from "lucide-react";
 
+import { useViewAs, VIEW_AS_READONLY_TOOLTIP } from "@/hooks/useViewAs";
+
 interface ChatStartButtonProps {
   token: string;
 }
@@ -17,6 +19,7 @@ const API_URL =
     : "http://localhost:8000";
 
 export function ChatStartButton({ token }: ChatStartButtonProps) {
+  const { isViewAs } = useViewAs();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,7 +49,7 @@ export function ChatStartButton({ token }: ChatStartButtonProps) {
     <div>
       <button
         onClick={handleStart}
-        disabled={loading}
+        disabled={loading || isViewAs} title={isViewAs ? VIEW_AS_READONLY_TOOLTIP : undefined}
         className="btn-primary inline-flex items-center gap-1.5 disabled:opacity-50"
       >
         {loading ? (

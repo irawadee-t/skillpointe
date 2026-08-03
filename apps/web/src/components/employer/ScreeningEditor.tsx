@@ -10,24 +10,22 @@ import {
 import { MonoLabel } from "@/components/ui";
 
 /**
- * Reusable editor for a job's 0–5 screening questions.
- * Called on the "post a job" flow and on the edit-job form.
+ * Presentational editor for a list of screening questions — no fetching, no
+ * saving. Used by ScreeningEditor (edit-job, saves per jobId) and by the
+ * create-job form, which queues questions client-side and saves them right
+ * after the job exists.
  */
-export function ScreeningEditor({ token, jobId }: { token: string; jobId: string }) {
-  const [questions, setQuestions] = useState<ScreeningQuestion[]>([]);
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    getEmployerScreening(token, jobId).then((qs) => { setQuestions(qs); setLoading(false); }).catch(() => setLoading(false));
-  }, [token, jobId]);
-
+export function ScreeningQuestionsFields({
+  questions,
+  onChange,
+}: {
+  questions: ScreeningQuestion[];
+  onChange: (qs: ScreeningQuestion[]) => void;
+}) {
   function add() {
     if (questions.length >= 5) return;
-    setQuestions((prev) => [...prev, {
-      position: prev.length,
+    onChange([...questions, {
+      position: questions.length,
       kind: "yes_no",
       prompt: "",
       options: [],
@@ -37,54 +35,21 @@ export function ScreeningEditor({ token, jobId }: { token: string; jobId: string
   }
 
   function update(i: number, patch: Partial<ScreeningQuestion>) {
-    setQuestions((prev) => prev.map((q, ix) => ix === i ? { ...q, ...patch } : q));
+    onChange(questions.map((q, ix) => ix === i ? { ...q, ...patch } : q));
   }
 
   function remove(i: number) {
-    setQuestions((prev) => prev.filter((_, ix) => ix !== i));
-  }
-
-  async function save() {
-    setSaving(true); setErr(null); setSaved(false);
-    try {
-      const cleaned = questions
-        .filter((q) => q.prompt.trim())
-        .map((q, i) => ({ ...q, position: i }));
-      const fresh = await replaceEmployerScreening(token, jobId, cleaned);
-      setQuestions(fresh);
-      setSaved(true);
-      setTimeout(() => setSaved(false), 1500);
-    } catch (e: unknown) {
-      setErr(e instanceof Error ? e.message : "Could not save");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  if (loading) {
-    return <div className="flex items-center gap-2 text-caption text-slate"><Loader2 className="h-4 w-4 animate-spin" /> Loading questions…</div>;
+    onChange(questions.filter((_, ix) => ix !== i));
   }
 
   return (
-    <section className="rounded-xl border border-hairline bg-white p-6">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="font-display text-feature text-cohere-ink">Screening questions</h3>
-          <p className="mt-1 text-caption text-slate">
-            Up to 5 knockout questions. Answers that don't match your required answer flag the application so you can filter fast.
-          </p>
-        </div>
-        {saved && <span className="inline-flex items-center gap-1 text-caption text-cohere-green"><Check className="h-3.5 w-3.5" /> Saved</span>}
-      </div>
-
-      {err && <p className="mt-3 text-caption text-studio-maroon">{err}</p>}
-
+    <>
       <div className="mt-5 space-y-4">
         {questions.map((q, i) => (
           <div key={i} className="rounded-lg border border-hairline bg-stone/30 p-4">
             <div className="flex items-start justify-between gap-3">
               <MonoLabel>Question {i + 1}</MonoLabel>
-              <button onClick={() => remove(i)} aria-label="Remove" className="text-slate-muted hover:text-studio-maroon">
+              <button type="button" onClick={() => remove(i)} aria-label="Remove" className="text-slate-muted hover:text-studio-maroon">
                 <Trash2 className="h-3.5 w-3.5" />
               </button>
             </div>
@@ -132,10 +97,10 @@ export function ScreeningEditor({ token, jobId }: { token: string; jobId: string
 
               {q.kind !== "multiple_choice" && (
                 <label className="block sm:col-span-1">
-                  <MonoLabel className="mb-1 block">Knockout</MonoLabel>
+                  <MonoLabel className="mb-1 block">Required</MonoLabel>
                   <select value={q.is_knockout ? "yes" : "no"} onChange={(e) => update(i, { is_knockout: e.target.value === "yes" })} className="input-cohere text-caption">
-                    <option value="yes">Flag if wrong answer</option>
-                    <option value="no">Just informational</option>
+                    <option value="yes">Required (must answer)</option>
+                    <option value="no">Optional</option>
                   </select>
                 </label>
               )}
@@ -144,14 +109,75 @@ export function ScreeningEditor({ token, jobId }: { token: string; jobId: string
         ))}
       </div>
 
-      <div className="mt-5 flex items-center justify-between">
+      <div className="mt-5">
         <button
+          type="button"
           onClick={add}
           disabled={questions.length >= 5}
           className="inline-flex items-center gap-1 text-caption text-cohere-blue disabled:text-slate-muted"
         >
           <Plus className="h-3.5 w-3.5" /> Add question ({questions.length}/5)
         </button>
+      </div>
+    </>
+  );
+}
+
+/**
+ * Reusable editor for a job's 0–5 screening questions.
+ * Called on the "post a job" flow and on the edit-job form.
+ */
+export function ScreeningEditor({ token, jobId }: { token: string; jobId: string }) {
+  const [questions, setQuestions] = useState<ScreeningQuestion[]>([]);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getEmployerScreening(token, jobId).then((qs) => { setQuestions(qs); setLoading(false); }).catch(() => setLoading(false));
+  }, [token, jobId]);
+
+  async function save() {
+    setSaving(true); setErr(null); setSaved(false);
+    try {
+      const cleaned = questions
+        .filter((q) => q.prompt.trim())
+        .map((q, i) => ({ ...q, position: i }));
+      const fresh = await replaceEmployerScreening(token, jobId, cleaned);
+      setQuestions(fresh);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 1500);
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : "Could not save");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) {
+    return <div className="flex items-center gap-2 text-caption text-slate"><Loader2 className="h-4 w-4 animate-spin" /> Loading questions…</div>;
+  }
+
+  return (
+    <section className="rounded-xl border border-hairline bg-white p-6">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-[1.0625rem] font-medium text-cohere-ink">Screening questions</h3>
+          <p className="mt-1 text-caption text-slate">
+            Up to 5 extra questions beyond the profile. Applicants answer them inside
+            the apply form. Answers that don&apos;t match your required answer flag the
+            application so you can filter fast.
+          </p>
+        </div>
+        {saved && <span className="inline-flex items-center gap-1 text-caption text-cohere-green"><Check className="h-3.5 w-3.5" /> Saved</span>}
+      </div>
+
+      {err && <p className="mt-3 text-caption text-studio-maroon">{err}</p>}
+
+      <ScreeningQuestionsFields questions={questions} onChange={setQuestions} />
+
+      <div className="mt-4 flex justify-end">
         <button onClick={save} disabled={saving} className="btn-primary inline-flex items-center gap-1.5">
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
           Save screening

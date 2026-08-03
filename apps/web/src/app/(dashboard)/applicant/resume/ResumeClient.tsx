@@ -5,6 +5,9 @@ import Link from "next/link";
 import { Sparkles, Download, Save, Loader2, FileText, Wand2 } from "lucide-react";
 
 import { PageHeader, MonoLabel } from "@/components/ui";
+import { ResumeUploader } from "@/components/applicant/ResumeUploader";
+import { formatDate } from "@/lib/format";
+import type { ResumeUpload } from "@/lib/api/robustness";
 import {
   SummaryOut,
   generateSummary,
@@ -16,11 +19,23 @@ export function ResumeClient({
   initial,
   token,
   verifiedCount,
+  latestUpload,
 }: {
   initial: SummaryOut;
   token: string;
   verifiedCount: number;
+  latestUpload?: ResumeUpload | null;
 }) {
+  // Current-file state for the uploader section. "Replace" swaps the compact
+  // row for the full parse-review flow; a fresh parse updates the row.
+  const [currentFile, setCurrentFile] = useState<{ filename: string; when: string | null } | null>(
+    latestUpload ? { filename: latestUpload.filename, when: latestUpload.created_at } : null,
+  );
+  const [replacing, setReplacing] = useState(false);
+  // Once a parse starts in this session, keep the uploader mounted so the
+  // review step (field + certification checkboxes) and the done state stay
+  // visible — the compact row would otherwise swap in mid-flow and eat them.
+  const [inFlow, setInFlow] = useState(false);
   const [summary, setSummary] = useState(initial.summary ?? "");
   const [source, setSource] = useState(initial.source ?? (initial.summary ? "saved" : null));
   const [dirty, setDirty] = useState(false);
@@ -78,7 +93,7 @@ export function ResumeClient({
     <main className="py-8">
       <div className="page-shell max-w-3xl space-y-6">
         <PageHeader
-          eyebrow="SKILLED Pro"
+          eyebrow="Your record"
           title="Résumé & summary"
           lead="Generate a professional summary from your verified profile, edit it in your own words, then export a one-page résumé that carries your SKILLED credentials."
           actions={
@@ -89,8 +104,36 @@ export function ResumeClient({
         />
 
         {error && (
-          <p className="rounded-sm border border-error-red/20 bg-error-red/5 p-3 text-caption text-error-red">{error}</p>
+          <p className="rounded-sm border border-error-red/20 bg-error-red/5 p-3 text-caption text-cohere-ink">{error}</p>
         )}
+
+        {/* Résumé file — upload + parse-review flow, with current-file state */}
+        <section className="rounded-md border border-border-light bg-white p-5">
+          <MonoLabel className="mb-3 flex items-center gap-1.5">
+            <FileText className="h-3.5 w-3.5" /> Résumé file
+          </MonoLabel>
+          {currentFile && !replacing && !inFlow ? (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <p className="min-w-0 text-body text-cohere-ink">
+                {currentFile.filename}
+                {currentFile.when && (
+                  <span className="text-slate-muted"> · uploaded {formatDate(currentFile.when)}</span>
+                )}
+              </p>
+              <button onClick={() => setReplacing(true)} className="btn-secondary shrink-0">
+                Replace
+              </button>
+            </div>
+          ) : (
+            <ResumeUploader
+              token={token}
+              onUploadedFile={(filename) => {
+                setInFlow(true);
+                setCurrentFile({ filename, when: new Date().toISOString() });
+              }}
+            />
+          )}
+        </section>
 
         {/* AI summary */}
         <section className="rounded-md border border-border-light bg-white p-5">
@@ -99,7 +142,7 @@ export function ResumeClient({
               <Sparkles className="h-3.5 w-3.5" /> Profile summary
             </MonoLabel>
             {source && (
-              <span className="rounded-sm bg-wash-green px-2 py-0.5 text-micro text-cohere-green">
+              <span className="inline-flex items-center rounded-full border border-hairline bg-white px-2 py-0.5 text-[11px] font-medium text-slate">
                 {source === "ai" ? "AI-generated" : source === "template" ? "Auto-drafted" : source === "manual" ? "Edited by you" : "Saved"}
               </span>
             )}
@@ -113,7 +156,7 @@ export function ResumeClient({
             className="input-cohere mt-3 w-full resize-y leading-relaxed"
           />
           <p className="mt-1.5 text-micro text-slate-muted">
-            Grounded strictly in your real profile and verified credentials — it never invents experience.
+            Grounded strictly in your real profile and verified credentials. It never invents experience.
           </p>
 
           <div className="mt-4 flex flex-wrap items-center gap-2">

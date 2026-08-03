@@ -21,40 +21,43 @@ All inputs are plain Python dicts (DB row format).  No DB I/O here.
 from __future__ import annotations
 
 import math
+import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
 from .config import ScoringConfig
-from .normalizer import normalize_timing, TimingResult
 from .gates import (
-    evaluate_job_family_gate,
+    ELIGIBLE,
+    FAIL,
+    INELIGIBLE,
+    NEAR_FIT,
+    NEAR_FIT_LABEL,
+    PASS,
+    GateDetail,
+    compute_eligibility,
     evaluate_credential_gate,
-    evaluate_timing_gate,
     evaluate_geography_gate,
+    evaluate_job_family_gate,
     evaluate_min_req_gate,
     evaluate_seniority_gate,
-    compute_eligibility,
-    GateDetail,
-    ELIGIBLE,
-    NEAR_FIT_LABEL,
-    INELIGIBLE,
+    evaluate_timing_gate,
 )
-from .scorer import compute_structured_score, DimensionScore
+from .normalizer import TimingResult, normalize_timing
+from .scorer import DimensionScore, compute_structured_score
 from .text_scorer import (
-    compute_text_semantic_score,
-    _parse_education_required,
     _estimate_applicant_education,
+    _parse_education_required,
+    compute_text_semantic_score,
 )
-
 
 # ---------------------------------------------------------------------------
 # Semantic score: real embedding-based scoring (Phase 7) with placeholder fallback
 # ---------------------------------------------------------------------------
 _PLACEHOLDER_SEMANTIC_SCORE = 50.0
 _PLACEHOLDER_SEMANTIC_NOTE = (
-    "no embeddings available — using neutral default 50.0; "
+    "no embeddings available; using neutral default 50.0; "
     "run scripts/run_extraction.py to generate embeddings"
 )
 
@@ -64,12 +67,12 @@ def _compute_semantic_score(
 ) -> tuple[float, str]:
     """Cosine similarity between two embedding vectors, scaled to 0–100."""
     if len(a_emb) != len(b_emb) or not a_emb:
-        return 50.0, "embedding dimension mismatch — using default"
+        return 50.0, "embedding dimension mismatch; using default"
     dot = sum(x * y for x, y in zip(a_emb, b_emb))
     norm_a = math.sqrt(sum(x * x for x in a_emb))
     norm_b = math.sqrt(sum(x * x for x in b_emb))
     if norm_a == 0 or norm_b == 0:
-        return 50.0, "zero-norm embedding — using default"
+        return 50.0, "zero-norm embedding; using default"
     sim = dot / (norm_a * norm_b)
     score = round(max(0.0, min(100.0, sim * 100.0)), 2)
     return score, f"embedding cosine similarity: {sim:.4f}"
@@ -115,6 +118,16 @@ class MatchResult:
     # Confidence
     confidence_level: str
     requires_review: bool
+
+    # Relaxation tier — which labeled tier admits this pair to the applicant's
+    # matches surface. Visibility/grouping ONLY: tiers never change any score.
+    #   'strict' | 'adjacent' | 'stretch' | 'nearby' | None (not surfaced)
+    match_tier: str | None = None
+    tier_reason: str | None = None
+
+    # Geodesic home → job-city miles (None when either side lacks coords).
+    # Stored for honest display and deterministic tie-breaking.
+    distance_miles: float | None = None
 
     # Run metadata
     scoring_run_id: str = field(default_factory=lambda: str(uuid.uuid4()))
@@ -201,12 +214,36 @@ def compute_match(
     edu_or_equivalent = job_edu_parsed.get("or_equivalent", False) if job_edu_parsed else False
     applicant_education = _estimate_applicant_education(applicant)
 
+    # Has the applicant ever stated a geography preference? Imported scholars
+    # carry blanket ETL defaults (willing_to_relocate=false,
+    # relocation_preference='stay_current', travel_preference='within_state',
+    # no radius, no states) — that is missing data, not a stated refusal to
+    # move. Only affirmative choices count as stated: a chosen radius,
+    # relocation states, a willingness flag, or a willingness-bearing enum.
+    geo_prefs_stated = bool(
+        applicant.get("commute_radius_miles") is not None
+        or applicant.get("relocation_states")
+        or applicant.get("willing_to_relocate")
+        or applicant.get("willing_to_travel")
+        or (applicant.get("relocation_preference") or "stay_current")
+        not in ("stay_current",)
+        or (applicant.get("travel_preference") or "no_travel")
+        not in ("no_travel", "within_state")
+    )
+
+    ge = config.gates_enabled
+
+    def _gate(enabled: bool, name: str, evaluate):
+        if not enabled:
+            return GateDetail(name, "pass", "gate disabled by admin policy")
+        return evaluate()
+
     gate_details: list[GateDetail] = [
-        evaluate_job_family_gate(
+        _gate(ge.job_family, "job_family_compatibility", lambda: evaluate_job_family_gate(
             applicant.get("canonical_job_family_code"),
             job.get("canonical_job_family_code"),
-        ),
-        evaluate_credential_gate(
+        )),
+        _gate(ge.credentials, "required_credential_compatibility", lambda: evaluate_credential_gate(
             job.get("required_credentials") or [],
             applicant,
             applicant_certs=applicant_certs,
@@ -214,9 +251,9 @@ def compute_match(
             applicant_education=applicant_education,
             job_required_experience_years=job.get("required_experience_years"),
             education_or_equivalent=edu_or_equivalent,
-        ),
-        evaluate_timing_gate(timing),
-        evaluate_geography_gate(
+        )),
+        _gate(ge.timing, "readiness_timing_compatibility", lambda: evaluate_timing_gate(timing)),
+        _gate(ge.geography, "geography_feasibility", lambda: evaluate_geography_gate(
             applicant.get("state"),
             applicant.get("region"),
             bool(applicant.get("willing_to_relocate")),
@@ -227,17 +264,26 @@ def compute_match(
             relocation_preference=applicant.get("relocation_preference"),
             relocation_states=applicant.get("relocation_states"),
             travel_preference=applicant.get("travel_preference"),
-        ),
-        evaluate_min_req_gate(
+            applicant_lat=applicant.get("lat"),
+            applicant_lng=applicant.get("lng"),
+            job_lat=job.get("lat"),
+            job_lng=job.get("lng"),
+            commute_radius_miles=applicant.get("commute_radius_miles"),
+            applicant_city=applicant.get("city"),
+            job_city=job.get("city"),
+            geo_prefs_stated=geo_prefs_stated,
+            relax_unknown_prefs=config.relax_unknown_geo_prefs,
+        )),
+        _gate(ge.min_requirements, "explicit_minimum_requirement_compatibility", lambda: evaluate_min_req_gate(
             applicant, job.get("description_raw"),
             applicant_skills=applicant_skills,
             job_critical_skills=job_critical_skills,
-        ),
-        evaluate_seniority_gate(
+        )),
+        _gate(ge.seniority, "seniority_compatibility", lambda: evaluate_seniority_gate(
             job.get("experience_level"),
             applicant.get("years_experience"),
             is_trade_school=bool(applicant.get("program_name_raw")),
-        ),
+        )),
     ]
 
     elig_result = compute_eligibility(gate_details, config.eligibility_caps)
@@ -291,9 +337,22 @@ def compute_match(
     # ------------------------------------------------------------------
     # Labels + explanation
     # ------------------------------------------------------------------
-    match_label = _compute_match_label(policy_adj, elig_status)
+    match_label = _compute_match_label(policy_adj, elig_status, config.match_labels)
     strengths, gaps, missing, next_step = _build_explanation(
         dim_scores, gate_details, elig_status, job
+    )
+
+    # ------------------------------------------------------------------
+    # Relaxation tier — visibility/grouping only, never a score change
+    # ------------------------------------------------------------------
+    from .geo import distance_between
+    dist = distance_between(applicant, job)
+    distance_miles = round(dist, 1) if dist is not None else None
+
+    match_tier, tier_reason = _compute_tier(
+        gate_details, elig_status, config,
+        distance_miles=distance_miles,
+        commute_radius_miles=applicant.get("commute_radius_miles"),
     )
 
     # ------------------------------------------------------------------
@@ -322,6 +381,9 @@ def compute_match(
         recommended_next_step=next_step,
         confidence_level=confidence,
         requires_review=requires_review,
+        match_tier=match_tier,
+        tier_reason=tier_reason,
+        distance_miles=distance_miles,
         scoring_run_id=run_id,
         scoring_run_at=today.isoformat(),
         policy_version=config.version,
@@ -439,6 +501,13 @@ def _geo_policy_modifier(applicant: dict, job: dict, pm) -> float:
     if ws == "remote":
         return pm.geo_local
 
+    # Distance-aware: inside the applicant's commute radius counts as local.
+    from .geo import distance_between, effective_radius_miles
+    dist = distance_between(applicant, job)
+    if dist is not None:
+        if dist <= effective_radius_miles(applicant.get("commute_radius_miles")):
+            return pm.geo_local
+
     app_state = applicant.get("state")
     job_state = job.get("state")
     app_region = applicant.get("region")
@@ -476,16 +545,116 @@ def _readiness_policy_modifier(timing: TimingResult, pm) -> float:
 # Match label + explanation helpers
 # ---------------------------------------------------------------------------
 
-def _compute_match_label(score: float, elig_status: str) -> str:
+def _compute_match_label(score: float, elig_status: str, labels=None) -> str:
+    """Bucket policy_adjusted_score into a match_label.
+
+    Thresholds come from config (admin-calibratable against the live score
+    distribution). Eligibility caps labels: an ineligible pair is always
+    low_fit, and a near-fit can never read "strong fit" — a pair with an open
+    gate gap must not display the top label (DECISIONS.md 1.12 in spirit).
+    """
+    from .config import MatchLabelConfig
+    lab = labels or MatchLabelConfig()
     if elig_status == INELIGIBLE:
         return "low_fit"
-    if score >= 80:
-        return "strong_fit"
-    if score >= 60:
-        return "good_fit"
-    if score >= 40:
-        return "moderate_fit"
-    return "low_fit"
+    if score >= lab.strong_fit_min:
+        label = "strong_fit"
+    elif score >= lab.good_fit_min:
+        label = "good_fit"
+    elif score >= lab.moderate_fit_min:
+        label = "moderate_fit"
+    else:
+        label = "low_fit"
+    if elig_status == NEAR_FIT_LABEL and label == "strong_fit":
+        label = "good_fit"
+    return label
+
+
+def _compute_tier(
+    gate_details: list[GateDetail],
+    elig_status: str,
+    config: ScoringConfig,
+    distance_miles: float | None = None,
+    commute_radius_miles: float | None = None,
+) -> tuple[str | None, str | None]:
+    """Assign the labeled relaxation tier that admits this pair to the
+    applicant's matches surface (progressive relaxation for sparse markets).
+
+    Tier semantics — each match carries WHICH relaxation admitted it so the
+    UI can group honestly; a tier NEVER changes any score:
+      strict   — eligible: every hard gate passed
+      adjacent — near-fit whose trade is direct/adjacent AND geography passed
+      stretch  — other near-fits (admitted by a geography/timing/credential
+                 stretch, e.g. beyond-radius with unknown relocation prefs)
+      nearby   — "Near you, different trade": geography PASSED but the trade
+                 is unrelated; every other gate is clean. Ineligible for
+                 ranking purposes (score stays capped) but surfaceable when
+                 stricter tiers leave the applicant with too few results.
+      None     — not surfaced by any tier
+    """
+    relax = config.relaxation
+    if elig_status == ELIGIBLE:
+        return "strict", "Meets all requirements"
+
+    by_name = {g.gate_name: g for g in gate_details}
+    fam = by_name.get("job_family_compatibility")
+    geo = by_name.get("geography_feasibility")
+    fails = [g for g in gate_details if g.result == FAIL]
+
+    if elig_status == NEAR_FIT_LABEL:
+        if not relax.enabled or not relax.tier_adjacent:
+            return None, None
+        fam_ok = fam is None or fam.result in (PASS, NEAR_FIT)
+        geo_pass = geo is None or geo.result == PASS
+        # "near you" wording only with VERIFIED proximity — a geography PASS
+        # for "location not assessed" or remote must not read as nearby.
+        from .geo import effective_radius_miles
+        verified_near = (
+            distance_miles is not None
+            and distance_miles <= max(
+                effective_radius_miles(commute_radius_miles),
+                float(relax.nearby_max_miles),
+            )
+        )
+        if fam_ok and geo_pass:
+            if fam is not None and fam.result == NEAR_FIT:
+                # "Related trade" is a factual claim — only make it when BOTH
+                # family codes are known and adjacent. An unknown program is
+                # missing data: say that, don't assert a relationship.
+                if "unknown" in fam.reason:
+                    return "adjacent", (
+                        "Near you. Add your trade to confirm fit"
+                        if verified_near else "Add your trade to confirm fit"
+                    )
+                return "adjacent", (
+                    "Related trade, near you" if verified_near else "Related trade"
+                )
+            return "adjacent", (
+                "Close match near you" if verified_near else "Close match"
+            )
+        return "stretch", "Worth a look, one gap to close"
+
+    # Ineligible: the only surfaceable case is "verifiably near, trade
+    # doesn't match" — the user's "just geography based matches" tier.
+    # VERIFIED proximity is required: a known geodesic distance within
+    # max(applicant's radius, relaxation.nearby_max_miles). A geography-gate
+    # PASS alone is NOT enough — "location not assessed" (missing job state)
+    # and remote jobs must never be labeled "Near you".
+    if not relax.enabled or not relax.tier_nearby:
+        return None, None
+    from .geo import effective_radius_miles
+    nearby_cap = max(
+        effective_radius_miles(commute_radius_miles), float(relax.nearby_max_miles)
+    )
+    if (
+        fam is not None and fam.result == FAIL
+        and geo is not None and geo.result in (PASS, NEAR_FIT)
+        and all(g.gate_name == "job_family_compatibility" for g in fails)
+        and distance_miles is not None
+        and distance_miles <= nearby_cap
+    ):
+        return "nearby", "Near you, different trade"
+    return None, None
 
 
 _DIMENSION_LABELS = {
@@ -495,7 +664,9 @@ _DIMENSION_LABELS = {
     "timing_readiness": "Timing is right",
     "experience_internship_alignment": "Relevant experience",
     "industry_alignment": "Industry fit",
-    "compensation_alignment": "Pay matches expectations",
+    # Note: we never collect pay *expectations* — this label is only a
+    # fallback; _strength_text surfaces the job's real pay figures instead.
+    "compensation_alignment": "Competitive pay listed",
     "work_style_signal_alignment": "Work style fits",
     "employer_soft_pref_alignment": "Matches employer preferences",
 }
@@ -531,9 +702,24 @@ _EDU_FRIENDLY = {
 }
 
 
+def _friendly_family(code: str) -> str:
+    """'hvac_r' → 'HVAC/R', 'welding' → 'welding' — readable trade names."""
+    special = {"hvac_r": "HVAC/R", "hvac": "HVAC", "cdl": "CDL", "it": "IT"}
+    if code.lower() in special:
+        return special[code.lower()]
+    return code.replace("_", " ")
+
+
 def _humanize_gate_reason(gate_name: str, reason: str) -> str:
     """Convert technical gate reason to technician-friendly language."""
-    import re
+    if gate_name == "job_family_compatibility":
+        m = re.match(r"unrelated families: applicant=(\S+), job=(\S+)", reason)
+        if m:
+            return (
+                f"this is a {_friendly_family(m.group(2))} role, "
+                f"your training is in {_friendly_family(m.group(1))}"
+            )
+        return reason[:120]
 
     if gate_name == "required_credential_compatibility":
         parts = []
@@ -571,17 +757,70 @@ def _humanize_gate_reason(gate_name: str, reason: str) -> str:
 
     if gate_name == "seniority_compatibility":
         if "senior" in reason.lower():
-            return "senior-level role — needs significant experience"
+            return "senior-level role, needs significant experience"
         if "management" in reason.lower():
-            return "management role — needs leadership experience"
+            return "management role, needs leadership experience"
         return reason[:80]
 
     if gate_name == "geography_feasibility":
+        # Distance-based reasons ("~62 mi away, beyond your 25 mi radius…")
+        # are already written for the applicant — keep them intact.
+        if " mi " in reason or "radius" in reason:
+            return reason[:160]
         if "mismatch" in reason:
             return "location doesn't match your preferences"
         return reason[:80]
 
     return reason[:120]
+
+
+def _strength_text(d: DimensionScore) -> str | None:
+    """Grounded strength wording for one high-scoring dimension.
+
+    Every sentence must be provable from the dimension's own rationale —
+    never a claim about data we don't hold:
+      - pay: we never collect pay *expectations*, so surface the job's real
+        pay figures ("Competitive hourly pay: $22–$28/hr"), not
+        "pay matches expectations";
+      - credentials: a high score because the job asks for nothing extra must
+        not read "you have the credentials";
+      - timing: say the real availability ("Available in ~4 months") instead
+        of a blanket "timing is right";
+      - soft skills assumed from trade training (empty profile) are not a
+        verified strength — suppressed entirely.
+    Returns None when the dimension has no honest strength sentence.
+    """
+    r = d.rationale
+    if d.dimension == "geography_alignment":
+        # Geography is first-class: surface the real distance when we have
+        # it ("~18 mi from Austin, inside your 25 mi radius").
+        if " mi " in r or "radius" in r:
+            return r[0].upper() + r[1:]
+        return _DIMENSION_LABELS["geography_alignment"]
+    if d.dimension == "compensation_alignment":
+        if r.startswith("competitive"):
+            return r[0].upper() + r[1:]
+        return None
+    if d.dimension == "credential_readiness":
+        if r.startswith("no explicit credential"):
+            return "No extra credentials required"
+        return _DIMENSION_LABELS["credential_readiness"]
+    if d.dimension == "timing_readiness":
+        m = re.search(r"~(\d+) month", r)
+        months = int(m.group(1)) if m else None
+        unit = "month" if months == 1 else "months"
+        if r.startswith("applicant is available now"):
+            return "Available now"
+        if r.startswith("near completion") and m:
+            return f"Finishing your program in ~{months} {unit}"
+        if r.startswith("in progress") and m:
+            return f"Available in ~{months} {unit}"
+        return _DIMENSION_LABELS["timing_readiness"]
+    if d.dimension == "employer_soft_pref_alignment":
+        if r.startswith("likely soft-skill fit"):
+            return None
+        return _DIMENSION_LABELS["employer_soft_pref_alignment"]
+    return _DIMENSION_LABELS.get(d.dimension, d.dimension.replace("_", " "))
 
 
 def _build_explanation(
@@ -603,8 +842,9 @@ def _build_explanation(
     sorted_dims = sorted(dim_scores, key=lambda d: d.raw_score, reverse=True)
     for d in sorted_dims:
         if d.raw_score >= 70 and not d.null_handling_applied and len(strengths) < 4:
-            label = _DIMENSION_LABELS.get(d.dimension, d.dimension.replace("_", " "))
-            strengths.append(label)
+            text = _strength_text(d)
+            if text:
+                strengths.append(text)
 
     for g in gate_details:
         label = _GATE_LABELS.get(g.gate_name, g.gate_name.replace("_", " "))
@@ -617,27 +857,63 @@ def _build_explanation(
             if "education" in g.reason or "credential" in g.reason or "experience" in g.reason:
                 friendly = _humanize_gate_reason(g.gate_name, g.reason)
                 gaps.append(f"{label}: {friendly}")
+        elif g.result == "near_fit" and g.gate_name == "geography_feasibility":
+            # Distance-worded near-fits ("just beyond your 25 mi radius")
+            # are actionable — show them as a gap so the radius trade-off
+            # is visible in real terms.
+            if " mi " in g.reason or "radius" in g.reason:
+                gaps.append(f"{label}: {g.reason[:160]}")
 
+    has_trade_gate_gap = any(g.startswith("Trade alignment") for g in gaps)
     for d in sorted_dims:
         if d.raw_score < 50 and not d.null_handling_applied and len(gaps) < 5:
+            if d.dimension == "geography_alignment" and any(
+                g.startswith("Location") for g in gaps
+            ):
+                continue  # distance-worded gate gap already covers it
+            if (
+                d.dimension in ("trade_program_alignment", "industry_alignment")
+                and has_trade_gate_gap
+            ):
+                # The trade-alignment gate gap already states the mismatch in
+                # full ("this is a manufacturing role, your training is in
+                # nursing"); don't restate it as two more generic chips.
+                continue
             label = _DIMENSION_GAP_LABELS.get(d.dimension, d.dimension.replace("_", " "))
             gaps.append(label)
 
     if elig_status == ELIGIBLE and not gaps:
-        next_step = "You're a strong match — apply now"
+        next_step = "You're a strong match. Apply now."
     elif elig_status == ELIGIBLE:
-        next_step = "Good fit — review the description and apply"
+        next_step = "Good fit. Review the description and apply."
     elif elig_status == NEAR_FIT_LABEL:
         if gaps:
             first_gap = gaps[0].split(":")[0] if ":" in gaps[0] else gaps[0]
-            next_step = f"Worth a look — {first_gap.lower().strip()}"
+            next_step = f"Worth a look: {first_gap.lower().strip()}"
         else:
-            next_step = "Close match — check the requirements"
+            next_step = "Close match. Check the requirements."
     else:
         if missing:
-            next_step = f"Look into: {missing[0].lower()}"
+            first = missing[0]
+            if first.startswith("~") or "radius" in first:
+                # Geography failure — say what to change, not a raw distance.
+                next_step = (
+                    "Outside your commute area right now. Widen your radius "
+                    "or update relocation settings if you'd travel."
+                )
+            elif "your training is in" in first:
+                next_step = "Different trade background. Keep building your skills."
+            else:
+                # Lowercase the leading word only when it isn't an acronym
+                # ("Look into: requires OSHA 10", not "requires osha 10").
+                lead = (
+                    first[0].lower() + first[1:]
+                    if len(first) > 1 and first[1].islower()
+                    else first
+                )
+                next_step = f"Look into: {lead}"
         else:
-            next_step = "Different trade background — keep building your skills"
+            next_step = "Different trade background. Keep building your skills."
 
     return strengths[:5], gaps[:5], missing[:5], next_step
 

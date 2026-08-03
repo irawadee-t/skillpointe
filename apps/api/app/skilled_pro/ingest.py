@@ -39,7 +39,8 @@ class RowPlan:
 
     @property
     def canonical_code(self) -> Optional[str]:
-        return self.normalized.canonical.code if self.normalized and self.normalized.canonical else None
+        # DB-facing slug (credentials.canonical_code / credential_definitions.canonical_code).
+        return self.normalized.canonical.slug if self.normalized and self.normalized.canonical else None
 
     @property
     def needs_review(self) -> bool:

@@ -9,34 +9,16 @@ import { redirect } from "next/navigation";
 import { ChevronLeft } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
+import { canViewApplicantPages } from "@/lib/viewAs.server";
 import { PageHeader } from "@/components/ui";
+import { fetchConversations, type Conversation } from "@/lib/api/messages";
 import { MessagesInboxClient } from "./MessagesInboxClient";
-
-interface Conversation {
-  conversation_id: string;
-  other_party_name: string;
-  job_title: string | null;
-  last_message_at: string;
-  unread_count: number;
-  message_count: number;
-}
-
-async function fetchConversations(token: string): Promise<Conversation[]> {
-  const API_URL =
-    process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
-  const res = await fetch(`${API_URL}/conversations`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-  });
-  if (!res.ok) return [];
-  return res.json();
-}
 
 export default async function ApplicantMessagesPage() {
   const supabase = await createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) redirect("/login");
-  if (session.user.app_metadata?.role !== "applicant") redirect("/login");
+  if (!(await canViewApplicantPages(session.user.app_metadata?.role))) redirect("/login");
 
   const conversations: Conversation[] = await fetchConversations(session.access_token);
 

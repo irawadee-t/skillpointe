@@ -3,6 +3,7 @@ Health check endpoint.
 Returns the status of the API and its upstream dependencies (Supabase, Redis).
 """
 from fastapi import APIRouter
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from app.config import get_settings
@@ -48,6 +49,16 @@ async def health_check() -> HealthResponse:
     except Exception as exc:
         dependencies["supabase"] = DependencyStatus(status="error", detail=str(exc))
 
+    # --- Postgres ping (the actual data path — asyncpg, not the REST gateway) ---
+    try:
+        from app.db import get_db
+
+        async with get_db() as conn:
+            await conn.fetchval("SELECT 1")
+        dependencies["postgres"] = DependencyStatus(status="ok")
+    except Exception as exc:
+        dependencies["postgres"] = DependencyStatus(status="error", detail=str(exc)[:200])
+
     # --- Redis ping ---
     try:
         import redis.asyncio as aioredis
@@ -70,3 +81,25 @@ async def health_check() -> HealthResponse:
         env=settings.app_env,
         dependencies=dependencies,
     )
+
+
+@router.get("/live", tags=["health"])
+async def liveness() -> dict[str, str]:
+    """Liveness probe: is the process up? Cheap, no dependency checks — a failing
+    dependency should not cause the orchestrator to kill and restart the pod."""
+    return {"status": "alive"}
+
+
+@router.get("/ready", tags=["health"])
+async def readiness() -> JSONResponse:
+    """Readiness probe: can this instance serve traffic right now? Checks the
+    data path (Postgres). Returns 503 when not ready so a load balancer can
+    route around it without tearing the instance down."""
+    try:
+        from app.db import get_db
+
+        async with get_db() as conn:
+            await conn.fetchval("SELECT 1")
+        return JSONResponse({"status": "ready"})
+    except Exception as exc:
+        return JSONResponse({"status": "not_ready", "detail": str(exc)[:200]}, status_code=503)

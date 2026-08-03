@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.auth.dependencies import require_applicant
 from app.auth.schemas import CurrentUser
@@ -59,9 +59,10 @@ async def get_my_profile(
         row = await conn.fetchrow(
             """
             SELECT
-                a.id, a.first_name, a.last_name, a.program_name_raw,
-                a.city, a.state, a.region,
+                a.id, a.first_name, a.last_name, a.phone, a.program_name_raw,
+                a.city, a.state, a.region, a.lat, a.lng,
                 a.willing_to_relocate, a.willing_to_travel,
+                a.commute_radius_miles,
                 a.expected_completion_date::text,
                 a.available_from_date::text,
                 a.enrollment_status::text, a.degree_type::text,
@@ -77,9 +78,10 @@ async def get_my_profile(
             FROM public.applicants a
             LEFT JOIN public.canonical_job_families jf
                 ON jf.id = a.canonical_job_family_id
-            WHERE a.user_id = $1
+            WHERE a.id = COALESCE($2::uuid, (SELECT id FROM public.applicants WHERE user_id = $1::uuid))
             """,
             current_user.user_id,
+            current_user.view_as_applicant_id,
         )
 
     if not row:
@@ -94,13 +96,18 @@ async def get_my_profile(
         applicant_id=str(row["id"]),
         first_name=row["first_name"],
         last_name=row["last_name"],
+        phone=row.get("phone"),
         program_name_raw=row["program_name_raw"],
         canonical_job_family_code=row["canonical_job_family_code"],
         city=row["city"],
         state=row["state"],
         region=row["region"],
+        # .get(): works on asyncpg.Record AND the plain-dict rows test mocks use.
+        lat=float(row.get("lat")) if row.get("lat") is not None else None,
+        lng=float(row.get("lng")) if row.get("lng") is not None else None,
         willing_to_relocate=bool(row["willing_to_relocate"]),
         willing_to_travel=bool(row["willing_to_travel"]),
+        commute_radius_miles=row["commute_radius_miles"],
         expected_completion_date=row["expected_completion_date"],
         available_from_date=row["available_from_date"],
         profile_completeness=completeness,
@@ -133,44 +140,76 @@ async def get_my_profile(
 # ---------------------------------------------------------------------------
 
 from pydantic import BaseModel as _BaseModel
+from pydantic import Field as _Field
+from pydantic import field_validator as _field_validator
+
 
 class ProfileUpdateRequest(_BaseModel):
-    first_name: str | None = None
-    last_name: str | None = None
-    program_name_raw: str | None = None
-    city: str | None = None
-    state: str | None = None
+    first_name: str | None = _Field(default=None, max_length=120)
+    last_name: str | None = _Field(default=None, max_length=120)
+    # Same shape/limit as the apply sheet's inline profile completion — this
+    # is the number SMS notifications use.
+    phone: str | None = _Field(default=None, max_length=40)
+    program_name_raw: str | None = _Field(default=None, max_length=200)
+    city: str | None = _Field(default=None, max_length=120)
+    state: str | None = _Field(default=None, max_length=50)
     willing_to_relocate: bool | None = None
     willing_to_travel: bool | None = None
+    # Commute radius in miles around the home city — drives geography gating.
+    commute_radius_miles: int | None = _Field(default=None, ge=1, le=500)
     expected_completion_date: str | None = None
     available_from_date: str | None = None
     onboarding_complete: bool | None = None
     # Expanded fields
-    enrollment_status: str | None = None
-    degree_type: str | None = None
-    school_name: str | None = None
-    school_campus: str | None = None
-    school_city: str | None = None
-    school_state: str | None = None
-    career_path: str | None = None
-    program_field: str | None = None
-    specific_career: str | None = None
+    enrollment_status: str | None = _Field(default=None, max_length=120)
+    degree_type: str | None = _Field(default=None, max_length=120)
+    school_name: str | None = _Field(default=None, max_length=200)
+    school_campus: str | None = _Field(default=None, max_length=200)
+    school_city: str | None = _Field(default=None, max_length=120)
+    school_state: str | None = _Field(default=None, max_length=50)
+    career_path: str | None = _Field(default=None, max_length=200)
+    program_field: str | None = _Field(default=None, max_length=200)
+    specific_career: str | None = _Field(default=None, max_length=200)
     program_start_date: str | None = None
-    gpa: float | None = None
-    travel_preference: str | None = None
-    relocation_preference: str | None = None
-    relocation_states: list[str] | None = None
-    age_range: str | None = None
-    gender: str | None = None
+    gpa: float | None = _Field(default=None, ge=0, le=5)
+    travel_preference: str | None = _Field(default=None, max_length=120)
+    relocation_preference: str | None = _Field(default=None, max_length=120)
+    relocation_states: list[str] | None = _Field(default=None, max_length=60)
+    age_range: str | None = _Field(default=None, max_length=50)
+    gender: str | None = _Field(default=None, max_length=50)
     military_status: bool | None = None
     military_dependent: bool | None = None
-    current_wages: str | None = None
+    current_wages: str | None = _Field(default=None, max_length=120)
     has_internship: bool | None = None
-    internship_details: str | None = None
-    essay_background: str | None = None
-    essay_impact: str | None = None
-    activities: str | None = None
-    honor_societies: list[str] | None = None
+    internship_details: str | None = _Field(default=None, max_length=5000)
+    essay_background: str | None = _Field(default=None, max_length=10000)
+    essay_impact: str | None = _Field(default=None, max_length=10000)
+    activities: str | None = _Field(default=None, max_length=5000)
+    honor_societies: list[str] | None = _Field(default=None, max_length=50)
+
+    @_field_validator(
+        "expected_completion_date", "available_from_date", "program_start_date"
+    )
+    @classmethod
+    def _valid_iso_date(cls, v: str | None) -> str | None:
+        if v is None or v == "":
+            return None
+        from datetime import date as _date
+        try:
+            _date.fromisoformat(v)
+        except ValueError as exc:
+            raise ValueError("must be an ISO date (YYYY-MM-DD)") from exc
+        return v
+
+    @_field_validator("relocation_states", "honor_societies")
+    @classmethod
+    def _short_list_items(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return None
+        for item in v:
+            if len(item) > 120:
+                raise ValueError("list items must be 120 characters or fewer")
+        return v
 
 
 @router.patch("/me/profile", status_code=status.HTTP_200_OK)
@@ -256,18 +295,83 @@ async def update_my_profile(
                 current_user.user_id, onboarding_val,
             )
 
+        # Instrument "profile completed" — emitted once per applicant, the
+        # first time profile_completeness crosses 80 after a profile write.
+        # (The snapshot also feeds the home geocode below.)
+        fresh = await conn.fetchrow(
+            """
+            SELECT a.id, a.first_name, a.last_name, a.program_name_raw, a.program_field,
+                   a.city, a.state, a.zip_code, a.lat,
+                   a.expected_completion_date, a.available_from_date,
+                   a.school_name, a.enrollment_status::text, a.degree_type::text,
+                   a.travel_preference::text, a.relocation_preference::text,
+                   a.willing_to_relocate, a.willing_to_travel,
+                   a.has_internship, a.gpa, a.age_range, a.gender,
+                   jf.code AS canonical_job_family_code
+            FROM public.applicants a
+            LEFT JOIN public.canonical_job_families jf ON jf.id = a.canonical_job_family_id
+            WHERE a.user_id = $1
+            """,
+            current_user.user_id,
+        )
+        if fresh is not None:
+            completeness = _compute_completeness(dict(fresh))
+            if completeness >= 80:
+                await conn.execute(
+                    """
+                    INSERT INTO public.engagement_events (applicant_id, event_type, event_data)
+                    SELECT $1, 'profile_completed', $2::jsonb
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM public.engagement_events ee
+                        WHERE ee.applicant_id = $1 AND ee.event_type = 'profile_completed'
+                    )
+                    """,
+                    fresh["id"],
+                    {"profile_completeness": completeness},
+                )
+
+        # Geography is first-class: resolve home coordinates whenever location
+        # changed (or was never resolved) so the matching engine can apply the
+        # commute-radius rule with pre-resolved coords. Cached in geocode_cache;
+        # a Nominatim miss/timeout degrades gracefully to state-level gating.
+        if fresh is not None and (
+            updates.keys() & {"city", "state"} or "commute_radius_miles" in updates
+        ):
+            try:
+                snap = dict(fresh)
+                needs_geocode = (
+                    updates.keys() & {"city", "state"} or snap.get("lat") is None
+                )
+                if needs_geocode and (snap.get("city") or snap.get("state")):
+                    from app.skilled_pro.geocode import geocode
+                    coords = await geocode(
+                        conn,
+                        city=snap.get("city") or "",
+                        state=snap.get("state") or "",
+                        zip_code=snap.get("zip_code") or "",
+                    )
+                    if coords:
+                        await conn.execute(
+                            "UPDATE public.applicants SET lat = $2, lng = $3 WHERE user_id = $1",
+                            current_user.user_id, coords[0], coords[1],
+                        )
+            except Exception:
+                logger.warning("Home geocode failed on profile save", exc_info=True)
+
     # Fire-and-forget: recompute matches if significant fields changed
     significant = {"program_name_raw", "program_field", "specific_career", "state",
-                   "willing_to_relocate", "canonical_job_family_id"}
+                   "willing_to_relocate", "canonical_job_family_id",
+                   # Geography inputs — a radius or location change must be
+                   # reflected in this applicant's matches without waiting
+                   # for the 6-hour batch.
+                   "commute_radius_miles", "city", "relocation_states",
+                   "relocation_preference", "travel_preference"}
     if updates.keys() & significant:
         import asyncio as _asyncio
+
         from app.worker.scheduler import trigger_recompute_for_applicant
-        # Get applicant UUID
-        async with get_db() as _conn:
-            _app_id = await _conn.fetchval(
-                "SELECT id::text FROM public.applicants WHERE user_id = $1",
-                current_user.user_id,
-            )
+        # The snapshot above already carries this applicant's UUID.
+        _app_id = str(fresh["id"]) if fresh is not None else None
         if _app_id:
             _asyncio.create_task(trigger_recompute_for_applicant(_app_id))
 
@@ -281,6 +385,10 @@ async def update_my_profile(
 @router.get("/me/matches", response_model=RankedMatchesResponse)
 async def get_my_matches(
     current_user: Annotated[CurrentUser, Depends(require_applicant)],
+    eligible_offset: Annotated[int, Query(ge=0)] = 0,
+    near_fit_offset: Annotated[int, Query(ge=0)] = 0,
+    nearby_offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=_MAX_MATCHES)] = _MAX_MATCHES,
 ) -> RankedMatchesResponse:
     """
     Return ranked jobs for the authenticated applicant.
@@ -291,17 +399,25 @@ async def get_my_matches(
 
     Ineligible matches are hidden.
     Both sections ordered by policy_adjusted_score DESC.
+
+    Additive pagination (per tier): `eligible_offset` / `near_fit_offset` /
+    `nearby_offset` skip past already-served rows in that tier; `limit` caps
+    each tier's page. Defaults (0/0/0, limit=100) keep the original
+    "top slice of every tier" behavior, and total_* counts are always the
+    TRUE totals regardless of paging.
     """
     async with get_db() as conn:
-        # Resolve user_id → applicant row
+        # Resolve caller → applicant row (view-as resolves by applicant id
+        # directly so bulk-imported applicants with no auth user still work)
         app_row = await conn.fetchrow(
             """
             SELECT a.id, a.state AS app_state, a.region AS app_region,
                    a.canonical_job_family_id
             FROM public.applicants a
-            WHERE a.user_id = $1
+            WHERE a.id = COALESCE($2::uuid, (SELECT id FROM public.applicants WHERE user_id = $1::uuid))
             """,
             current_user.user_id,
+            current_user.view_as_applicant_id,
         )
 
         if not app_row:
@@ -318,14 +434,64 @@ async def get_my_matches(
 
         applicant_id = str(app_row["id"])
 
-        rows = await conn.fetch(
+        # True totals, independent of the display LIMIT below. Predicates must
+        # stay identical to the list query (visibility + eligibility) so the
+        # headline counts ("ready to apply to N jobs") never drift from what
+        # actually exists — len() of a LIMITed list undercounts past _MAX_MATCHES.
+        # Relaxation floor from the ACTIVE policy config (fallback: defaults).
+        # Controls when the geography-only "nearby" tier unlocks — sparse
+        # applicants see labeled nearby jobs instead of a blank page.
+        relax_raw = await conn.fetchval(
+            "SELECT config->'relaxation' FROM public.policy_configs WHERE is_active = TRUE LIMIT 1"
+        )
+        relax_enabled, relax_floor, tier_nearby_on = True, 5, True
+        if relax_raw:
+            import json as _json
+            relax_cfg = relax_raw if isinstance(relax_raw, dict) else _json.loads(relax_raw)
+            relax_enabled = bool(relax_cfg.get("enabled", True))
+            relax_floor = int(relax_cfg.get("min_results", 5))
+            tier_nearby_on = bool((relax_cfg.get("tiers") or {}).get("nearby_other_trade", True))
+
+        count_row = await conn.fetchrow(
             """
+            SELECT
+                COUNT(*) FILTER (WHERE m.eligibility_status = 'eligible') AS n_eligible,
+                COUNT(*) FILTER (WHERE m.eligibility_status = 'near_fit') AS n_near_fit,
+                COUNT(*) FILTER (WHERE m.match_tier = 'nearby')           AS n_nearby
+            FROM public.matches m
+            JOIN public.applicants a ON a.id = m.applicant_id
+            WHERE a.id = $1
+              AND m.is_visible_to_applicant = TRUE
+              AND (m.eligibility_status IN ('eligible', 'near_fit')
+                   OR m.match_tier = 'nearby')
+            """,
+            app_row["id"],
+        )
+        total_eligible = int(count_row["n_eligible"] or 0)
+        total_near_fit = int(count_row["n_near_fit"] or 0)
+        total_nearby = int(count_row["n_nearby"] or 0)
+
+        # Nearby tier unlocks only when the stricter sections are thin.
+        include_nearby = (
+            relax_enabled and tier_nearby_on
+            and (total_eligible + total_near_fit) < relax_floor
+            and total_nearby > 0
+        )
+
+        # Per-tier list queries so each tier pages independently (additive
+        # offset/limit params). Tier predicates mirror the count query's
+        # bucketing exactly: nearby tier is its own shelf, never double-served
+        # inside eligible/near_fit.
+        _select_cols = """
             SELECT
                 m.id          AS match_id,
                 m.job_id::text,
                 m.eligibility_status::text,
                 m.match_label::text,
                 m.policy_adjusted_score,
+                m.match_tier,
+                m.tier_reason,
+                m.distance_miles,
                 m.top_strengths,
                 m.top_gaps,
                 m.required_missing_items,
@@ -346,6 +512,9 @@ async def get_my_matches(
                 e.is_partner   AS is_partner_employer,
                 j.source_url,
                 jf.code        AS canonical_job_family_code,
+                COALESCE(j.accepts_internal_applications,
+                         e.accepts_internal_applications_default,
+                         FALSE) AS internal_apply,
                 j.description_raw,
                 j.requirements_raw,
                 j.preferred_qualifications_raw,
@@ -359,35 +528,68 @@ async def get_my_matches(
             JOIN public.employers e   ON e.id = j.employer_id
             LEFT JOIN public.canonical_job_families jf ON jf.id = j.canonical_job_family_id
             LEFT JOIN public.saved_jobs sj ON sj.applicant_id = a.id AND sj.job_id = m.job_id
-            WHERE a.user_id = $1
+            WHERE a.id = $1
               AND m.is_visible_to_applicant = TRUE
-              AND m.eligibility_status IN ('eligible', 'near_fit')
-            ORDER BY m.policy_adjusted_score DESC NULLS LAST
-            LIMIT $4
-            """,
-            current_user.user_id,
-            app_row["app_state"],
-            app_row["app_region"],
-            _MAX_MATCHES,
+        """
+        _score_order = """
+            ORDER BY m.policy_adjusted_score DESC NULLS LAST,
+                     m.distance_miles ASC NULLS LAST,
+                     m.job_id
+            LIMIT $4 OFFSET $5
+        """
+
+        async def _fetch_tier(predicate: str, order: str, offset: int):
+            return await conn.fetch(
+                _select_cols + predicate + order,
+                app_row["id"],
+                app_row["app_state"],
+                app_row["app_region"],
+                limit,
+                offset,
+            )
+
+        eligible_rows = await _fetch_tier(
+            " AND m.eligibility_status = 'eligible' AND m.match_tier IS DISTINCT FROM 'nearby' ",
+            _score_order,
+            eligible_offset,
         )
+        near_fit_rows = await _fetch_tier(
+            " AND m.eligibility_status = 'near_fit' AND m.match_tier IS DISTINCT FROM 'nearby' ",
+            _score_order,
+            near_fit_offset,
+        )
+        nearby_rows = []
+        if include_nearby:
+            # Nearby is an honest fallback shelf — ordered by distance first
+            # (its whole premise is "because you're nearby"), never blended
+            # into the score order. Ordering in SQL keeps pagination stable.
+            nearby_rows = await _fetch_tier(
+                " AND m.match_tier = 'nearby' ",
+                """
+                ORDER BY m.distance_miles ASC NULLS LAST,
+                         m.policy_adjusted_score DESC NULLS LAST,
+                         m.job_id
+                LIMIT $4 OFFSET $5
+                """,
+                nearby_offset,
+            )
 
-    eligible: list[JobMatchSummary] = []
-    near_fit: list[JobMatchSummary] = []
-
-    for row in rows:
-        match = _row_to_summary(dict(row))
-        if row["eligibility_status"] == "eligible":
-            eligible.append(match)
-        else:
-            near_fit.append(match)
+    eligible = [_row_to_summary(dict(r)) for r in eligible_rows]
+    near_fit = [_row_to_summary(dict(r)) for r in near_fit_rows]
+    nearby = [_row_to_summary(dict(r)) for r in nearby_rows]
 
     return RankedMatchesResponse(
         applicant_id=applicant_id,
         eligible_matches=eligible,
-        total_eligible=len(eligible),
+        total_eligible=total_eligible,
         near_fit_matches=near_fit,
-        total_near_fit=len(near_fit),
-        has_matches=bool(eligible or near_fit),
+        total_near_fit=total_near_fit,
+        nearby_matches=nearby,
+        total_nearby=total_nearby if include_nearby else 0,
+        relaxation_applied=include_nearby,
+        # True totals, not the served page — an offset past the end of a tier
+        # must not flip the page into the "no matches" empty state.
+        has_matches=bool(total_eligible or total_near_fit or (include_nearby and total_nearby)),
         profile_has_family=bool(app_row["canonical_job_family_id"]),
         profile_has_location=bool(app_row["app_state"]),
     )
@@ -416,6 +618,9 @@ async def get_match_detail(
                 m.eligibility_status::text,
                 m.match_label::text,
                 m.policy_adjusted_score,
+                m.match_tier,
+                m.tier_reason,
+                m.distance_miles,
                 m.base_fit_score,
                 m.weighted_structured_score,
                 m.semantic_score,
@@ -441,6 +646,9 @@ async def get_match_detail(
                 e.is_partner   AS is_partner_employer,
                 j.source_url,
                 jf.code        AS canonical_job_family_code,
+                COALESCE(j.accepts_internal_applications,
+                         e.accepts_internal_applications_default,
+                         FALSE) AS internal_apply,
                 j.description_raw,
                 j.requirements_raw,
                 j.preferred_qualifications_raw,
@@ -453,17 +661,39 @@ async def get_match_detail(
             JOIN public.employers e   ON e.id = j.employer_id
             LEFT JOIN public.canonical_job_families jf ON jf.id = j.canonical_job_family_id
             WHERE m.id = $1::uuid
-              AND a.user_id = $2
+              AND a.id = COALESCE($3::uuid, (SELECT id FROM public.applicants WHERE user_id = $2::uuid))
               AND m.is_visible_to_applicant = TRUE
             """,
             match_id,
             current_user.user_id,
+            current_user.view_as_applicant_id,
         )
 
         if not row:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Match not found",
+            )
+
+        # Instrument the funnel's "viewed a match" step — server-side at the
+        # moment of truth, deduped to one event per applicant/match/day so
+        # refreshes don't inflate counts. (Admin engagement funnels read this.)
+        # Suppressed under admin view-as: debug views must not pollute the
+        # applicant's engagement funnel.
+        if not current_user.is_view_as:
+            await conn.execute(
+                """
+                INSERT INTO public.engagement_events (applicant_id, match_id, job_id, event_type, event_data)
+                SELECT m.applicant_id, m.id, m.job_id, 'match_view', '{}'::jsonb
+                FROM public.matches m
+                WHERE m.id = $1::uuid
+                  AND NOT EXISTS (
+                    SELECT 1 FROM public.engagement_events ee
+                    WHERE ee.match_id = $1::uuid AND ee.event_type = 'match_view'
+                      AND ee.created_at >= date_trunc('day', now())
+                  )
+                """,
+                match_id,
             )
 
         dim_rows = await conn.fetch(
@@ -561,6 +791,7 @@ def _row_to_summary(row: dict[str, Any]) -> JobMatchSummary:
         recommended_next_step=row.get("recommended_next_step"),
         source_url=row.get("source_url"),
         canonical_job_family_code=row.get("canonical_job_family_code"),
+        internal_apply=bool(row.get("internal_apply", False)),
         description_raw=row.get("description_raw"),
         requirements_raw=row.get("requirements_raw"),
         preferred_qualifications_raw=row.get("preferred_qualifications_raw"),
@@ -568,6 +799,9 @@ def _row_to_summary(row: dict[str, Any]) -> JobMatchSummary:
         confidence_level=row.get("confidence_level"),
         requires_review=bool(row.get("requires_review", False)),
         applicant_interest=row.get("applicant_interest"),
+        match_tier=row.get("match_tier"),
+        tier_reason=row.get("tier_reason"),
+        distance_miles=_safe_float(row.get("distance_miles")),
     )
 
 
@@ -575,7 +809,7 @@ def _derive_geography_note(row: dict[str, Any]) -> str | None:
     """Derive a human-readable geography note for the applicant."""
     ws = (row.get("work_setting") or "").lower()
     if ws == "remote":
-        return "Remote — open to all locations"
+        return "Remote, open to all locations"
 
     job_state = row.get("job_state")
     job_city = row.get("job_city")
@@ -657,7 +891,8 @@ def _safe_list(val: Any) -> list[str]:
 # ---------------------------------------------------------------------------
 
 class InterestSignalRequest(_BaseModel):
-    interest_level: str  # 'interested' | 'applied' | 'not_interested'
+    # 'interested' | 'applied' | 'not_interested' — or null to clear the signal
+    interest_level: str | None = None
 
 
 class InterestSignalResponse(_BaseModel):
@@ -680,9 +915,10 @@ async def get_interest_signal(
             SELECT m.id::text AS match_id, m.job_id::text
             FROM public.matches m
             JOIN public.applicants a ON a.id = m.applicant_id
-            WHERE m.id = $1::uuid AND a.user_id = $2
+            WHERE m.id = $1::uuid
+              AND a.id = COALESCE($3::uuid, (SELECT id FROM public.applicants WHERE user_id = $2::uuid))
             """,
-            match_id, current_user.user_id,
+            match_id, current_user.user_id, current_user.view_as_applicant_id,
         )
         if not match_row:
             raise HTTPException(status_code=404, detail="Match not found")
@@ -692,9 +928,10 @@ async def get_interest_signal(
             SELECT interest_level, updated_at::text
             FROM public.saved_jobs sj
             JOIN public.applicants a ON a.id = sj.applicant_id
-            WHERE sj.job_id = $1::uuid AND a.user_id = $2
+            WHERE sj.job_id = $1::uuid
+              AND a.id = COALESCE($3::uuid, (SELECT id FROM public.applicants WHERE user_id = $2::uuid))
             """,
-            match_row["job_id"], current_user.user_id,
+            match_row["job_id"], current_user.user_id, current_user.view_as_applicant_id,
         )
 
     return InterestSignalResponse(
@@ -712,14 +949,15 @@ async def set_interest_signal(
     current_user: Annotated[CurrentUser, Depends(require_applicant)],
 ) -> InterestSignalResponse:
     """
-    Set or update the applicant's interest signal for a matched job.
-    Upserts into saved_jobs; logs an engagement event.
+    Set, update, or clear the applicant's interest signal for a matched job.
+    Non-null level upserts into saved_jobs; null deletes the row (clear).
+    Logs an engagement event only when the state actually changed.
     """
     valid_levels = {"interested", "applied", "not_interested"}
-    if body.interest_level not in valid_levels:
+    if body.interest_level is not None and body.interest_level not in valid_levels:
         raise HTTPException(
             status_code=422,
-            detail=f"interest_level must be one of: {', '.join(sorted(valid_levels))}",
+            detail=f"interest_level must be null or one of: {', '.join(sorted(valid_levels))}",
         )
 
     async with get_db() as conn:
@@ -740,44 +978,64 @@ async def set_interest_signal(
         job_id = row["job_id"]
         applicant_id = row["applicant_id"]
 
-        signal_row = await conn.fetchrow(
-            """
-            INSERT INTO public.saved_jobs (applicant_id, job_id, interest_level)
-            VALUES ($1, $2::uuid, $3)
-            ON CONFLICT (applicant_id, job_id)
-            DO UPDATE SET interest_level = EXCLUDED.interest_level, updated_at = NOW()
-            RETURNING interest_level, saved_jobs.updated_at::text
-            """,
-            applicant_id, job_id, body.interest_level,
+        # Capture the previous level so events fire only on ACTUAL state change —
+        # re-clicking the already-active pill must not mint another event
+        # (analytics counts raw events; repeats inflated the funnel before).
+        prev_level = await conn.fetchval(
+            "SELECT interest_level FROM public.saved_jobs WHERE applicant_id = $1 AND job_id = $2::uuid",
+            applicant_id, job_id,
         )
 
-        # Log engagement event for all interest changes
-        await conn.execute(
-            """
-            INSERT INTO public.engagement_events (applicant_id, job_id, event_type, event_data)
-            VALUES ($1, $2::uuid, 'interest_set', $3::jsonb)
-            """,
-            applicant_id,
-            job_id,
-            {"interest_level": body.interest_level, "match_id": match_id},
-        )
-        # Additionally log apply_click when applicant marks themselves as applied
-        if body.interest_level == "applied":
+        if body.interest_level is None:
+            # Clear: delete the saved_jobs row entirely.
             await conn.execute(
-                """
-                INSERT INTO public.engagement_events (applicant_id, job_id, event_type, event_data)
-                VALUES ($1, $2::uuid, 'apply_click', $3::jsonb)
-                """,
-                applicant_id,
-                job_id,
-                {"match_id": match_id, "source": "self_reported"},
+                "DELETE FROM public.saved_jobs WHERE applicant_id = $1 AND job_id = $2::uuid",
+                applicant_id, job_id,
             )
+            signal_row = None
+        else:
+            signal_row = await conn.fetchrow(
+                """
+                INSERT INTO public.saved_jobs (applicant_id, job_id, interest_level)
+                VALUES ($1, $2::uuid, $3)
+                ON CONFLICT (applicant_id, job_id)
+                DO UPDATE SET interest_level = EXCLUDED.interest_level, updated_at = NOW()
+                RETURNING interest_level, saved_jobs.updated_at::text
+                """,
+                applicant_id, job_id, body.interest_level,
+            )
+
+        changed = prev_level != body.interest_level
+        if changed:
+            # State write + analytics event commit together (moment of truth).
+            async with conn.transaction():
+                await conn.execute(
+                    """
+                    INSERT INTO public.engagement_events (applicant_id, job_id, event_type, event_data)
+                    VALUES ($1, $2::uuid, 'interest_set', $3::jsonb)
+                    """,
+                    applicant_id,
+                    job_id,
+                    {"interest_level": body.interest_level, "match_id": match_id,
+                     "previous_level": prev_level},
+                )
+                # Additionally log apply_click when applicant marks themselves as applied
+                if body.interest_level == "applied":
+                    await conn.execute(
+                        """
+                        INSERT INTO public.engagement_events (applicant_id, job_id, event_type, event_data)
+                        VALUES ($1, $2::uuid, 'apply_click', $3::jsonb)
+                        """,
+                        applicant_id,
+                        job_id,
+                        {"match_id": match_id, "source": "self_reported"},
+                    )
 
     return InterestSignalResponse(
         match_id=match_id,
         job_id=job_id,
-        interest_level=signal_row["interest_level"],
-        updated_at=signal_row["updated_at"],
+        interest_level=signal_row["interest_level"] if signal_row else None,
+        updated_at=signal_row["updated_at"] if signal_row else None,
     )
 
 
@@ -786,6 +1044,7 @@ async def set_interest_signal(
 # ---------------------------------------------------------------------------
 
 import re as _re
+
 
 async def _resolve_job_family(conn: Any, program_name: str) -> str | None:
     """
@@ -848,8 +1107,11 @@ async def _llm_resolve_job_family(program_name: str, families: list) -> str | No
     Last-resort LLM classification of program name → canonical job family.
     Returns the family UUID or None if the LLM call fails or is unavailable.
     """
-    import os
-    api_key = os.environ.get("OPENAI_API_KEY")
+    # Use get_settings() (not os.environ) so the key loads from .env like the
+    # rest of the app — os.environ.get would silently return None and disable
+    # this fallback in any env that relies on the .env file.
+    from app.config import get_settings
+    api_key = get_settings().openai_api_key
     if not api_key:
         return None
 
@@ -865,7 +1127,9 @@ async def _llm_resolve_job_family(program_name: str, families: list) -> str | No
 
     try:
         import httpx
-        async with httpx.AsyncClient(timeout=10.0) as client:
+
+        from app.util.openai_client import interactive_http_timeout
+        async with httpx.AsyncClient(timeout=interactive_http_timeout()) as client:
             resp = await client.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}"},

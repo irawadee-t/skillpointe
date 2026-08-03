@@ -17,8 +17,12 @@ export interface ApplicantProfileSummary {
   city: string | null;
   state: string | null;
   region: string | null;
+  /** Geocoded home coordinates (city-level centroid) — may be null. */
+  lat: number | null;
+  lng: number | null;
   willing_to_relocate: boolean;
   willing_to_travel: boolean;
+  commute_radius_miles: number | null;
   expected_completion_date: string | null;
   available_from_date: string | null;
   profile_completeness: number;
@@ -39,7 +43,7 @@ export interface JobMatchSummary {
   pay_min: number | null;
   pay_max: number | null;
   pay_type: string | null;
-  eligibility_status: "eligible" | "near_fit";
+  eligibility_status: "eligible" | "near_fit" | "ineligible";
   match_label: "strong_fit" | "good_fit" | "moderate_fit" | "low_fit" | null;
   policy_adjusted_score: number | null;
   top_strengths: string[];
@@ -47,6 +51,8 @@ export interface JobMatchSummary {
   recommended_next_step: string | null;
   source_url: string | null;
   canonical_job_family_code: string | null;
+  /** In-platform apply available for this job — powers the list's Apply sheet. */
+  internal_apply: boolean;
   description_raw: string | null;
   requirements_raw: string | null;
   preferred_qualifications_raw: string | null;
@@ -54,6 +60,10 @@ export interface JobMatchSummary {
   confidence_level: "high" | "medium" | "low" | null;
   requires_review: boolean;
   applicant_interest: "interested" | "applied" | "not_interested" | null;
+  // Relaxation tier (visibility/grouping only — never a score change)
+  match_tier: "strict" | "adjacent" | "stretch" | "nearby" | null;
+  tier_reason: string | null;
+  distance_miles: number | null;
 }
 
 export interface DimensionScoreItem {
@@ -95,6 +105,11 @@ export interface RankedMatchesResponse {
   total_eligible: number;
   near_fit_matches: JobMatchSummary[];
   total_near_fit: number;
+  // "Near you, different trade": geography-only relaxation tier, populated
+  // only when the stricter sections fall below the configured floor.
+  nearby_matches: JobMatchSummary[];
+  total_nearby: number;
+  relaxation_applied: boolean;
   has_matches: boolean;
   profile_has_family: boolean;
   profile_has_location: boolean;
@@ -110,10 +125,47 @@ export async function fetchMyProfile(
   return apiFetch<ApplicantProfileSummary>("/applicant/me/profile", token);
 }
 
+/** Per-tier pagination for the ranked-matches endpoint (all additive). */
+export interface MatchesPageOpts {
+  eligibleOffset?: number;
+  nearFitOffset?: number;
+  nearbyOffset?: number;
+  limit?: number;
+}
+
 export async function fetchMyMatches(
   token: string,
+  opts?: MatchesPageOpts,
 ): Promise<RankedMatchesResponse> {
-  return apiFetch<RankedMatchesResponse>("/applicant/me/matches", token);
+  const qs = new URLSearchParams();
+  if (opts?.eligibleOffset) qs.set("eligible_offset", String(opts.eligibleOffset));
+  if (opts?.nearFitOffset) qs.set("near_fit_offset", String(opts.nearFitOffset));
+  if (opts?.nearbyOffset) qs.set("nearby_offset", String(opts.nearbyOffset));
+  if (opts?.limit) qs.set("limit", String(opts.limit));
+  const suffix = qs.size > 0 ? `?${qs.toString()}` : "";
+  return apiFetch<RankedMatchesResponse>(`/applicant/me/matches${suffix}`, token);
+}
+
+/** Achievement badges — every one computed from real recorded activity. */
+export interface ApplicantBadge {
+  key: string;
+  title: string;
+  description: string;
+  earned: boolean;
+  earned_at: string | null;
+  progress: { current: number; target: number };
+}
+
+export interface ApplicantBadgesResponse {
+  badges: ApplicantBadge[];
+  earned_count: number;
+  total_count: number;
+}
+
+export async function fetchMyBadges(
+  token: string,
+): Promise<ApplicantBadgesResponse> {
+  return apiFetch<ApplicantBadgesResponse>("/applicant/me/badges", token);
 }
 
 export async function fetchMatchDetail(
@@ -126,16 +178,6 @@ export async function fetchMatchDetail(
 // ---------------------------------------------------------------------------
 // Display helpers
 // ---------------------------------------------------------------------------
-
-export function formatMatchLabel(label: string | null): string {
-  switch (label) {
-    case "strong_fit":    return "Strong fit";
-    case "good_fit":      return "Good fit";
-    case "moderate_fit":  return "Moderate fit";
-    case "low_fit":       return "Low fit";
-    default:              return "Not scored";
-  }
-}
 
 export function formatWorkSetting(ws: string | null): string {
   switch (ws) {
@@ -160,6 +202,19 @@ export function formatPay(
       : `$${n.toFixed(0)}`;
   if (max && max !== min) return `${fmt(min)}–${fmt(max)}${suffix}`;
   return `${fmt(min)}${suffix}`;
+}
+
+/**
+ * Suppress the "~0 mi away" clause in engine-written strength/gap strings.
+ * Matches CommuteChip's documented rule: distances under a mile are noise —
+ * "In your city" already says it, and "~0 mi away" reads as a bug.
+ */
+export function stripZeroDistance(text: string): string {
+  return text
+    .replace(/\s*[—–,-]\s*~0 mi away\s*/g, " ")
+    .replace(/ {2,}/g, " ")
+    .replace(/\s+([,.;])/g, "$1")
+    .trim();
 }
 
 export function formatDimensionName(dim: string): string {

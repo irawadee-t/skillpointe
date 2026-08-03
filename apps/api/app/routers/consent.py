@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from app.auth.dependencies import CurrentUser, require_applicant
 from app.db import get_db
-from app.skilled_pro.consent import RequesterCategory, parse_external_sharing
+from app.skilled_pro.consent import parse_external_sharing
 from app.skilled_pro.records import append_consent_record
 
 router = APIRouter(prefix="/applicant/me/consent", tags=["consent"])
@@ -46,9 +46,13 @@ class ConsentUpdate(BaseModel):
     external_sharing: list[str] = Field(default_factory=list)
 
 
-async def _resolve_applicant_id(conn: asyncpg.Connection, user_id: str) -> str:
+async def _resolve_applicant_id(conn: asyncpg.Connection, user: CurrentUser) -> str:
+    # View-as resolves by applicant id directly (supports unlinked applicants).
     row = await conn.fetchrow(
-        "SELECT id::text AS id FROM public.applicants WHERE user_id = $1", user_id
+        "SELECT id::text AS id FROM public.applicants "
+        "WHERE id = COALESCE($2::uuid, (SELECT id FROM public.applicants WHERE user_id = $1::uuid))",
+        user.user_id,
+        user.view_as_applicant_id,
     )
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Applicant profile not found")
@@ -58,7 +62,7 @@ async def _resolve_applicant_id(conn: asyncpg.Connection, user_id: str) -> str:
 @router.get("", response_model=list[ConsentSettingOut])
 async def get_consent(user: Annotated[CurrentUser, Depends(require_applicant)]):
     async with get_db() as conn:
-        applicant_id = await _resolve_applicant_id(conn, user.user_id)
+        applicant_id = await _resolve_applicant_id(conn, user)
         rows = await conn.fetch(
             "SELECT data_category, display, internal_use, external_sharing "
             "FROM public.consent_settings WHERE applicant_id = $1",
@@ -96,7 +100,7 @@ async def update_consent(
     valid = sorted(c.value for c in parse_external_sharing(body.external_sharing))
 
     async with get_db() as conn:
-        applicant_id = await _resolve_applicant_id(conn, user.user_id)
+        applicant_id = await _resolve_applicant_id(conn, user)
         row = await conn.fetchrow(
             """
             INSERT INTO public.consent_settings

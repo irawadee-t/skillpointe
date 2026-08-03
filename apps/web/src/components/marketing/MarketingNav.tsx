@@ -39,7 +39,7 @@ export function MarketingNav() {
       className={cn(
         // Fixed so it can overlay the hero video without pushing content down;
         // the hero pads its own top-padding to leave room for this bar.
-        "fixed inset-x-0 top-0 z-50 transition-all duration-300",
+        "fixed inset-x-0 top-0 z-50 transition-colors duration-300",
         scrolled
           ? "border-b border-hairline bg-white/90 backdrop-blur-md"
           : "bg-transparent",

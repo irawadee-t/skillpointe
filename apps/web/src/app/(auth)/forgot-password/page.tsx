@@ -69,7 +69,7 @@ export default function ForgotPasswordPage() {
         </Field>
 
         {error && (
-          <p className="rounded-sm border border-error-red/20 bg-error-red/5 p-3 text-caption text-error-red">
+          <p className="rounded-sm border border-error-red/20 bg-error-red/5 p-3 text-caption text-cohere-ink">
             {error}
           </p>
         )}

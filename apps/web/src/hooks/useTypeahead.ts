@@ -18,8 +18,8 @@ export function useTypeahead<T>(
   query: string,
   fetcher: (q: string, signal: AbortSignal) => Promise<T[]>,
   {
-    minChars = 2,
-    debounceMs = 180,
+    minChars = 1,
+    debounceMs = 250,
   }: { minChars?: number; debounceMs?: number } = {},
 ) {
   const [results, setResults] = useState<T[]>([]);

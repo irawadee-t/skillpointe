@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
-  Search, Command, ArrowRight, ArrowUpRight,
+  Search, Command, ArrowRight,
   LayoutDashboard, Sparkles, Briefcase, FileText, MessagesSquare, Mail,
-  BadgeCheck, User, ShieldCheck, Plus, BarChart3, Map, Users, Building2, KeyRound,
-  RefreshCw, Activity, Bell, Upload, Settings,
+  BadgeCheck, User, ShieldCheck, Plus, BarChart3, Map, Users, Building2,
+  RefreshCw, Activity, Upload, Settings,
 } from "lucide-react";
 
 /**
@@ -54,16 +54,26 @@ const EMPLOYER_CMDS: Cmd[] = [
   { id: "e-account", label: "Account settings", href: "/account/settings",           icon: Settings,        section: "Account" },
 ];
 
+// Parity rule: every admin nav destination has a palette command (and the
+// palette may carry extras like Messages that live off the sidebar).
 const ADMIN_CMDS: Cmd[] = [
   { id: "ad-dash",   label: "Command center",   href: "/admin",                 icon: LayoutDashboard, section: "Go to" },
+  // Insights — mirrors the sidebar order (surfaced directly under Dashboard).
+  { id: "ad-eng",    label: "Engagement",       href: "/admin/engagement",      icon: Activity,        section: "Go to" },
+  { id: "ad-impact", label: "Impact",           href: "/admin/foundation",      icon: BarChart3,       section: "Go to" },
+  { id: "ad-imp",    label: "Import approvals", href: "/admin/job-imports",     icon: Upload,          section: "Review" },
+  { id: "ad-review", label: "Review queue",     href: "/admin/review",          icon: ShieldCheck,     section: "Review" },
+  { id: "ad-cred",   label: "Credentials",      href: "/admin/credentials",     icon: BadgeCheck,      section: "Review" },
+  { id: "ad-csrc",   label: "Career sources",   href: "/admin/career-sources",  icon: RefreshCw,       section: "Review" },
   { id: "ad-map",    label: "Job map",          href: "/admin/map",             icon: Map,             section: "Go to" },
   { id: "ad-apps",   label: "Applicants",       href: "/admin/applicants",      icon: Users,           section: "Go to" },
   { id: "ad-emp",    label: "Employers",        href: "/admin/employers",       icon: Building2,       section: "Go to" },
-  { id: "ad-imp",    label: "Import approvals", href: "/admin/job-imports",     icon: Upload,          section: "Go to" },
-  { id: "ad-cred",   label: "Credentials",      href: "/admin/credentials",     icon: BadgeCheck,      section: "Go to" },
-  { id: "ad-sid",    label: "SKILLED ID",       href: "/admin/skilled-id",      icon: KeyRound,        section: "Go to" },
-  { id: "ad-eng",    label: "Engagement",       href: "/admin/engagement",      icon: Activity,        section: "Go to" },
-  { id: "ad-sync",   label: "Sync",             href: "/admin/sync",            icon: RefreshCw,       section: "Go to" },
+  { id: "ad-jobs",   label: "Jobs",             href: "/admin/jobs",            icon: Briefcase,       section: "Go to" },
+  { id: "ad-match",  label: "Matching config",  href: "/admin/matching",        icon: Sparkles,        section: "Go to" },
+  { id: "ad-test",   label: "Test matches",     href: "/admin/test-matches",    icon: Sparkles,        section: "Go to" },
+  { id: "ad-audit",  label: "Audit log",        href: "/admin/audit",           icon: FileText,        section: "Go to" },
+  { id: "ad-msg",    label: "Messages",         href: "/admin/messages",        icon: Mail,            section: "Go to" },
+  { id: "ad-viewas", label: "View as applicant", href: "/admin/view-as",        icon: User,            section: "Go to" },
   { id: "ad-account", label: "Account settings", href: "/account/settings",     icon: Settings,        section: "Account" },
 ];
 
@@ -196,9 +206,9 @@ export function CommandPalette({ role }: { role: string }) {
       aria-label="Command palette"
       className="fixed inset-0 z-[70] flex items-start justify-center p-4 sm:p-16"
     >
-      <div className="absolute inset-0 bg-studio-dark-cork/30 backdrop-blur-sm" onClick={() => setOpen(false)} />
+      <div className="absolute inset-0 bg-ink/30 backdrop-blur-sm" onClick={() => setOpen(false)} />
 
-      <div className="relative w-full max-w-xl overflow-hidden rounded-xl border border-hairline bg-white shadow-[0_32px_64px_-24px_rgba(12,10,9,0.32)]">
+      <div className="relative w-full max-w-xl overflow-hidden rounded-[14px] border border-hairline bg-white shadow-float">
         <div className="flex items-center gap-2 border-b border-hairline px-4 py-3">
           <Search className="h-4 w-4 text-slate-muted" strokeWidth={1.75} aria-hidden="true" />
           <input

@@ -4,19 +4,43 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { Check } from "lucide-react";
+
 import { createClient } from "@/lib/supabase/client";
 import { MonoLabel, Field } from "@/components/ui";
+import { PasswordInput } from "@/components/ui/PasswordInput";
+
+const MIN_PASSWORD_LENGTH = 8;
 
 export default function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  // Field-level validation errors (Stripe-style inline validation): the
+  // message renders at the field, not below the form. The bottom box is
+  // reserved for server/network errors only.
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [resendState, setResendState] = useState<"idle" | "sending" | "sent" | "error">("idle");
 
   const router = useRouter();
+
+  const passwordLongEnough = password.length >= MIN_PASSWORD_LENGTH;
+
+  function validatePasswordOnBlur() {
+    if (password && !passwordLongEnough) {
+      setPasswordError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+    }
+  }
+
+  function validateConfirmOnBlur() {
+    if (confirmPassword && confirmPassword !== password) {
+      setConfirmError("Passwords don't match.");
+    }
+  }
 
   async function handleResend() {
     if (!email || resendState === "sending") return;
@@ -35,12 +59,18 @@ export default function SignupPage() {
     e.preventDefault();
     setError(null);
 
-    if (password !== confirmPassword) {
-      setError("Passwords do not match.");
-      return;
+    // Final check before submit — errors land on the fields themselves.
+    let firstInvalid: string | null = null;
+    if (!passwordLongEnough) {
+      setPasswordError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
+      firstInvalid = firstInvalid ?? "password";
     }
-    if (password.length < 8) {
-      setError("Password must be at least 8 characters.");
+    if (password !== confirmPassword) {
+      setConfirmError("Passwords don't match.");
+      firstInvalid = firstInvalid ?? "confirm-password";
+    }
+    if (firstInvalid) {
+      (document.getElementById(`signup-${firstInvalid}`) as HTMLInputElement | null)?.focus();
       return;
     }
 
@@ -64,24 +94,31 @@ export default function SignupPage() {
     if (data.session) {
       const accessToken = data.session.access_token;
 
-      const resp = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL}/auth/complete-signup`,
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${accessToken}` },
+      try {
+        const resp = await fetch(
+          `${process.env.NEXT_PUBLIC_API_URL}/auth/complete-signup`,
+          {
+            method: "POST",
+            headers: { Authorization: `Bearer ${accessToken}` },
+          }
+        );
+
+        if (!resp.ok) {
+          setError("Signup succeeded but profile setup failed. Please contact support.");
+          return;
         }
-      );
 
-      if (!resp.ok) {
-        setError("Signup succeeded but profile setup failed. Please contact support.");
+        await supabase.auth.refreshSession();
+
+        // Brand-new accounts go straight into the setup wizard — the profile is
+        // empty, so the dashboard would just be a wall of "Not set" cards.
+        router.push("/applicant/setup");
+        router.refresh();
+      } catch {
+        setError("Couldn't reach the server to finish setting up your account. Check your connection and try again.");
+      } finally {
         setLoading(false);
-        return;
       }
-
-      await supabase.auth.refreshSession();
-
-      router.push("/applicant");
-      router.refresh();
       return;
     }
 
@@ -113,7 +150,7 @@ export default function SignupPage() {
             {resendState === "sending"
               ? "Sending…"
               : resendState === "sent"
-                ? "Resent — check your inbox"
+                ? "Resent. Check your inbox"
                 : "Resend confirmation email"}
           </button>
           {resendState === "error" && (
@@ -135,7 +172,7 @@ export default function SignupPage() {
       <MonoLabel className="mb-4 block">Get started</MonoLabel>
       <h1 className="font-display text-card text-cohere-ink">Create account</h1>
       <p className="mt-2 text-body text-slate">
-        Applicants only — employers are added by invitation.
+        Applicants only. Employers are added by invitation.
       </p>
 
       <form onSubmit={handleSignup} className="mt-8 space-y-5">
@@ -150,31 +187,57 @@ export default function SignupPage() {
           />
         </Field>
 
-        <Field label="Password" hint="Minimum 8 characters.">
-          <input
-            type="password"
+        <Field label="Password" error={passwordError}>
+          <PasswordInput
+            id="signup-password"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              // Live validation: clear the error the moment it's satisfied.
+              if (e.target.value.length >= MIN_PASSWORD_LENGTH) setPasswordError(null);
+              if (confirmError && confirmPassword === e.target.value) setConfirmError(null);
+            }}
+            onBlur={validatePasswordOnBlur}
+            aria-invalid={!!passwordError}
+            aria-describedby="signup-password-rule"
             required
-            minLength={8}
             autoComplete="new-password"
-            className="input-cohere"
           />
+          {/* Live requirement hint — flips to a check the moment it's met. */}
+          <p
+            id="signup-password-rule"
+            aria-live="polite"
+            className={`mt-1.5 flex items-center gap-1.5 text-micro transition-colors ${
+              passwordLongEnough ? "text-cohere-green" : "text-slate-muted"
+            }`}
+          >
+            {passwordLongEnough ? (
+              <Check className="h-3 w-3" aria-hidden />
+            ) : (
+              <span aria-hidden className="inline-block h-1 w-1 rounded-full bg-current" />
+            )}
+            {MIN_PASSWORD_LENGTH}+ characters
+          </p>
         </Field>
 
-        <Field label="Confirm password">
-          <input
-            type="password"
+        <Field label="Confirm password" error={confirmError}>
+          <PasswordInput
+            id="signup-confirm-password"
             value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
+            onChange={(e) => {
+              setConfirmPassword(e.target.value);
+              // Clear the mismatch error as soon as the fields agree.
+              if (e.target.value === password) setConfirmError(null);
+            }}
+            onBlur={validateConfirmOnBlur}
+            aria-invalid={!!confirmError}
             required
             autoComplete="new-password"
-            className="input-cohere"
           />
         </Field>
 
         {error && (
-          <p className="rounded-sm border border-error-red/20 bg-error-red/5 p-3 text-caption text-error-red">
+          <p className="rounded-sm border border-error-red/20 bg-error-red/5 p-3 text-caption text-cohere-ink">
             {error}
           </p>
         )}

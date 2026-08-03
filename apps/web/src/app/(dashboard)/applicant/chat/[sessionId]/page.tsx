@@ -8,6 +8,7 @@ import Link from "next/link";
 import { redirect, notFound } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
+import { canViewApplicantPages } from "@/lib/viewAs.server";
 import { ChatClient } from "@/components/chat/ChatClient";
 
 interface Message {
@@ -23,6 +24,7 @@ interface SessionDetail {
   created_at: string;
   is_active: boolean;
   messages: Message[];
+  suggested_questions?: string[];
 }
 
 async function fetchSession(sessionId: string, token: string): Promise<SessionDetail | null> {
@@ -52,7 +54,7 @@ export default async function ChatSessionPage({
   } = await supabase.auth.getSession();
 
   if (!session) redirect("/login");
-  if (session.user.app_metadata?.role !== "applicant") redirect("/login");
+  if (!(await canViewApplicantPages(session.user.app_metadata?.role))) redirect("/login");
 
   let chatSession: SessionDetail | null;
   try {
@@ -60,7 +62,7 @@ export default async function ChatSessionPage({
   } catch {
     return (
       <main className="py-8">
-        <div className="mx-auto w-full max-w-3xl px-5 bg-cohere-coral/10 border border-cohere-coral-soft rounded-md p-5 text-body text-error-red">
+        <div className="mx-auto w-full max-w-3xl px-5 bg-error-red/[0.06] border border-error-red/30 rounded-md p-5 text-body text-cohere-ink">
           <strong>Could not reach the API.</strong> Please refresh in a moment.
         </div>
       </main>
@@ -81,7 +83,7 @@ export default async function ChatSessionPage({
           >
             ←
           </Link>
-          <h1 className="min-w-0 truncate font-display text-subhead text-cohere-ink">
+          <h1 className="min-w-0 truncate text-[1.0625rem] font-medium text-cohere-ink">
             {chatSession.title || "Planning chat"}
           </h1>
         </div>
@@ -93,6 +95,7 @@ export default async function ChatSessionPage({
         initialMessages={chatSession.messages}
         isActive={chatSession.is_active}
         token={session.access_token}
+        suggestedQuestions={chatSession.suggested_questions ?? []}
       />
     </main>
   );

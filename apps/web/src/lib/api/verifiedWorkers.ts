@@ -21,6 +21,7 @@ export interface WorkerCard {
   willing_to_relocate: boolean;
   verified_count: number;
   relevance: number;
+  last_active_days: number | null;
   top_credentials: VerifiedCredentialBrief[];
 }
 
@@ -66,22 +67,35 @@ export interface VerifyResponse {
 export interface SearchParams {
   state?: string;
   trade?: string;
+  trades?: string;              // comma-separated multi-select
   credential?: string;
+  credential_types?: string;    // comma-separated categories
+  min_level?: number;           // 1 = institution, 2 = SKILLED
+  available_by?: string;        // "now" | YYYY-MM-DD
+  relocate?: boolean;
+  near_city?: string;
+  near_state?: string;
+  active_within_days?: number;
   q?: string;
   page?: number;
   page_size?: number;
 }
 
-export function searchVerifiedWorkers(token: string, params: SearchParams = {}): Promise<SearchResponse> {
+export function searchVerifiedWorkers(
+  token: string,
+  params: SearchParams = {},
+  options?: { signal?: AbortSignal },
+): Promise<SearchResponse> {
   const qs = new URLSearchParams();
-  if (params.state) qs.set("state", params.state);
-  if (params.trade) qs.set("trade", params.trade);
-  if (params.credential) qs.set("credential", params.credential);
-  if (params.q) qs.set("q", params.q);
-  if (params.page) qs.set("page", String(params.page));
-  if (params.page_size) qs.set("page_size", String(params.page_size));
+  for (const [k, v] of Object.entries(params)) {
+    if (v !== undefined && v !== "") qs.set(k, String(v));
+  }
   const q = qs.toString();
-  return apiFetch<SearchResponse>(`/employer/me/verified-workers${q ? `?${q}` : ""}`, token);
+  return apiFetch<SearchResponse>(
+    `/employer/me/verified-workers${q ? `?${q}` : ""}`,
+    token,
+    options?.signal ? { signal: options.signal } : undefined,
+  );
 }
 
 export function verifyWorker(token: string, applicantId: string): Promise<VerifyResponse> {

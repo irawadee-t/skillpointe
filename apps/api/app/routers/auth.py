@@ -21,6 +21,8 @@ from app.auth.dependencies import (
     require_admin,
 )
 from app.auth.schemas import CurrentUser
+from app.db import get_db
+from app.util.audit import write_audit
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -165,7 +167,7 @@ async def complete_signup(
     # Fire-and-forget: compute initial matches for this new applicant
     try:
         import asyncio as _asyncio
-        from app.db import get_db
+
         from app.worker.scheduler import trigger_recompute_for_applicant
 
         async def _trigger() -> None:
@@ -240,6 +242,21 @@ async def invite_employer(
         )
     except Exception as exc:
         logger.warning("Could not set app_metadata for employer %s: %s", body.email, exc)
+
+    # Audit: an admin granted the employer role — a privileged role assignment.
+    try:
+        async with get_db() as conn:
+            await write_audit(
+                conn,
+                action="employer_invited",
+                actor_id=_admin.user_id,
+                actor_role=_admin.role,
+                entity_type="user_profiles",
+                entity_id=invited_user_id,
+                after={"role": "employer", "email": body.email},
+            )
+    except Exception as exc:
+        logger.warning("Audit write failed for employer invite %s: %s", body.email, exc)
 
     return InviteEmployerResponse(
         email=body.email,

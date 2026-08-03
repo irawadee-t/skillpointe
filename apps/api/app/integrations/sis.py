@@ -78,12 +78,23 @@ class EllucianEthosSISProvider:
 
 
 def get_sis_provider() -> SISProvider:
-    """Default to the mock feed so the lane is demoable; select a real provider via
-    SIS_PROVIDER once credentials exist."""
+    """Select the SIS provider.
+
+    - SIS_PROVIDER=ethos → real Ellucian connector (needs creds).
+    - SIS_PROVIDER=mock → the deterministic demo feed. This writes fabricated
+      "verified" records (fake student emails) into the institution-verified
+      lane, so it must NEVER run against real data.
+    - SIS_PROVIDER=null → no feed.
+    - unset → mock in local (demoable), null everywhere else.
+    """
     from app.config import get_settings
-    provider = (getattr(get_settings(), "sis_provider", "") or "").lower()
+    settings = get_settings()
+    provider = (settings.sis_provider or "").lower()
     if provider in ("ethos", "ellucian", "ellucian-ethos"):
         return EllucianEthosSISProvider()
+    if provider == "mock":
+        return MockSISProvider()
     if provider == "null":
         return NullSISProvider()
-    return MockSISProvider()
+    # Default: demo feed in local only; never fabricate records elsewhere.
+    return MockSISProvider() if settings.is_local else NullSISProvider()

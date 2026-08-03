@@ -10,19 +10,16 @@ Covers:
 """
 from unittest.mock import MagicMock
 
-import pytest
 from fastapi.testclient import TestClient
-
 
 # ---------------------------------------------------------------------------
 # JWT validation
 # ---------------------------------------------------------------------------
 
 def test_valid_jwt_accepted(client: TestClient, applicant_token: str, mock_supabase_client: MagicMock):
-    mock_supabase_client.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = {
-        "role": "applicant",
-        "onboarding_complete": False,
-    }
+    mock_supabase_client.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
+        {"role": "applicant", "onboarding_complete": False}
+    ]
     resp = client.get("/auth/me", headers={"Authorization": f"Bearer {applicant_token}"})
     assert resp.status_code == 200
     assert resp.json()["role"] == "applicant"
@@ -55,10 +52,9 @@ def test_no_token_returns_403(client: TestClient):
 # ---------------------------------------------------------------------------
 
 def test_me_returns_correct_role_admin(client: TestClient, admin_token: str, mock_supabase_client: MagicMock):
-    mock_supabase_client.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = {
-        "role": "admin",
-        "onboarding_complete": True,
-    }
+    mock_supabase_client.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
+        {"role": "admin", "onboarding_complete": True}
+    ]
     resp = client.get("/auth/me", headers={"Authorization": f"Bearer {admin_token}"})
     assert resp.status_code == 200
     body = resp.json()
@@ -68,17 +64,16 @@ def test_me_returns_correct_role_admin(client: TestClient, admin_token: str, moc
 
 
 def test_me_returns_correct_role_employer(client: TestClient, employer_token: str, mock_supabase_client: MagicMock):
-    mock_supabase_client.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = {
-        "role": "employer",
-        "onboarding_complete": False,
-    }
+    mock_supabase_client.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
+        {"role": "employer", "onboarding_complete": False}
+    ]
     resp = client.get("/auth/me", headers={"Authorization": f"Bearer {employer_token}"})
     assert resp.status_code == 200
     assert resp.json()["role"] == "employer"
 
 
 def test_me_returns_401_when_profile_not_found(client: TestClient, applicant_token: str, mock_supabase_client: MagicMock):
-    mock_supabase_client.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = None
+    mock_supabase_client.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
     resp = client.get("/auth/me", headers={"Authorization": f"Bearer {applicant_token}"})
     assert resp.status_code == 401
 
@@ -89,7 +84,7 @@ def test_me_returns_401_when_profile_not_found(client: TestClient, applicant_tok
 
 def test_complete_signup_creates_applicant_profile(client: TestClient, applicant_token: str, mock_supabase_client: MagicMock):
     # No existing profile
-    mock_supabase_client.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = None
+    mock_supabase_client.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value.data = []
     mock_supabase_client.table.return_value.insert.return_value.execute.return_value.data = [{"id": "new-id"}]
     mock_supabase_client.auth.admin.update_user_by_id.return_value = MagicMock()
 
@@ -102,10 +97,9 @@ def test_complete_signup_creates_applicant_profile(client: TestClient, applicant
 
 def test_complete_signup_is_idempotent(client: TestClient, applicant_token: str, mock_supabase_client: MagicMock):
     # Profile already exists
-    mock_supabase_client.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = {
-        "id": "existing-id",
-        "role": "applicant",
-    }
+    mock_supabase_client.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
+        {"id": "existing-id", "role": "applicant"}
+    ]
     resp = client.post("/auth/complete-signup", headers={"Authorization": f"Bearer {applicant_token}"})
     assert resp.status_code == 200
     body = resp.json()
@@ -115,10 +109,9 @@ def test_complete_signup_is_idempotent(client: TestClient, applicant_token: str,
 
 def test_complete_signup_does_not_override_employer_role(client: TestClient, employer_token: str, mock_supabase_client: MagicMock):
     # Employer already has a profile with employer role
-    mock_supabase_client.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = {
-        "id": "existing-id",
-        "role": "employer",
-    }
+    mock_supabase_client.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
+        {"id": "existing-id", "role": "employer"}
+    ]
     resp = client.post("/auth/complete-signup", headers={"Authorization": f"Bearer {employer_token}"})
     assert resp.status_code == 200
     body = resp.json()
@@ -131,10 +124,9 @@ def test_complete_signup_does_not_override_employer_role(client: TestClient, emp
 # ---------------------------------------------------------------------------
 
 def test_invite_employer_requires_admin_role(client: TestClient, applicant_token: str, mock_supabase_client: MagicMock):
-    mock_supabase_client.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = {
-        "role": "applicant",
-        "onboarding_complete": False,
-    }
+    mock_supabase_client.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
+        {"role": "applicant", "onboarding_complete": False}
+    ]
     resp = client.post(
         "/auth/invite-employer",
         json={"email": "employer@example.com"},
@@ -144,10 +136,9 @@ def test_invite_employer_requires_admin_role(client: TestClient, applicant_token
 
 
 def test_invite_employer_requires_admin_role_employer_blocked(client: TestClient, employer_token: str, mock_supabase_client: MagicMock):
-    mock_supabase_client.table.return_value.select.return_value.eq.return_value.maybe_single.return_value.execute.return_value.data = {
-        "role": "employer",
-        "onboarding_complete": False,
-    }
+    mock_supabase_client.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value.data = [
+        {"role": "employer", "onboarding_complete": False}
+    ]
     resp = client.post(
         "/auth/invite-employer",
         json={"email": "another@example.com"},

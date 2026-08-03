@@ -1,83 +1,77 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, Send, ShieldAlert, Check, ArrowRight } from "lucide-react";
+import { ArrowRight, Check, ExternalLink, Loader2 } from "lucide-react";
 
 import {
-  ScreeningAnswer, ScreeningQuestion,
-  applyToJob, getScreeningForJob,
+  Application, ApplyContext, getApplyContext,
 } from "@/lib/api/transactions";
-import { MonoLabel, useToast } from "@/components/ui";
+import { ApplySheet } from "@/components/applicant/ApplySheet";
+import { useViewAs, VIEW_AS_READONLY_TOOLTIP } from "@/hooks/useViewAs";
 
 /**
- * Two-step apply flow:
- *   1. answer screening questions (if any) + optional cover note
- *   2. confirm + submit → shows the resulting Applied state inline
+ * Apply panel on the match detail page.
  *
- * Rendered as a full-width panel inside the match detail page (not a modal),
- * so it flows continuously with the rest of the match content and reads well
- * on mobile. Once submitted, the panel collapses to a confirmation card.
+ * Indicates which apply path this job has and opens the one-click ApplySheet
+ * for internal applications:
+ *   - internal enabled  → "Apply on SKILLED Nation" (brand-red commit pill),
+ *                         with "Apply on employer site ↗" as a ghost secondary
+ *                         when an external link also exists
+ *   - external only     → ghost "Apply on employer site ↗"
+ *   - already applied   → "Applied · <when>" state, no reload needed
  */
 export function ApplyFlow({
-  token, jobId, matchId, jobTitle, onSubmitted,
+  token, jobId, jobTitle, sourceUrl,
 }: {
   token: string;
   jobId: string;
-  matchId?: string;
   jobTitle?: string;
-  onSubmitted?: (applicationId: string) => void;
+  sourceUrl?: string | null;
 }) {
-  const toast = useToast();
-  const [phase, setPhase] = useState<"intro" | "screening" | "submitting" | "done">("intro");
-  const [questions, setQuestions] = useState<ScreeningQuestion[] | null>(null);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [coverNote, setCoverNote] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [applicationId, setApplicationId] = useState<string | null>(null);
-  const [knockoutFailed, setKnockoutFailed] = useState(false);
+  const { isViewAs } = useViewAs();
+  const [ctx, setCtx] = useState<ApplyContext | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [justApplied, setJustApplied] = useState<Application | null>(null);
 
   useEffect(() => {
-    getScreeningForJob(token, jobId).then(setQuestions).catch(() => setQuestions([]));
+    getApplyContext(token, jobId).then(setCtx).catch(() => setLoadFailed(true));
   }, [token, jobId]);
 
-  async function submit() {
-    setError(null); setPhase("submitting");
-    try {
-      const answerList: ScreeningAnswer[] = Object.entries(answers).map(([question_id, answer]) => ({ question_id, answer }));
-      const app = await applyToJob(token, jobId, {
-        answers: answerList,
-        cover_note: coverNote.trim() || undefined,
-      });
-      setApplicationId(app.id);
-      setKnockoutFailed(app.knockout_failed);
-      setPhase("done");
-      toast.success("Sent. The employer will see it in their inbox.");
-      onSubmitted?.(app.id);
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : "Could not submit";
-      setError(msg);
-      toast.error(msg);
-      setPhase(questions && questions.length > 0 ? "screening" : "intro");
-    }
-  }
+  const externalUrl = ctx?.external_url ?? sourceUrl ?? null;
 
-  if (phase === "done") {
+  // ----- Applied state (on load, or optimistically after the sheet) ---------
+  const applied = justApplied
+    ? { id: justApplied.id, status: justApplied.status, when: "Just now" }
+    : ctx?.already_applied && ctx.already_applied.status !== "withdrawn"
+      ? {
+          id: ctx.already_applied.id,
+          status: ctx.already_applied.status,
+          when: new Date(ctx.already_applied.submitted_at).toLocaleDateString(undefined, {
+            month: "short", day: "numeric",
+          }),
+        }
+      : null;
+
+  if (loadFailed && !sourceUrl) return null;
+
+  if (applied) {
     return (
-      <section className="rounded-xl border border-cohere-green/30 bg-wash-green p-6">
+      <section className="rounded-[14px] border border-cohere-green/30 bg-wash-green p-6">
         <div className="flex items-center gap-2">
           <Check className="h-5 w-5 text-cohere-green" strokeWidth={2} />
-          <h3 className="font-display text-feature text-cohere-ink">
-            {knockoutFailed ? "Sent — with one flag" : "Sent"}
+          <h3 className="text-[1.0625rem] font-medium text-cohere-ink">
+            Applied · {applied.when}
           </h3>
         </div>
         <p className="mt-2 text-body text-cohere-ink">
-          {knockoutFailed
-            ? "One of your answers didn't match a hard requirement. The employer can still see it and decide — we'll let you know if they respond."
-            : "The employer will review it and can propose interview times. We'll let you know when they respond."}
+          {justApplied
+            ? "The employer will review it and can propose interview times. We'll let you know when they respond."
+            : "You've applied to this job on SKILLED Nation."}
         </p>
-        {applicationId && (
+        {applied.id && (
           <a
-            href={`/applicant/applications/${applicationId}`}
+            href={`/applicant/applications/${applied.id}`}
             className="btn-primary mt-4 inline-flex items-center gap-1.5"
           >
             See it in your applications <ArrowRight className="h-4 w-4" />
@@ -87,140 +81,70 @@ export function ApplyFlow({
     );
   }
 
-  if (phase === "intro" || !questions) {
-    const hasQuestions = questions && questions.length > 0;
-    return (
-      <section className="rounded-xl border border-hairline bg-white p-6 shadow-[0_1px_2px_rgba(12,10,9,0.04)]">
-        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <MonoLabel className="text-studio-maroon">Send your application</MonoLabel>
-            <h3 className="mt-2 font-display text-feature text-cohere-ink">{jobTitle ? `Apply for ${jobTitle}` : "Apply on SKILLED"}</h3>
-            <p className="mt-2 max-w-prose text-body text-slate">
-              {hasQuestions
-                ? "A couple of quick questions from the employer, then your profile goes straight to them."
-                : "Your profile and verified credentials go straight to the employer. Nothing else to fill in."}
-            </p>
-          </div>
-          <button
-            onClick={() => hasQuestions ? setPhase("screening") : submit()}
-            disabled={questions === null || phase === "submitting"}
-            className="btn-primary-green shrink-0 inline-flex items-center gap-1.5"
-          >
-            {questions === null || phase === "submitting"
-              ? <Loader2 className="h-4 w-4 animate-spin" />
-              : hasQuestions
-                ? <>Continue <ArrowRight className="h-4 w-4" /></>
-                : <>Send application <Send className="h-4 w-4" /></>}
-          </button>
-        </div>
+  const internal = !!ctx && ctx.job_active && ctx.internal_apply_enabled;
+  const withdrawnReapply = ctx?.already_applied?.status === "withdrawn";
 
-        {error && <p className="mt-3 text-caption text-studio-maroon">{error}</p>}
+  // Nothing to offer: no internal path, no external link.
+  if (ctx && !internal && !externalUrl) return null;
 
-        {!hasQuestions && (
-          <div className="mt-5 space-y-3">
-            <label className="block">
-              <MonoLabel className="mb-1.5 block">Add a note (optional)</MonoLabel>
-              <textarea
-                value={coverNote}
-                onChange={(e) => setCoverNote(e.target.value)}
-                rows={3}
-                placeholder="Say something short about why you're a fit."
-                className="input-cohere min-h-[80px] resize-y"
-                maxLength={2000}
-              />
-            </label>
-            <div className="flex items-center justify-end">
-              <button onClick={submit} disabled={phase === "submitting"} className="btn-primary-green inline-flex items-center gap-1.5">
-                {phase === "submitting" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                Send application
-              </button>
-            </div>
-          </div>
-        )}
-      </section>
-    );
-  }
-
-  // Screening phase
-  const remaining = questions.filter((q) => q.is_knockout && !answers[q.id!]).length;
-  const canSubmit = remaining === 0;
   return (
-    <section className="rounded-xl border border-hairline bg-white p-6 shadow-[0_1px_2px_rgba(12,10,9,0.04)]">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <MonoLabel className="text-studio-maroon">Step 2 of 2</MonoLabel>
-          <h3 className="mt-2 font-display text-feature text-cohere-ink">A few questions from the employer</h3>
-          <p className="mt-1 text-caption text-slate">Some employers require these before they'll look at an application.</p>
-        </div>
-        <button onClick={() => setPhase("intro")} className="text-caption text-slate hover:text-cohere-ink">← Back</button>
-      </div>
-
-      {error && <p className="mt-3 text-caption text-studio-maroon">{error}</p>}
-
-      <div className="mt-5 space-y-4">
-        {questions.map((q, i) => (
-          <QuestionRow key={q.id ?? i} q={q} value={answers[q.id!] ?? ""}
-            onChange={(v) => setAnswers((prev) => ({ ...prev, [q.id!]: v }))} />
-        ))}
-      </div>
-
-      <div className="mt-5 border-t border-hairline pt-5">
-        <MonoLabel className="mb-1.5 block">Add a note (optional)</MonoLabel>
-        <textarea
-          value={coverNote}
-          onChange={(e) => setCoverNote(e.target.value)}
-          rows={2}
-          placeholder="Optional note to the employer."
-          className="input-cohere min-h-[64px] resize-y"
-          maxLength={2000}
-        />
-      </div>
-
-      <div className="mt-5 flex items-center justify-between">
-        {remaining > 0 ? (
-          <p className="inline-flex items-center gap-1.5 text-caption text-studio-maroon">
-            <ShieldAlert className="h-3.5 w-3.5" /> {remaining} required question{remaining === 1 ? "" : "s"} left
+    <section className="rounded-[14px] border border-hairline bg-white p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-[11px] font-medium text-studio-maroon">
+            {internal ? "Apply on SKILLED Nation" : "Apply for this job"}
           </p>
-        ) : <span />}
-        <button onClick={submit} disabled={!canSubmit || phase === "submitting"} className="btn-primary-green inline-flex items-center gap-1.5">
-          {phase === "submitting" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-          Send application
-        </button>
-      </div>
-    </section>
-  );
-}
+          <h3 className="mt-1.5 text-[1.0625rem] font-medium text-cohere-ink">
+            {jobTitle ? `Apply for ${jobTitle}` : "Send your application"}
+          </h3>
+          <p className="mt-1.5 max-w-prose text-body text-slate">
+            {ctx === null
+              ? "Checking how this job takes applications…"
+              : internal
+                ? withdrawnReapply
+                  ? "You withdrew your earlier application. You can re-apply once."
+                  : "Apply with your SKILLED profile in two clicks. You'll see exactly what's shared before it sends."
+                : "This employer takes applications on their own site."}
+          </p>
+        </div>
 
-function QuestionRow({ q, value, onChange }: { q: ScreeningQuestion; value: string; onChange: (v: string) => void }) {
-  return (
-    <div>
-      <div className="flex items-baseline gap-1.5">
-        <p className="font-medium text-cohere-ink">{q.prompt}</p>
-        {q.is_knockout && <span className="text-micro text-studio-maroon">required</span>}
+        <div className="flex shrink-0 flex-wrap items-center gap-2">
+          {ctx === null && !loadFailed && (
+            <span className="inline-flex items-center gap-2 text-caption text-slate">
+              <Loader2 className="h-4 w-4 animate-spin" />
+            </span>
+          )}
+          {internal && (
+            <button
+              onClick={() => setSheetOpen(true)}
+              disabled={isViewAs}
+              title={isViewAs ? VIEW_AS_READONLY_TOOLTIP : undefined}
+              className="btn-commit inline-flex items-center gap-1.5 transition-transform duration-100 active:scale-[0.97] disabled:opacity-50"
+            >
+              {withdrawnReapply ? "Re-apply on SKILLED Nation" : "Apply on SKILLED Nation"}
+            </button>
+          )}
+          {externalUrl && (
+            <a
+              href={externalUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="btn-ghost inline-flex items-center gap-1.5"
+            >
+              Apply on employer site <ExternalLink className="h-3.5 w-3.5" />
+            </a>
+          )}
+        </div>
       </div>
-      {q.kind === "yes_no" && (
-        <div className="mt-2 inline-flex overflow-hidden rounded-full border border-hairline">
-          {["Yes", "No"].map((opt) => (
-            <button key={opt} type="button" onClick={() => onChange(opt)}
-              className={`px-4 py-1.5 text-caption font-medium transition-colors ${value === opt ? "bg-studio-dark-cork text-white" : "text-slate hover:text-cohere-ink"}`}>
-              {opt}
-            </button>
-          ))}
-        </div>
-      )}
-      {q.kind === "multiple_choice" && (
-        <div className="mt-2 flex flex-wrap gap-2">
-          {q.options.map((opt) => (
-            <button key={opt} type="button" onClick={() => onChange(opt)}
-              className={`rounded-full border px-3 py-1 text-caption transition-colors ${value === opt ? "border-cohere-ink bg-studio-dark-cork text-white" : "border-hairline text-slate hover:border-cohere-ink hover:text-cohere-ink"}`}>
-              {opt}
-            </button>
-          ))}
-        </div>
-      )}
-      {q.kind === "short_text" && (
-        <input value={value} onChange={(e) => onChange(e.target.value)} className="input-cohere mt-2" maxLength={280} />
-      )}
-    </div>
+
+      <ApplySheet
+        token={token}
+        jobId={jobId}
+        jobTitle={jobTitle}
+        open={sheetOpen}
+        onClose={() => setSheetOpen(false)}
+        onApplied={(app) => setJustApplied(app)}
+      />
+    </section>
   );
 }

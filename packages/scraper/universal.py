@@ -166,8 +166,18 @@ def scrape_greenhouse(url: str, *, employer_name: str, max_jobs: int = 500) -> l
         data = r.json()
     except Exception:
         return []
+    return parse_greenhouse_jobs(data, url, employer_name=employer_name,
+                                 max_jobs=max_jobs, board=board)
+
+
+def parse_greenhouse_jobs(data: Any, url: str, *, employer_name: str,
+                          max_jobs: int, board: str) -> list[ScrapedJob]:
+    """Parse a boards-api /jobs?content=true payload into ScrapedJobs.
+
+    Split out of scrape_greenhouse so an incremental sync can fetch the API
+    itself (with conditional headers) and reuse the exact same parse."""
     out: list[ScrapedJob] = []
-    for job in data.get("jobs", [])[:max_jobs]:
+    for job in (data or {}).get("jobs", [])[:max_jobs]:
         loc = (job.get("location") or {}).get("name", "")
         city, state = _split_workday_location(loc)
         content_html = job.get("content")
@@ -210,8 +220,16 @@ def scrape_lever(url: str, *, employer_name: str, max_jobs: int = 500) -> list[S
         data = r.json()
     except Exception:
         return []
+    return parse_lever_jobs(data, url, employer_name=employer_name,
+                            max_jobs=max_jobs, site=site)
+
+
+def parse_lever_jobs(data: Any, url: str, *, employer_name: str,
+                     max_jobs: int, site: str) -> list[ScrapedJob]:
+    """Parse a Lever v0/postings payload into ScrapedJobs (see
+    parse_greenhouse_jobs for why this is split out)."""
     out: list[ScrapedJob] = []
-    for post in data[:max_jobs]:
+    for post in (data or [])[:max_jobs]:
         cat = post.get("categories") or {}
         loc_str = cat.get("location") or ""
         city, state = _split_workday_location(loc_str)

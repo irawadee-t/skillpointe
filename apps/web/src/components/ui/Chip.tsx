@@ -2,22 +2,24 @@ import { cn } from "@/lib/utils";
 
 type ChipTone = "coral" | "neutral" | "blue" | "green";
 
+// Active = solid dark fill + white text; inactive = white outline. Never a
+// light tint paired with darker same-hue text (banned highlighter pattern).
 const TONE: Record<ChipTone, { active: string; inactive: string }> = {
   coral: {
-    active: "bg-cohere-coral text-cohere-ink border-studio-maroon",
-    inactive: "bg-studio-maroon/10 text-studio-maroon border-studio-maroon-soft",
+    active: "bg-cohere-coral text-white border-cohere-coral",
+    inactive: "bg-white text-studio-maroon border-studio-maroon/40",
   },
   neutral: {
-    active: "bg-studio-dark-cork text-white border-cohere-ink",
+    active: "bg-ink text-white border-cohere-ink",
     inactive: "bg-transparent text-ink border-hairline",
   },
   blue: {
     active: "bg-cohere-blue text-white border-cohere-blue",
-    inactive: "bg-wash-blue text-cohere-blue border-cohere-blue/20",
+    inactive: "bg-white text-cohere-blue border-cohere-blue/40",
   },
   green: {
     active: "bg-cohere-green text-white border-cohere-green",
-    inactive: "bg-wash-green text-cohere-green border-cohere-green/20",
+    inactive: "bg-white text-cohere-green border-cohere-green/40",
   },
 };
 
@@ -53,14 +55,14 @@ export function Chip({
   const t = TONE[tone];
   const baseSize =
     size === "sm"
-      ? "px-2.5 py-1 text-micro"
+      ? "px-2 py-0.5 text-[11px]"
       : "px-3.5 py-1.5 text-caption";
   // Interactive chips: bigger tap target on mobile, dense on sm+.
   const interactiveSize = onClick
     ? "min-h-[36px] px-3 py-1.5 sm:min-h-[28px] sm:px-2.5 sm:py-1"
     : baseSize;
   const classes = cn(
-    "inline-flex items-center gap-1.5 rounded-sm border font-medium transition-colors duration-200",
+    "inline-flex items-center gap-1.5 rounded-full border font-medium transition-colors duration-200",
     interactiveSize,
     active ? t.active : t.inactive,
     onClick && "cursor-pointer hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-studio-maroon focus-visible:ring-offset-1",

@@ -17,15 +17,20 @@
 import { useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 
-// How far the gas may drift past the nominal bubble edge.
-const BLEED = 1.7;
+// How far the gas may drift past the nominal bubble edge. The falloff mask
+// ends at 1.2R, so 1.3 leaves a small margin without wasted canvas.
+const BLEED = 1.3;
 
-// Pastelized brand palette — gas, not pigment.
+// The hero orb's palette, exactly: the deep-red water sphere from the landing
+// and auth pages. All clouds live in the #9d2235 red/maroon family with one
+// warm glint — no green, no gold — so the mark IS the hero orb at every size.
+// Opacities pushed toward 1 so the sphere reads dense and glossy, not fuzzy,
+// even at 20px.
 const CLOUDS: Array<{ color: string; fx: number; fy: number; ph: number; r: number }> = [
-  { color: "rgba(200, 62, 88, 0.95)",   fx: 0.9,  fy: 1.3,  ph: 0.0, r: 0.9  }, // rose (maroon, lifted)
-  { color: "rgba(128, 134, 70, 0.95)",  fx: 1.15, fy: 0.75, ph: 2.1, r: 0.95 }, // sage (olive, lifted)
-  { color: "rgba(232, 110, 40, 0.9)",   fx: 0.7,  fy: 1.05, ph: 4.2, r: 0.8  }, // peach (sienna, lifted)
-  { color: "rgba(255, 238, 214, 0.55)", fx: 1.35, fy: 0.95, ph: 5.3, r: 0.4  }, // small warm glint
+  { color: "rgba(157, 34, 53, 1)",      fx: 0.9,  fy: 1.3,  ph: 0.0, r: 0.95 }, // brand red (#9d2235)
+  { color: "rgba(88, 16, 32, 0.98)",    fx: 1.15, fy: 0.75, ph: 2.1, r: 0.9  }, // deep maroon shadow
+  { color: "rgba(178, 42, 58, 0.9)",   fx: 0.7,  fy: 1.05, ph: 4.2, r: 0.65 }, // ember highlight
+  { color: "rgba(255, 235, 235, 0.45)",  fx: 1.35, fy: 0.95, ph: 5.3, r: 0.35 }, // small warm glint
 ];
 
 // Shared static grain tile — the film texture that keeps the gas from
@@ -55,11 +60,13 @@ function draw(ctx: CanvasRenderingContext2D, canvasSize: number, orbSize: number
 
   ctx.clearRect(0, 0, S, S);
 
-  // luminous core — a glow, not a disc
-  let g = ctx.createRadialGradient(c, c, 0, c, c, R * 1.3);
-  g.addColorStop(0, "rgba(236, 210, 184, 0.95)");
-  g.addColorStop(0.75, "rgba(236, 210, 184, 0.55)");
-  g.addColorStop(1, "rgba(236, 210, 184, 0)");
+  // base coat — a solid deep-red disc under the drifting clouds. Guarantees
+  // the silhouette stays dense wherever the clouds have drifted, so the mark
+  // never thins to a pale fuzz at avatar sizes.
+  let g = ctx.createRadialGradient(c, c, 0, c, c, R * 1.05);
+  g.addColorStop(0, "rgba(110, 20, 36, 1)");
+  g.addColorStop(0.85, "rgba(110, 20, 36, 1)");
+  g.addColorStop(1, "rgba(110, 20, 36, 0)");
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, S, S);
 
@@ -75,9 +82,20 @@ function draw(ctx: CanvasRenderingContext2D, canvasSize: number, orbSize: number
     ctx.fillRect(0, 0, S, S);
   }
 
-  // film grain — fades out with the gas via the mask below
+  // specular highlight — small warm-white glint offset to the top-left,
+  // the glossy cue that turns the gas into a wet sphere.
+  const hx = c - R * 0.3;
+  const hy = c - R * 0.3;
+  g = ctx.createRadialGradient(hx, hy, 0, hx, hy, R * 0.38);
+  g.addColorStop(0, "rgba(255, 248, 240, 0.75)");
+  g.addColorStop(0.4, "rgba(255, 240, 228, 0.28)");
+  g.addColorStop(1, "rgba(255, 240, 228, 0)");
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, S, S);
+
+  // film grain — quiet texture only; kept low so small orbs stay solid
   ctx.globalCompositeOperation = "overlay";
-  ctx.globalAlpha = 0.4;
+  ctx.globalAlpha = 0.12;
   const grain = getGrain();
   for (let gx = 0; gx < S; gx += 96) {
     for (let gy = 0; gy < S; gy += 96) {
@@ -86,16 +104,15 @@ function draw(ctx: CanvasRenderingContext2D, canvasSize: number, orbSize: number
   }
   ctx.globalAlpha = 1;
 
-  // density falloff — THE edge. Fully dense to ~0.7R, gone by ~1.55R.
-  // destination-in keeps the bubble reading as a bubble while letting the
-  // gas trail past the silhouette instead of being sheared off.
+  // density falloff — THE edge. Fully dense to ~0.85R, gone by ~1.2R, so the
+  // silhouette reads as a round solid sphere with only a short atmospheric
+  // trail. destination-in keeps the edge a falloff, not a hard crop.
   ctx.globalCompositeOperation = "destination-in";
-  g = ctx.createRadialGradient(c, c, 0, c, c, R * 1.55);
+  g = ctx.createRadialGradient(c, c, 0, c, c, R * 1.2);
   g.addColorStop(0, "rgba(0,0,0,1)");
-  g.addColorStop(0.45, "rgba(0,0,0,1)");
-  g.addColorStop(0.68, "rgba(0,0,0,0.82)");
-  g.addColorStop(0.85, "rgba(0,0,0,0.35)");
-  g.addColorStop(1, "rgba(0,0,0,0)");
+  g.addColorStop(0.7, "rgba(0,0,0,1)");     // 0.85R — fully dense
+  g.addColorStop(0.87, "rgba(0,0,0,0.45)"); // ~1.05R — falling fast
+  g.addColorStop(1, "rgba(0,0,0,0)");       // 1.2R — gone
   ctx.fillStyle = g;
   ctx.fillRect(0, 0, S, S);
   ctx.globalCompositeOperation = "source-over";

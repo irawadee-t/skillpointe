@@ -32,7 +32,8 @@ class SummaryIn(BaseModel):
     summary: str = Field(min_length=1, max_length=2000)
 
 
-async def _load_profile(conn: asyncpg.Connection, user_id: str) -> dict[str, Any]:
+async def _load_profile(conn: asyncpg.Connection, user: "CurrentUser") -> dict[str, Any]:
+    # View-as resolves by applicant id directly (supports unlinked applicants).
     row = await conn.fetchrow(
         """
         SELECT a.id::text AS id, a.first_name, a.last_name, a.email, a.city, a.state,
@@ -41,9 +42,10 @@ async def _load_profile(conn: asyncpg.Connection, user_id: str) -> dict[str, Any
                jf.name AS trade
         FROM public.applicants a
         LEFT JOIN public.canonical_job_families jf ON jf.id = a.canonical_job_family_id
-        WHERE a.user_id = $1
+        WHERE a.id = COALESCE($2::uuid, (SELECT id FROM public.applicants WHERE user_id = $1::uuid))
         """,
-        user_id,
+        user.user_id,
+        user.view_as_applicant_id,
     )
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Applicant profile not found")
@@ -83,14 +85,14 @@ async def _load_profile(conn: asyncpg.Connection, user_id: str) -> dict[str, Any
 @router.get("/summary", response_model=SummaryOut)
 async def get_summary(user: Annotated[CurrentUser, Depends(require_applicant)]):
     async with get_db() as conn:
-        profile = await _load_profile(conn, user.user_id)
+        profile = await _load_profile(conn, user)
     return SummaryOut(summary=profile["profile_summary"], generated_at=profile["summary_generated_at"])
 
 
 @router.post("/summary", response_model=SummaryOut)
 async def generate_profile_summary(user: Annotated[CurrentUser, Depends(require_applicant)]):
     async with get_db() as conn:
-        profile = await _load_profile(conn, user.user_id)
+        profile = await _load_profile(conn, user)
         text, source = await generate_summary(profile)
         row = await conn.fetchrow(
             "UPDATE public.applicants SET profile_summary = $2, "
@@ -110,7 +112,7 @@ async def save_profile_summary(
     user: Annotated[CurrentUser, Depends(require_applicant)],
 ):
     async with get_db() as conn:
-        profile = await _load_profile(conn, user.user_id)
+        profile = await _load_profile(conn, user)
         row = await conn.fetchrow(
             "UPDATE public.applicants SET profile_summary = $2, "
             "profile_summary_generated_at = now() WHERE id = $1 "
@@ -126,7 +128,7 @@ async def save_profile_summary(
 @router.get("/resume.pdf")
 async def download_resume(user: Annotated[CurrentUser, Depends(require_applicant)]):
     async with get_db() as conn:
-        profile = await _load_profile(conn, user.user_id)
+        profile = await _load_profile(conn, user)
     pdf = build_resume_pdf(profile, summary=profile.get("profile_summary"))
     filename = (profile["name"].replace(" ", "_") or "resume") + "_SKILLED.pdf"
     return Response(

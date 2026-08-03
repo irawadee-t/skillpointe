@@ -11,7 +11,22 @@ requires-python = ">=3.11"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "integration: tests that run against a real Postgres (skipped if DATABASE_URL is unreachable)",
+]
 
 [tool.ruff]
 line-length = 100
-select = ["E", "F", "I"]
+
+[tool.ruff.lint]
+# High-signal gate: pyflakes (F — real bugs: unused/undefined names, bad
+# f-strings), import sorting (I), and syntax errors (E9). Whitespace/style
+# (E1–E7) and line length (E501) are delegated to `ruff format`, so the lint
+# gate stays about correctness, not cosmetics.
+select = ["F", "I", "E9"]
+
+[tool.ruff.lint.per-file-ignores]
+# Test/script files legitimately manipulate sys.path before importing local
+# packages, so imports aren't at the top of the module.
+"tests/*" = ["E402", "F401", "F403", "F405"]
+"conftest.py" = ["E402"]

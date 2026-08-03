@@ -40,6 +40,17 @@ class CurrentUser(BaseModel):
     role: str                    # authoritative app role from user_profiles table
     onboarding_complete: bool = False
 
+    # Admin "view as applicant" debug mode (read-only impersonation).
+    # When set, this CurrentUser represents the TARGET applicant and
+    # `impersonated_by` holds the real admin's auth user id. Only ever set by
+    # require_applicant for GET requests carrying X-View-As-Applicant.
+    impersonated_by: str | None = None
+    view_as_applicant_id: str | None = None
+
+    @property
+    def is_view_as(self) -> bool:
+        return self.impersonated_by is not None
+
     @property
     def is_admin(self) -> bool:
         return self.role == "admin"

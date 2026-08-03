@@ -21,50 +21,46 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "packages"))
 
 from matching.config import (
-    ScoringConfig,
     EligibilityCapConfig,
     NullHandlingConfig,
+    ScoringConfig,
     StructuredWeights,
-    PolicyModifiers,
+)
+from matching.engine import MatchResult, compute_match
+from matching.gates import (
+    ELIGIBLE,
+    FAIL,
+    INELIGIBLE,
+    NEAR_FIT,
+    NEAR_FIT_LABEL,
+    PASS,
+    GateDetail,
+    compute_eligibility,
+    evaluate_credential_gate,
+    evaluate_geography_gate,
+    evaluate_job_family_gate,
+    evaluate_min_req_gate,
+    evaluate_timing_gate,
 )
 from matching.normalizer import (
-    NormResult,
+    JOB_FAMILY_ADJACENCY,
     TimingResult,
-    normalize_program_to_job_family,
     normalize_job_title_to_family,
-    normalize_pay_range,
     normalize_location,
+    normalize_pay_range,
+    normalize_program_to_job_family,
     normalize_timing,
     normalize_work_setting,
-    JOB_FAMILY_ADJACENCY,
-)
-from matching.gates import (
-    PASS, NEAR_FIT, FAIL,
-    ELIGIBLE, NEAR_FIT_LABEL, INELIGIBLE,
-    GateDetail,
-    EligibilityResult,
-    evaluate_job_family_gate,
-    evaluate_credential_gate,
-    evaluate_timing_gate,
-    evaluate_geography_gate,
-    evaluate_min_req_gate,
-    compute_eligibility,
 )
 from matching.scorer import (
-    DimensionScore,
-    score_trade_program_alignment,
-    score_geography_alignment,
-    score_credential_readiness,
-    score_timing_readiness,
-    score_experience_alignment,
-    score_industry_alignment,
-    score_compensation_alignment,
-    score_work_style_alignment,
-    score_employer_soft_pref,
     compute_structured_score,
+    score_compensation_alignment,
+    score_credential_readiness,
+    score_experience_alignment,
+    score_geography_alignment,
+    score_timing_readiness,
+    score_trade_program_alignment,
 )
-from matching.engine import compute_match, MatchResult
-
 
 # ---------------------------------------------------------------------------
 # Shared fixtures / helpers
@@ -295,7 +291,7 @@ class TestNormalizeTiming:
         assert r.readiness_label == "in_progress"
 
     def test_future(self):
-        future = date(2027, 6, 1)  # >12 months
+        future = date(2029, 6, 1)  # >24 months out (the "future" threshold)
         r = normalize_timing(future, None, self._TODAY)
         assert r.readiness_label == "future"
 
@@ -385,10 +381,11 @@ class TestCredentialGate:
         g = evaluate_credential_gate(["EPA 608"], {"program_name_raw": "HVAC Tech"})
         assert g.result == NEAR_FIT
 
-    def test_required_creds_no_program_near_fit_with_review(self):
+    def test_required_creds_unverified_near_fit(self):
+        # Required credential, but the applicant's certs aren't verified yet →
+        # near-fit (not a hard fail — they may hold it).
         g = evaluate_credential_gate(["EPA 608"], {})
         assert g.result == NEAR_FIT
-        assert g.needs_review is True
 
 
 class TestTimingGate:
@@ -397,10 +394,11 @@ class TestTimingGate:
         g = evaluate_timing_gate(timing)
         assert g.result == PASS
 
-    def test_near_completion_near_fit(self):
+    def test_near_completion_within_3_months_passes(self):
+        # ≤3 months out is within the typical hiring window → PASS.
         timing = TimingResult(2, "near_completion", True)
         g = evaluate_timing_gate(timing)
-        assert g.result == NEAR_FIT
+        assert g.result == PASS
 
     def test_in_progress_near_fit(self):
         timing = TimingResult(6, "in_progress", True)
@@ -413,11 +411,11 @@ class TestTimingGate:
         assert g.result == FAIL
         assert g.severity == "critical"
 
-    def test_unknown_near_fit_with_review(self):
+    def test_unknown_passes_null_handling(self):
+        # Unknown timing is not a reason to block — assume available (PASS).
         timing = TimingResult(None, "unknown", False)
         g = evaluate_timing_gate(timing)
-        assert g.result == NEAR_FIT
-        assert g.needs_review is True
+        assert g.result == PASS
 
 
 class TestGeographyGate:
@@ -436,10 +434,13 @@ class TestGeographyGate:
                                     "OH", "midwest", "on_site")
         assert g.result == PASS
 
-    def test_same_region_not_willing_near_fit(self):
+    def test_same_region_not_willing_fails(self):
+        # Same region, different state, unwilling to relocate or travel out of
+        # state → critical geography failure (see the gate's decision matrix).
         g = evaluate_geography_gate("IL", "midwest", False, False,
                                     "OH", "midwest", "on_site")
-        assert g.result == NEAR_FIT
+        assert g.result == FAIL
+        assert g.severity == "critical"
 
     def test_different_region_willing_near_fit(self):
         g = evaluate_geography_gate("IL", "midwest", True, False,
@@ -452,10 +453,11 @@ class TestGeographyGate:
         assert g.result == FAIL
         assert g.severity == "critical"
 
-    def test_no_location_data_near_fit(self):
+    def test_no_location_data_passes(self):
+        # Job location unspecified → geography can't be assessed, so the gate
+        # doesn't block (the scorer applies a neutral default instead).
         g = evaluate_geography_gate(None, None, False, False, None, None, "on_site")
-        assert g.result == NEAR_FIT
-        assert g.needs_review is True
+        assert g.result == PASS
 
 
 class TestMinReqGate:
@@ -463,9 +465,12 @@ class TestMinReqGate:
         g = evaluate_min_req_gate({}, None)
         assert g.result == PASS
 
-    def test_description_present_near_fit(self):
+    def test_description_present_without_extraction_passes_for_review(self):
+        # No extracted skills to compare against → don't block on absence of
+        # evidence; PASS but flag for admin review to run extraction.
         g = evaluate_min_req_gate({}, "Must have EPA 608 cert and 2 years experience.")
-        assert g.result == NEAR_FIT
+        assert g.result == PASS
+        assert g.needs_review is True
 
 
 class TestComputeEligibility:
@@ -567,15 +572,17 @@ class TestScoreGeographyAlignment:
                                       "IL", "midwest", "on_site", 20, self._nh())
         assert d.raw_score == 100.0
 
-    def test_same_region_willing_80(self):
+    def test_same_region_willing_to_relocate_85(self):
+        # willing_to_relocate → relocation preference "anywhere" → 85 within region
         d = score_geography_alignment("IL", "midwest", True, False,
                                       "OH", "midwest", "on_site", 20, self._nh())
-        assert d.raw_score == 80.0
+        assert d.raw_score == 85.0
 
-    def test_diff_region_willing_55(self):
+    def test_diff_region_willing_to_relocate_70(self):
+        # Different region, open to relocating anywhere → 70
         d = score_geography_alignment("IL", "midwest", True, False,
                                       "TX", "south", "on_site", 20, self._nh())
-        assert d.raw_score == 55.0
+        assert d.raw_score == 70.0
 
     def test_no_location_uses_null_default(self):
         d = score_geography_alignment(None, None, False, False,
@@ -590,10 +597,12 @@ class TestScoreCredentialReadiness:
         assert d.raw_score == 80.0
         assert d.null_handling_applied is False
 
-    def test_required_creds_pending_uses_null_default(self):
+    def test_required_creds_pending_scores_not_yet_verified(self):
+        # Unverified required credential is scored concretely (40), not treated
+        # as a null default.
         d = score_credential_readiness(["EPA 608"], 15, 50)
-        assert d.null_handling_applied is True
-        assert d.raw_score == 50.0
+        assert d.null_handling_applied is False
+        assert d.raw_score == 40.0
 
 
 class TestScoreTimingReadiness:
@@ -637,14 +646,17 @@ class TestScoreExperienceAlignment:
         d = score_experience_alignment(None, "I am passionate about electrical work and learning.", None, 10, 50)
         assert d.raw_score == 55.0
 
-    def test_no_data_null_default(self):
+    def test_no_data_defaults_to_trade_training_baseline(self):
+        # New grads with no experience text aren't penalized — trade training
+        # counts as foundational experience (55), not a null default.
         d = score_experience_alignment(None, None, None, 10, 50)
-        assert d.null_handling_applied is True
-        assert d.raw_score == 50.0
+        assert d.null_handling_applied is False
+        assert d.raw_score == 55.0
 
-    def test_short_experience_treated_as_null(self):
+    def test_short_experience_uses_training_baseline(self):
         d = score_experience_alignment("Tech", None, None, 10, 50)
-        assert d.null_handling_applied is True
+        assert d.null_handling_applied is False
+        assert d.raw_score == 55.0
 
 
 class TestScoreCompensationAlignment:
@@ -796,14 +808,17 @@ class TestComputeMatch:
     def test_hard_gate_cap_applied_to_base_fit(self):
         # near_fit applicant (future timing)
         future_date = date(2027, 6, 1)
-        app = _make_applicant(expected_completion_date=future_date, available_from_date=None)
+        # commute_radius_miles set → the applicant has STATED a geography
+        # preference, so the different-region no-relocation FAIL still holds
+        # (the unknown-prefs relaxation only applies to unstated preferences).
+        app = _make_applicant(
+            expected_completion_date=future_date, available_from_date=None,
+            commute_radius_miles=25,
+        )
         job = _make_job(state="TX", region="south")
         emp = _make_employer()
         result = compute_match(app, job, emp, _default_config(), self._TODAY)
-        # With a future timing gate FAIL, pair should be ineligible
-        # family mismatch (app=electrical, job=electrical state mismatch still near_fit)
-        # geography mismatch TX vs IL no relocation → FAIL
-        # timing > 12m → FAIL
+        # geography mismatch TX vs IL, stated stay-home preference → FAIL
         assert result.eligibility_status == INELIGIBLE
 
     def test_match_label_strong_fit_above_80(self):
@@ -933,3 +948,361 @@ class TestJobFamilyAdjacency:
             assert family not in adjacent_set, (
                 f"{family} is listed as adjacent to itself"
             )
+
+
+# ===========================================================================
+# Progressive relaxation: tiers, geo unknown-preference rule, config plumbing
+# ===========================================================================
+
+from matching.config import (  # noqa: E402
+    GatesEnabledConfig,
+    MatchLabelConfig,
+    RelaxationConfig,
+    _from_yaml,
+    config_to_dict,
+    normalize_weights,
+    validate_config_dict,
+)
+
+
+def _coords_applicant(**kwargs) -> dict:
+    """Applicant with coordinates and NO stated geography preferences —
+    the imported-scholar shape (radius NULL, no states, willing flags false)."""
+    base = _make_applicant(
+        city="Shelton", state="CT", region="northeast",
+        lat=41.30, lng=-73.10,
+        willing_to_relocate=False, willing_to_travel=False,
+        relocation_preference="stay_current", travel_preference="no_travel",
+    )
+    base.update(kwargs)
+    return base
+
+
+def _coords_job(**kwargs) -> dict:
+    base = _make_job(
+        city="Bridgeport", state="CT", region="northeast",
+        lat=41.19, lng=-73.20, work_setting="on_site",
+        experience_level="entry",
+    )
+    base.update(kwargs)
+    return base
+
+
+_FAR_JOB = dict(city="Louisville", state="KY", region="south", lat=38.25, lng=-85.76)
+_TODAY = date(2026, 8, 1)
+
+
+class TestGeoUnknownPrefsRelaxation:
+    """Beyond-radius with UNSTATED geography preferences is missing data →
+    NEAR_FIT, never a silent hard FAIL. Stated preferences keep the FAIL."""
+
+    def test_unstated_prefs_beyond_radius_is_near_fit(self):
+        app = _coords_applicant()          # no radius, no states, not willing
+        job = _coords_job(**_FAR_JOB)      # ~600 mi away
+        r = compute_match(app, job, _make_employer(), _default_config(), _TODAY)
+        geo = r.hard_gate_rationale["geography_feasibility"]
+        assert geo["result"] == "near_fit"
+        assert "set your commute radius" in geo["reason"]
+
+    def test_stated_radius_beyond_radius_still_fails(self):
+        app = _coords_applicant(commute_radius_miles=25)   # stated preference
+        job = _coords_job(**_FAR_JOB)
+        r = compute_match(app, job, _make_employer(), _default_config(), _TODAY)
+        assert r.hard_gate_rationale["geography_feasibility"]["result"] == "fail"
+        assert r.eligibility_status == INELIGIBLE
+
+    def test_relaxation_flag_off_restores_hard_fail(self):
+        cfg = _default_config()
+        cfg.relax_unknown_geo_prefs = False
+        app = _coords_applicant()
+        job = _coords_job(**_FAR_JOB)
+        r = compute_match(app, job, _make_employer(), cfg, _TODAY)
+        assert r.hard_gate_rationale["geography_feasibility"]["result"] == "fail"
+
+    def test_relaxation_never_raises_base_fit(self):
+        """The relaxed pair may gain visibility but its base fit stays capped
+        by near_fit (0.75), i.e. relaxation is not a score bonus."""
+        app = _coords_applicant()
+        job = _coords_job(**_FAR_JOB)
+        r = compute_match(app, job, _make_employer(), _default_config(), _TODAY)
+        assert r.hard_gate_cap <= 0.75
+
+    def test_willing_to_relocate_counts_as_stated(self):
+        app = _coords_applicant(willing_to_relocate=True)
+        job = _coords_job(**_FAR_JOB)
+        r = compute_match(app, job, _make_employer(), _default_config(), _TODAY)
+        # willing → beyond-radius PASS branch, not the unknown-prefs branch
+        assert r.hard_gate_rationale["geography_feasibility"]["result"] == "pass"
+
+
+class TestTierAdmission:
+    """Tier semantics: strict / adjacent / stretch / nearby / None.
+    Tiers group visibility only — they never alter scores."""
+
+    def test_eligible_is_strict_tier(self):
+        app = _coords_applicant(canonical_job_family_code="manufacturing")
+        job = _coords_job(canonical_job_family_code="manufacturing")
+        r = compute_match(app, job, _make_employer(), _default_config(), _TODAY)
+        assert r.eligibility_status == ELIGIBLE
+        assert r.match_tier == "strict"
+
+    def test_adjacent_trade_nearby_is_adjacent_tier(self):
+        app = _coords_applicant(canonical_job_family_code="welding")
+        job = _coords_job(canonical_job_family_code="manufacturing")
+        r = compute_match(app, job, _make_employer(), _default_config(), _TODAY)
+        assert r.eligibility_status == NEAR_FIT_LABEL
+        assert r.match_tier == "adjacent"
+
+    def test_unrelated_trade_nearby_is_nearby_tier(self):
+        app = _coords_applicant(canonical_job_family_code="nursing",
+                                program_name_raw="Nursing")
+        job = _coords_job(canonical_job_family_code="manufacturing")
+        r = compute_match(app, job, _make_employer(), _default_config(), _TODAY)
+        assert r.eligibility_status == INELIGIBLE       # score stays capped
+        assert r.match_tier == "nearby"
+        assert r.tier_reason == "Near you, different trade"
+        assert r.hard_gate_cap == 0.35                  # honesty: no promotion
+
+    def test_unrelated_trade_far_away_gets_no_tier(self):
+        app = _coords_applicant(canonical_job_family_code="nursing")
+        job = _coords_job(canonical_job_family_code="manufacturing", **_FAR_JOB)
+        r = compute_match(app, job, _make_employer(), _default_config(), _TODAY)
+        assert r.match_tier is None
+
+    def test_nearby_tier_requires_other_gates_clean(self):
+        """A nearby unrelated-trade job that ALSO fails seniority must not
+        surface — 'near you' never overrides a second hard failure."""
+        app = _coords_applicant(canonical_job_family_code="nursing")
+        job = _coords_job(canonical_job_family_code="manufacturing",
+                          experience_level="senior")
+        r = compute_match(app, job, _make_employer(), _default_config(), _TODAY)
+        assert r.match_tier is None
+
+    def test_tier_nearby_can_be_disabled(self):
+        cfg = _default_config()
+        cfg.relaxation = RelaxationConfig(tier_nearby=False)
+        app = _coords_applicant(canonical_job_family_code="nursing")
+        job = _coords_job(canonical_job_family_code="manufacturing")
+        r = compute_match(app, job, _make_employer(), cfg, _TODAY)
+        assert r.match_tier is None
+
+    def test_distance_miles_recorded(self):
+        app = _coords_applicant()
+        job = _coords_job()
+        r = compute_match(app, job, _make_employer(), _default_config(), _TODAY)
+        assert r.distance_miles is not None and 0 < r.distance_miles < 25
+
+
+class TestGateToggles:
+    def test_disabled_geography_gate_passes(self):
+        cfg = _default_config()
+        cfg.gates_enabled = GatesEnabledConfig(geography=False)
+        app = _coords_applicant(commute_radius_miles=25)
+        job = _coords_job(**_FAR_JOB)
+        r = compute_match(app, job, _make_employer(), cfg, _TODAY)
+        geo = r.hard_gate_rationale["geography_feasibility"]
+        assert geo["result"] == "pass"
+        assert "disabled by admin policy" in geo["reason"]
+
+    def test_disabled_seniority_gate_passes(self):
+        cfg = _default_config()
+        cfg.gates_enabled = GatesEnabledConfig(seniority=False)
+        app = _coords_applicant()
+        job = _coords_job(experience_level="senior")
+        r = compute_match(app, job, _make_employer(), cfg, _TODAY)
+        assert r.hard_gate_rationale["seniority_compatibility"]["result"] == "pass"
+
+
+class TestSeniorityLevelAliases:
+    def test_experienced_maps_to_mid(self):
+        from matching.gates import evaluate_seniority_gate
+        g = evaluate_seniority_gate("Experienced", 0, is_trade_school=True)
+        assert g.result == NEAR_FIT   # mid-level for a new grad
+
+    def test_fresh_graduate_maps_to_entry(self):
+        from matching.gates import evaluate_seniority_gate
+        g = evaluate_seniority_gate("Fresh Graduate", 0, is_trade_school=True)
+        assert g.result == PASS
+
+
+class TestLabelThresholdsConfig:
+    def test_labels_come_from_config(self):
+        cfg = _default_config()
+        cfg.match_labels = MatchLabelConfig(strong_fit_min=90, good_fit_min=70,
+                                            moderate_fit_min=50)
+        app = _coords_applicant(canonical_job_family_code="manufacturing")
+        job = _coords_job(canonical_job_family_code="manufacturing")
+        r = compute_match(app, job, _make_employer(), cfg, _TODAY)
+        # Same pair under stricter thresholds gets an equal-or-lower label
+        r_default = compute_match(app, job, _make_employer(), _default_config(), _TODAY)
+        order = ["low_fit", "moderate_fit", "good_fit", "strong_fit"]
+        assert order.index(r.match_label) <= order.index(r_default.match_label)
+
+    def test_near_fit_never_strong(self):
+        from matching.engine import _compute_match_label
+        assert _compute_match_label(95.0, NEAR_FIT_LABEL) == "good_fit"
+        assert _compute_match_label(95.0, ELIGIBLE) == "strong_fit"
+        assert _compute_match_label(95.0, INELIGIBLE) == "low_fit"
+
+
+class TestConfigPlumbing:
+    def test_round_trip_serialization(self):
+        cfg = ScoringConfig()
+        cfg.relaxation = RelaxationConfig(min_results=7, tier_nearby=False)
+        cfg.match_labels = MatchLabelConfig(strong_fit_min=85)
+        cfg.relax_unknown_geo_prefs = False
+        d = config_to_dict(cfg)
+        cfg2 = _from_yaml(d)
+        assert cfg2.relaxation == cfg.relaxation
+        assert cfg2.match_labels == cfg.match_labels
+        assert cfg2.relax_unknown_geo_prefs is False
+        assert cfg2.structured_weights == cfg.structured_weights
+        assert cfg2.gates_enabled == cfg.gates_enabled
+
+    def test_normalize_weights_sums_to_100(self):
+        nw = normalize_weights({"trade_program_alignment": 3, "geography_alignment": 1})
+        assert sum(nw.values()) == pytest.approx(100.0)
+        assert nw["trade_program_alignment"] == pytest.approx(75.0)
+
+    def test_from_yaml_normalizes_drifted_weights(self):
+        d = config_to_dict(ScoringConfig())
+        d["structured_score"]["weights"]["trade_program_alignment"] = 50  # sum=125
+        cfg = _from_yaml(d)
+        total = sum(
+            getattr(cfg.structured_weights, k)
+            for k in d["structured_score"]["weights"]
+        )
+        assert total == pytest.approx(100.0)
+
+    def test_validate_rejects_bad_weight_sum(self):
+        d = config_to_dict(ScoringConfig())
+        d["structured_score"]["weights"]["trade_program_alignment"] = 90
+        errors = validate_config_dict(d)
+        assert any("sum to 100" in e for e in errors)
+
+    def test_validate_rejects_disordered_labels(self):
+        d = config_to_dict(ScoringConfig())
+        d["match_labels"] = {"strong_fit_min": 50, "good_fit_min": 60, "moderate_fit_min": 40}
+        assert any("moderate < good < strong" in e for e in validate_config_dict(d))
+
+    def test_validate_rejects_disordered_caps(self):
+        d = config_to_dict(ScoringConfig())
+        d["eligibility"]["labels"]["ineligible"]["hard_gate_cap"] = 0.9
+        d["eligibility"]["labels"]["near_fit"]["hard_gate_cap"] = 0.5
+        assert any("caps" in e for e in validate_config_dict(d))
+
+    def test_validate_rejects_bad_min_results(self):
+        d = config_to_dict(ScoringConfig())
+        d["relaxation"]["min_results"] = 999
+        assert any("min_results" in e for e in validate_config_dict(d))
+
+    def test_validate_accepts_defaults(self):
+        assert validate_config_dict(config_to_dict(ScoringConfig())) == []
+
+
+class TestNearbyTierProximityVerification:
+    """The nearby tier requires VERIFIED proximity — a geography-gate PASS
+    for 'location not assessed' or remote jobs must never read 'Near you'."""
+
+    def test_unassessed_foreign_location_never_nearby(self):
+        # Job with no state (e.g. Windsor, Ontario) — geo gate passes as
+        # "not assessed", distance is 500+ mi. Must NOT be nearby.
+        app = _coords_applicant(canonical_job_family_code="nursing")
+        job = _coords_job(canonical_job_family_code="manufacturing",
+                          city="Windsor", state=None, region=None,
+                          lat=42.30, lng=-83.03)
+        r = compute_match(app, job, _make_employer(), _default_config(), _TODAY)
+        assert r.hard_gate_rationale["geography_feasibility"]["result"] == "pass"
+        assert r.match_tier is None
+
+    def test_remote_job_never_nearby(self):
+        app = _coords_applicant(canonical_job_family_code="nursing")
+        job = _coords_job(canonical_job_family_code="manufacturing",
+                          work_setting="remote", **_FAR_JOB)
+        r = compute_match(app, job, _make_employer(), _default_config(), _TODAY)
+        assert r.match_tier is None
+
+    def test_no_coordinates_never_nearby(self):
+        app = _coords_applicant(canonical_job_family_code="nursing")
+        job = _coords_job(canonical_job_family_code="manufacturing",
+                          lat=None, lng=None)
+        r = compute_match(app, job, _make_employer(), _default_config(), _TODAY)
+        assert r.match_tier is None
+
+    def test_just_beyond_radius_within_cap_is_nearby(self):
+        # ~63 mi away (New Britain CT from Shelton) — beyond the default
+        # 50 mi radius but inside nearby_max_miles=75, unrelated trade.
+        app = _coords_applicant(canonical_job_family_code="nursing")
+        job = _coords_job(canonical_job_family_code="manufacturing",
+                          city="Norwich", lat=41.52, lng=-72.08)
+        r = compute_match(app, job, _make_employer(), _default_config(), _TODAY)
+        assert r.distance_miles is not None and 50 < r.distance_miles <= 75
+        assert r.match_tier == "nearby"
+
+    def test_beyond_cap_not_nearby(self):
+        cfg = _default_config()
+        cfg.relaxation = RelaxationConfig(nearby_max_miles=30)
+        app = _coords_applicant(canonical_job_family_code="nursing")
+        job = _coords_job(canonical_job_family_code="manufacturing",
+                          city="Norwich", lat=41.52, lng=-72.08)  # ~60 mi
+        r = compute_match(app, job, _make_employer(), cfg, _TODAY)
+        assert r.match_tier is None
+
+    def test_applicant_radius_can_extend_cap(self):
+        cfg = _default_config()
+        cfg.relaxation = RelaxationConfig(nearby_max_miles=30)
+        app = _coords_applicant(canonical_job_family_code="nursing",
+                                commute_radius_miles=100)
+        job = _coords_job(canonical_job_family_code="manufacturing",
+                          city="Norwich", lat=41.52, lng=-72.08)  # ~60 mi
+        r = compute_match(app, job, _make_employer(), cfg, _TODAY)
+        assert r.match_tier == "nearby"
+
+    def test_nearby_max_miles_round_trips_and_validates(self):
+        cfg = ScoringConfig()
+        cfg.relaxation = RelaxationConfig(nearby_max_miles=120)
+        d = config_to_dict(cfg)
+        assert _from_yaml(d).relaxation.nearby_max_miles == 120
+        d["relaxation"]["nearby_max_miles"] = 999
+        assert any("nearby_max_miles" in e for e in validate_config_dict(d))
+
+
+class TestEtlDefaultPrefsAreUnstated:
+    """The scholarship import blankets travel_preference='within_state' and
+    relocation_preference='stay_current' onto every row — those exact values
+    must read as UNSTATED so the geography relaxation applies (audit: 336/337
+    applicants carry them verbatim)."""
+
+    def test_etl_default_combo_relaxes_beyond_radius(self):
+        app = _coords_applicant(travel_preference="within_state",
+                                relocation_preference="stay_current",
+                                relocation_states=[])
+        job = _coords_job(**_FAR_JOB)
+        r = compute_match(app, job, _make_employer(), _default_config(), _TODAY)
+        assert r.hard_gate_rationale["geography_feasibility"]["result"] == "near_fit"
+
+    def test_affirmative_travel_pref_counts_as_stated(self):
+        # 'regional' is only reachable via an affirmative profile choice
+        app = _coords_applicant(travel_preference="regional",
+                                commute_radius_miles=25)
+        job = _coords_job(**_FAR_JOB)
+        r = compute_match(app, job, _make_employer(), _default_config(), _TODAY)
+        assert r.hard_gate_rationale["geography_feasibility"]["result"] == "fail"
+
+    def test_adjacent_tier_wording_requires_verified_proximity(self):
+        # Related trade + geography "not assessed" (no job state, far away):
+        # tier stays adjacent but must NOT claim "near you".
+        app = _coords_applicant(canonical_job_family_code="welding")
+        job = _coords_job(canonical_job_family_code="manufacturing",
+                          city="Oakville", state=None, region=None,
+                          lat=43.45, lng=-79.68)
+        r = compute_match(app, job, _make_employer(), _default_config(), _TODAY)
+        assert r.match_tier == "adjacent"
+        assert "near you" not in (r.tier_reason or "")
+
+    def test_adjacent_tier_wording_with_verified_proximity(self):
+        app = _coords_applicant(canonical_job_family_code="welding")
+        job = _coords_job(canonical_job_family_code="manufacturing")  # ~9 mi
+        r = compute_match(app, job, _make_employer(), _default_config(), _TODAY)
+        assert r.match_tier == "adjacent"
+        assert "near you" in (r.tier_reason or "")

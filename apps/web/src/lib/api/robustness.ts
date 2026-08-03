@@ -2,7 +2,6 @@
  * Client for the robustness-pack backend:
  *   - Resume upload + parse
  *   - Notification preferences
- *   - i18n translation
  *   - Training-pathway recs
  */
 import { API_BASE, apiFetch } from "./client";
@@ -51,6 +50,17 @@ export const applyResume = (token: string, uploadId: string, accept: Record<stri
     body: JSON.stringify({ upload_id: uploadId, accept }),
   });
 
+export interface ResumeUpload {
+  id: string;
+  filename: string;
+  created_at: string;
+  applied_at: string | null;
+}
+
+/** Prior resume uploads, newest first — backend: GET /applicant/me/resume/uploads. */
+export const listResumeUploads = (token: string) =>
+  apiFetch<ResumeUpload[]>("/applicant/me/resume/uploads", token);
+
 // ---------------------------------------------------------------------------
 // Preferences
 // ---------------------------------------------------------------------------
@@ -69,25 +79,6 @@ export const patchPreferences = (token: string, patch: Partial<Preferences>) =>
     method: "PATCH",
     body: JSON.stringify(patch),
   });
-
-// ---------------------------------------------------------------------------
-// i18n
-// ---------------------------------------------------------------------------
-
-export interface TranslatedJob {
-  job_id: string;
-  locale: string;
-  fields: {
-    title_raw: string;
-    description_raw: string;
-    responsibilities_raw: string;
-    requirements_raw: string;
-    preferred_qualifications_raw: string;
-  };
-}
-
-export const translateJob = (token: string, jobId: string, target: "en" | "es") =>
-  apiFetch<TranslatedJob>(`/i18n/job/${jobId}?target=${target}`, token);
 
 // ---------------------------------------------------------------------------
 // Training
@@ -127,6 +118,8 @@ export interface Commute {
   from_label?: string | null;
   to_label?: string | null;
   unavailable_reason?: string | null;
+  /** Geodesic miles home → job city — same number the radius gate uses. */
+  distance_miles?: number | null;
 }
 
 export const commuteForMatch = (token: string, matchId: string) =>

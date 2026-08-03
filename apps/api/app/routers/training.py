@@ -98,9 +98,10 @@ async def training_for_match(
                    a.state AS applicant_state, a.id AS applicant_id
               FROM public.matches m
               JOIN public.applicants a ON a.id = m.applicant_id
-             WHERE m.id = $1 AND a.user_id = $2
+             WHERE m.id = $1
+               AND a.id = COALESCE($3::uuid, (SELECT id FROM public.applicants WHERE user_id = $2::uuid))
             """,
-            match_id, user.user_id,
+            match_id, user.user_id, user.view_as_applicant_id,
         )
         if not m:
             raise HTTPException(status_code=404, detail="Match not found.")

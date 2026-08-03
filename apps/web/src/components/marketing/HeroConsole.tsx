@@ -5,9 +5,9 @@ import { MapPin, CheckCircle2, Sparkles } from "lucide-react";
 import { easeCohere } from "@/lib/motion";
 
 const ROWS = [
-  { name: "Maintenance Technician — Southwire", score: 94, tag: "Strong fit", strong: true },
-  { name: "Industrial Electrician — GE Vernova", score: 88, tag: "Strong fit", strong: true },
-  { name: "Mechatronics Tech — Ford", score: 71, tag: "Near fit", strong: false },
+  { name: "Maintenance Technician · Southwire", score: 94, tag: "Strong fit", strong: true },
+  { name: "Industrial Electrician · GE Vernova", score: 88, tag: "Strong fit", strong: true },
+  { name: "Mechatronics Tech · Ford", score: 71, tag: "Near fit", strong: false },
 ];
 
 /** Dark agent-console mockup used in the hero — a ranked-match panel. */
@@ -61,7 +61,9 @@ export function HeroConsole() {
             <div className="flex items-center gap-3">
               <span
                 className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-micro ${
-                  r.strong ? "bg-cohere-green/40 text-emerald-200" : "bg-cohere-coral/20 text-cohere-coral"
+                  // On dark cork: never brand red for text — the coral branch
+                  // keeps the red wash but reads in cream, like its sibling.
+                  r.strong ? "bg-cohere-green/40 text-emerald-200" : "bg-cohere-coral/20 text-studio-cream"
                 }`}
               >
                 {r.strong && <CheckCircle2 className="h-3 w-3" />}
@@ -82,7 +84,7 @@ export function HeroConsole() {
         transition={{ delay: 1.1, duration: 0.6 }}
         className="mt-4 flex items-start gap-2 rounded-sm bg-white/[0.04] px-3.5 py-3"
       >
-        <Sparkles className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-cohere-coral" />
+        <Sparkles className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-studio-cream/70" />
         <p className="text-micro leading-relaxed text-white/60">
           Top match: program alignment + geography within range. One credential gap flagged for review.
         </p>

@@ -90,7 +90,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 
 const INTENT_STYLE: Record<Intent, { Icon: typeof CheckCircle2; wash: string; iconClass: string }> = {
   success: { Icon: CheckCircle2,  wash: "border-cohere-green/30  bg-wash-green",             iconClass: "text-cohere-green" },
-  error:   { Icon: AlertTriangle, wash: "border-studio-maroon/30  bg-studio-maroon/[0.08]",    iconClass: "text-studio-maroon" },
+  error:   { Icon: AlertTriangle, wash: "border-error-red/30     bg-error-red/[0.06]",       iconClass: "text-error-red" },
   info:    { Icon: Info,          wash: "border-cohere-blue/30   bg-wash-blue",              iconClass: "text-cohere-blue"  },
   undo:    { Icon: Undo2,         wash: "border-hairline         bg-white",                  iconClass: "text-slate"        },
 };
@@ -133,7 +133,7 @@ function ToastCard({ item, onDismiss }: { item: ToastItem; onDismiss: () => void
         <button
           onClick={handleUndo}
           disabled={busy}
-          className="ml-2 shrink-0 rounded-full border border-cohere-ink px-2.5 py-0.5 text-micro font-medium text-cohere-ink transition-colors hover:bg-studio-dark-cork hover:text-canvas disabled:opacity-40"
+          className="ml-2 shrink-0 rounded-full border border-cohere-ink px-2.5 py-0.5 text-micro font-medium text-cohere-ink transition-colors hover:bg-ink hover:text-canvas disabled:opacity-40"
         >
           Undo
         </button>

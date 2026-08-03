@@ -22,7 +22,6 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # Job family adjacency map
 # Symmetric: if A is adjacent to B, B is adjacent to A.
@@ -35,6 +34,10 @@ _INDUSTRIAL_TRADES = {
     "manufacturing", "automotive", "logistics", "aviation",
     "auto_body", "robotics", "heavy_equipment", "construction_mgmt",
     "drafting", "energy_lineman", "solar_energy", "wind_energy",
+    # 2026-07 taxonomy expansion (scholarship import)
+    "civil_survey", "field_service", "rail_transit", "marine",
+    "power_plant", "building_automation", "industrial_maintenance",
+    "electronics", "data_center",
 }
 
 def _adj(family: str, core: set[str], extra: set[str] | None = None) -> set[str]:
@@ -55,9 +58,12 @@ JOB_FAMILY_ADJACENCY: dict[str, set[str]] = {
     "automotive":           _adj("automotive", {"welding", "manufacturing", "logistics", "auto_body"}),
     "manufacturing":        _adj("manufacturing", {"welding", "automotive", "logistics", "robotics", "electrical", "hvac", "construction"}),
     "logistics":            _adj("logistics", {"automotive", "manufacturing"}),
-    "healthcare_support":   {"administrative", "dental", "nursing", "respiratory", "physical_therapy", "radiology"},
-    "administrative":       {"healthcare_support", "it_support"},
-    "it_support":           {"administrative", "robotics", "manufacturing"},
+    "healthcare_support":   {"administrative", "dental", "nursing", "respiratory", "physical_therapy",
+                             "radiology", "pharmacy", "surgical_tech", "veterinary", "lab_sciences",
+                             "health_information", "dietetics"},
+    "administrative":       {"healthcare_support", "it_support", "health_information"},
+    "it_support":           {"administrative", "robotics", "manufacturing",
+                             "data_center", "electronics", "building_automation", "health_information"},
     "culinary":             set(),
     "childcare_education":  {"administrative"},
     "cosmetology":          set(),
@@ -66,7 +72,8 @@ JOB_FAMILY_ADJACENCY: dict[str, set[str]] = {
     "solar_energy":         _adj("solar_energy", {"electrical", "energy_lineman", "wind_energy"}),
     "wind_energy":          _adj("wind_energy", {"energy_lineman", "solar_energy", "electrical"}),
     "dental":               {"healthcare_support", "nursing"},
-    "nursing":              {"healthcare_support", "respiratory", "physical_therapy"},
+    "nursing":              {"healthcare_support", "respiratory", "physical_therapy",
+                             "pharmacy", "surgical_tech", "dietetics"},
     "radiology":            {"healthcare_support"},
     "respiratory":          {"healthcare_support", "nursing"},
     "physical_therapy":     {"healthcare_support", "nursing"},
@@ -76,6 +83,23 @@ JOB_FAMILY_ADJACENCY: dict[str, set[str]] = {
     "construction_mgmt":    _adj("construction_mgmt", {"construction", "drafting"}),
     "drafting":             _adj("drafting", {"construction", "construction_mgmt"}),
     "heavy_equipment":      _adj("heavy_equipment", {"construction"}),
+    # 2026-07 taxonomy expansion — industrial trades (NEAR_FIT across trades)
+    "civil_survey":         _adj("civil_survey", {"construction", "drafting", "construction_mgmt"}),
+    "field_service":        _adj("field_service", {"hvac", "electrical", "manufacturing", "automotive"}),
+    "rail_transit":         _adj("rail_transit", {"automotive", "welding", "heavy_equipment"}),
+    "marine":               _adj("marine", {"automotive", "welding"}),
+    "power_plant":          _adj("power_plant", {"energy_lineman", "wind_energy", "solar_energy", "electrical"}),
+    "building_automation":  _adj("building_automation", {"hvac", "electrical", "it_support"}),
+    "industrial_maintenance": _adj("industrial_maintenance", {"manufacturing", "electrical", "hvac", "welding"}),
+    "electronics":          _adj("electronics", {"manufacturing", "robotics", "electrical", "it_support"}),
+    "data_center":          _adj("data_center", {"it_support", "electrical", "hvac", "building_automation"}),
+    # 2026-07 taxonomy expansion — healthcare (adjacent within healthcare only)
+    "pharmacy":             {"healthcare_support", "nursing", "lab_sciences"},
+    "surgical_tech":        {"healthcare_support", "nursing"},
+    "veterinary":           {"healthcare_support", "lab_sciences"},
+    "lab_sciences":         {"healthcare_support", "veterinary", "pharmacy"},
+    "health_information":   {"healthcare_support", "administrative", "it_support"},
+    "dietetics":            {"healthcare_support", "nursing"},
 }
 
 
@@ -135,16 +159,20 @@ def normalize_program_to_job_family(
     matches: list[tuple[str, str, int]] = []
     for fam in job_families:
         aliases = fam.get("aliases") or []
+        # Record the LONGEST matching alias per family — the most specific
+        # evidence.  (Taking the first match made 'wind turbine technician'
+        # lose to another family's longer 'turbine technician' alias.)
+        best_alias: str | None = None
         for alias in aliases:
             alias_lower = alias.lower()
             if len(alias_lower) < 4:
-                if _word_boundary_match(alias_lower, name_lower):
-                    matches.append((fam["code"], alias, len(alias_lower)))
+                matched = _word_boundary_match(alias_lower, name_lower)
             else:
-                if alias_lower in name_lower or name_lower in alias_lower:
-                    matches.append((fam["code"], alias, len(alias_lower)))
-            if matches and matches[-1][0] == fam["code"]:
-                break  # one alias per family
+                matched = alias_lower in name_lower or name_lower in alias_lower
+            if matched and (best_alias is None or len(alias_lower) > len(best_alias)):
+                best_alias = alias_lower
+        if best_alias is not None:
+            matches.append((fam["code"], best_alias, len(best_alias)))
 
     if matches:
         matches.sort(key=lambda m: m[2], reverse=True)

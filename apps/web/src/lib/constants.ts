@@ -96,6 +96,9 @@ export const TRAVEL_OPTIONS = [
   { value: "anywhere", label: "Anywhere in the US", desc: "Open to national travel" },
 ] as const;
 
+/** Preset commute radii (miles) for "How far will you travel for work?". */
+export const COMMUTE_RADIUS_PRESETS = [10, 25, 50, 100] as const;
+
 export const RELOCATION_OPTIONS = [
   { value: "stay_current", label: "Stay in my current area", desc: "I don't want to move" },
   { value: "within_state", label: "Within my state", desc: "Open to moving within my state" },

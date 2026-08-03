@@ -6,6 +6,7 @@ import { Suspense, useEffect, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
 import { MonoLabel, Field } from "@/components/ui";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 
 // Dev-only quick-fill credentials. The import lives inside a NODE_ENV branch so
 // Next.js's dead-code elimination strips the module (and its plaintext creds)
@@ -100,7 +101,7 @@ function LoginForm() {
       <p className="mt-2 text-body text-slate">Continue to SKILLED Match.</p>
 
       {searchParams.get("error") === "auth_callback_failed" && (
-        <p className="mt-6 rounded-sm border border-error-red/20 bg-error-red/5 p-3 text-caption text-error-red">
+        <p className="mt-6 rounded-sm border border-error-red/20 bg-error-red/5 p-3 text-caption text-cohere-ink">
           Authentication failed. Please try again.
         </p>
       )}
@@ -118,18 +119,16 @@ function LoginForm() {
         </Field>
 
         <Field label="Password">
-          <input
-            type="password"
+          <PasswordInput
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
             autoComplete="current-password"
-            className="input-cohere"
           />
         </Field>
 
         {error && (
-          <p className="rounded-sm border border-error-red/20 bg-error-red/5 p-3 text-caption text-error-red">
+          <p className="rounded-sm border border-error-red/20 bg-error-red/5 p-3 text-caption text-cohere-ink">
             {error}
           </p>
         )}
@@ -144,16 +143,26 @@ function LoginForm() {
               Dev quick-fill
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
-              {DEV_ACCOUNTS.map((a) => (
-                <button
-                  key={a.email}
-                  type="button"
-                  onClick={() => { setEmail(a.email); setPassword(a.password); }}
-                  className="rounded-full border border-hairline bg-white px-2.5 py-1 text-[12px] text-slate transition-colors hover:border-studio-maroon hover:text-studio-maroon"
-                >
-                  {a.label}
-                </button>
-              ))}
+              {DEV_ACCOUNTS.map((a) => {
+                // Selected = these credentials currently populate the fields.
+                // Derived, not stored — typing in either field clears it.
+                const isSelected = email === a.email && password === a.password;
+                return (
+                  <button
+                    key={a.email}
+                    type="button"
+                    aria-pressed={isSelected}
+                    onClick={() => { setEmail(a.email); setPassword(a.password); }}
+                    className={
+                      isSelected
+                        ? "rounded-full border border-ink bg-ink px-2.5 py-1 text-[12px] font-medium text-white"
+                        : "rounded-full border border-hairline bg-white px-2.5 py-1 text-[12px] text-slate transition-colors hover:border-studio-maroon hover:text-studio-maroon"
+                    }
+                  >
+                    {a.label}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}

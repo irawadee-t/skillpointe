@@ -13,16 +13,16 @@ from datetime import date
 from typing import Annotated, Any, Optional
 
 import asyncpg
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 
 from app.auth.dependencies import CurrentUser, require_admin
 from app.db import get_db
+from app.routers.skilled_id import VerifyResult, _verify_subject
 from app.skilled_pro import apikeys, keyring
 from app.skilled_pro.consent import RequesterCategory
 from app.skilled_pro.ratelimit import TIERS
 from app.skilled_pro.usage import fill_daily_series
-from app.routers.skilled_id import VerifyResult, _verify_subject
 
 router = APIRouter(prefix="/admin/skilled-id", tags=["skilled-id-admin"])
 
@@ -169,11 +169,31 @@ async def _new_unique_key(conn, live: bool):
 # Routes
 # ---------------------------------------------------------------------------
 
-@router.get("/clients", response_model=list[PartnerOut])
-async def list_partners(user: Annotated[CurrentUser, Depends(require_admin)]):
+class PartnerListOut(BaseModel):
+    items: list[PartnerOut]
+    total: int
+    limit: int
+    offset: int
+
+
+@router.get("/clients", response_model=PartnerListOut)
+async def list_partners(
+    user: Annotated[CurrentUser, Depends(require_admin)],
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+):
     async with get_db() as conn:
-        rows = await conn.fetch(_LIST_SELECT + " ORDER BY c.created_at DESC")
-    return [_partner_out(r) for r in rows]
+        rows = await conn.fetch(
+            _LIST_SELECT.replace(
+                "FROM public.api_clients c",
+                ", count(*) OVER () AS _total FROM public.api_clients c",
+            )
+            + " ORDER BY c.created_at DESC LIMIT $1 OFFSET $2",
+            limit, offset,
+        )
+    total = int(rows[0]["_total"]) if rows else 0
+    return PartnerListOut(items=[_partner_out(r) for r in rows],
+                          total=total, limit=limit, offset=offset)
 
 
 @router.post("/clients", response_model=KeyIssued, status_code=status.HTTP_201_CREATED)

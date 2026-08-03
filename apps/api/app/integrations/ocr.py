@@ -30,10 +30,51 @@ class OCRExtraction:
     provider: str = "null"
 
 
+# OCR providers whose extractions are trustworthy enough to AUTO-raise a
+# credential to a verified badge. The heuristic provider only checks that text
+# "looks like" a document, so it is deliberately excluded — its results route to
+# admin review instead of auto-verifying. See routers/credentials.verify_document.
+AUTHORITATIVE_OCR_PROVIDERS: frozenset[str] = frozenset({"textract", "google-docai", "azure-docintel"})
+
+
+def is_authoritative_provider(name: str | None) -> bool:
+    return (name or "").lower() in AUTHORITATIVE_OCR_PROVIDERS
+
+
 @runtime_checkable
 class OCRProvider(Protocol):
     def analyze(self, document_url: str, queries: list[str] | None = None) -> OCRExtraction:
         ...
+
+    def extract_text_from_bytes(self, content: bytes, mime: str) -> str:
+        """Return the text layer of an uploaded document (bytes + MIME type).
+
+        An empty string means "this provider cannot read that format" — the
+        caller must route the credential to manual review, never fail the user.
+        Cloud providers (Textract et al.) implement true image OCR here; the
+        heuristic provider only handles formats with an embedded text layer.
+        """
+        ...
+
+
+def _pdf_text_from_bytes(content: bytes) -> str:
+    """Extract the text layer of a PDF with pypdf. Empty string on any failure
+    (scanned/image-only PDFs legitimately have no text layer)."""
+    import io
+
+    try:
+        from pypdf import PdfReader
+
+        reader = PdfReader(io.BytesIO(content))
+        parts: list[str] = []
+        for page in reader.pages:
+            try:
+                parts.append(page.extract_text() or "")
+            except Exception:
+                continue
+        return "\n".join(parts).strip()[:60_000]
+    except Exception:
+        return ""
 
 
 class NullOCRProvider:
@@ -43,6 +84,9 @@ class NullOCRProvider:
     """
     def analyze(self, document_url: str, queries: list[str] | None = None) -> OCRExtraction:
         return OCRExtraction(raw_text="", confidence=0.0, authentic=False, provider="null")
+
+    def extract_text_from_bytes(self, content: bytes, mime: str) -> str:
+        return ""
 
 
 class TextractOCRProvider:
@@ -59,6 +103,10 @@ class TextractOCRProvider:
         )
 
     def analyze(self, document_url: str, queries: list[str] | None = None) -> OCRExtraction:  # pragma: no cover
+        raise IntegrationNotConfigured("Textract OCR not implemented")
+
+    def extract_text_from_bytes(self, content: bytes, mime: str) -> str:  # pragma: no cover
+        # Real impl: Textract DetectDocumentText accepts image/PDF bytes directly.
         raise IntegrationNotConfigured("Textract OCR not implemented")
 
 
@@ -92,6 +140,17 @@ class HeuristicOCRProvider:
 
     def analyze_text(self, text: str) -> OCRExtraction:
         return self._extract(text or "")
+
+    def extract_text_from_bytes(self, content: bytes, mime: str) -> str:
+        """Text-layer extraction only — no real image OCR. PDFs go through
+        pypdf; plain text decodes; images return "" so the caller routes the
+        credential to manual review instead of pretending to have read it."""
+        m = (mime or "").lower()
+        if "pdf" in m:
+            return _pdf_text_from_bytes(content)
+        if m.startswith("text/"):
+            return content.decode("utf-8", errors="replace").strip()[:60_000]
+        return ""
 
     def _extract(self, content: str) -> OCRExtraction:
         text = content or ""
@@ -131,14 +190,23 @@ class HeuristicOCRProvider:
 
 def get_ocr_provider() -> OCRProvider:
     """
-    Select the OCR provider. Default is the working heuristic provider so the
-    verification pipeline runs end-to-end without a cloud account; set
-    OCR_PROVIDER=textract (with AWS creds) for production, or =null to disable.
+    Select the OCR provider.
+
+    - OCR_PROVIDER=textract → real cloud OCR (needs AWS creds).
+    - OCR_PROVIDER=heuristic → the regex demo provider. NEVER a safe basis for a
+      real "Verified" badge — it only checks that text *looks like* a document.
+    - OCR_PROVIDER=null → no OCR; credentials stay self-reported.
+    - unset → heuristic in local (so the pipeline is demoable), null everywhere
+      else. This stops production from silently trusting pasted text.
     """
     from app.config import get_settings
-    provider = (getattr(get_settings(), "ocr_provider", "") or "").lower()
+    settings = get_settings()
+    provider = (settings.ocr_provider or "").lower()
     if provider == "textract":
         return TextractOCRProvider()
+    if provider == "heuristic":
+        return HeuristicOCRProvider()
     if provider == "null":
         return NullOCRProvider()
-    return HeuristicOCRProvider()
+    # Default: demoable in local, safe (self-reported) everywhere else.
+    return HeuristicOCRProvider() if settings.is_local else NullOCRProvider()

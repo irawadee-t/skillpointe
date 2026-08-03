@@ -8,12 +8,15 @@ from __future__ import annotations
 
 import logging
 from typing import Any
+from urllib.parse import quote_plus
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.auth.dependencies import require_admin
 from app.db import get_db
+from app.util.filters import csv_values, parse_iso_date
 
 logger = logging.getLogger(__name__)
 
@@ -347,17 +350,53 @@ async def admin_overview(user=Depends(require_admin)):
     async with get_db() as conn:
         async def v(q: str) -> int:
             return int(await conn.fetchval(q) or 0)
-        async def f(q: str) -> float:
-            r = await conn.fetchval(q)
-            return round(float(r), 1) if r is not None else 0.0
 
         W7 = "created_at >= now() - interval '7 days'"
         W30 = "created_at >= now() - interval '30 days'"
 
-        creds = await v("SELECT count(*) FROM public.credentials")
-        inst = await v("SELECT count(*) FROM public.credentials WHERE verification_level = 1")
-        skilled = await v("SELECT count(*) FROM public.credentials WHERE verification_level >= 2")
-        m_total = await v("SELECT count(*) FROM public.matches")
+        # Single-pass aggregates over the big tables. Same numbers as the old
+        # one-count-per-query version — just one scan instead of one per metric
+        # (matches alone is 130k+ rows; six separate counts cost ~6 scans).
+        cred_agg = await conn.fetchrow(
+            "SELECT count(*) AS total, "
+            "count(*) FILTER (WHERE verification_level = 0) AS self_reported, "
+            "count(*) FILTER (WHERE verification_level = 1) AS inst, "
+            "count(*) FILTER (WHERE verification_level >= 2) AS skilled, "
+            "count(*) FILTER (WHERE needs_review = TRUE) AS needs_review, "
+            f"count(*) FILTER (WHERE {W7}) AS new_7d, "
+            f"count(*) FILTER (WHERE {W30}) AS new_30d "
+            "FROM public.credentials"
+        )
+        creds = int(cred_agg["total"] or 0)
+        inst = int(cred_agg["inst"] or 0)
+        skilled = int(cred_agg["skilled"] or 0)
+
+        match_agg = await conn.fetchrow(
+            "SELECT count(*) AS total, "
+            "count(*) FILTER (WHERE eligibility_status = 'eligible') AS eligible, "
+            "count(*) FILTER (WHERE eligibility_status = 'near_fit') AS near_fit, "
+            "count(*) FILTER (WHERE eligibility_status = 'ineligible') AS ineligible, "
+            "avg(base_fit_score) AS avg_fit, "
+            "count(*) FILTER (WHERE base_fit_score >= 70) AS strong "
+            "FROM public.matches"
+        )
+        m_total = int(match_agg["total"] or 0)
+        # Kept separate on purpose: a DISTINCT-inside-the-aggregate forces a
+        # sort of the whole table (~245ms); this probe uses the eligibility
+        # index (<1ms) since eligible rows are a tiny fraction of matches.
+        applicants_matched = await v(
+            "SELECT count(DISTINCT applicant_id) FROM public.matches WHERE eligibility_status = 'eligible'"
+        )
+
+        eng_agg = await conn.fetchrow(
+            "SELECT count(*) AS total, "
+            f"count(*) FILTER (WHERE {W7}) AS total_7d, "
+            f"count(DISTINCT applicant_id) FILTER (WHERE applicant_id IS NOT NULL AND {W7}) AS active_applicants_7d, "
+            f"count(DISTINCT employer_id) FILTER (WHERE employer_id IS NOT NULL AND {W7}) AS active_employers_7d, "
+            "count(DISTINCT applicant_id) FILTER (WHERE applicant_id IS NOT NULL) AS active_applicants_total, "
+            "count(DISTINCT employer_id) FILTER (WHERE employer_id IS NOT NULL) AS active_employers_total "
+            "FROM public.engagement_events"
+        )
 
         eng_rows = await conn.fetch(
             f"SELECT event_type, count(*) AS c, count(*) FILTER (WHERE {W7}) AS c7 "
@@ -374,18 +413,52 @@ async def admin_overview(user=Depends(require_admin)):
         )
 
         # --- Marketplace funnel (the core conversion story) ---
-        learners = await v("SELECT count(*) FROM public.applicants")
-        with_credential = await v("SELECT count(DISTINCT applicant_id) FROM public.credentials")
-        verified_workers = await v("SELECT count(DISTINCT applicant_id) FROM public.credentials WHERE verification_level >= 1")
-        discoverable = await v(
-            "SELECT count(DISTINCT a.id) FROM public.applicants a "
-            "JOIN public.consent_settings cs ON cs.applicant_id = a.id "
-            "WHERE cs.external_sharing ? 'employer' AND EXISTS ("
-            "  SELECT 1 FROM public.credentials c WHERE c.applicant_id = a.id AND c.verification_level >= 1)"
+        # Each stage is the CUMULATIVE subset of workers who reached every prior
+        # stage too, so counts are monotonically non-increasing (a funnel that
+        # widens mid-way is a lie — a worker matched without ever verifying is
+        # off-path and must not inflate "Matched"). The independent per-signal
+        # counts still live in the matching/marketplace sections above.
+        funnel_row = await conn.fetchrow(
+            """
+            WITH stage AS (
+                SELECT a.id,
+                    EXISTS (SELECT 1 FROM public.credentials c
+                            WHERE c.applicant_id = a.id) AS credentialed,
+                    EXISTS (SELECT 1 FROM public.credentials c
+                            WHERE c.applicant_id = a.id AND c.verification_level >= 1) AS verified,
+                    EXISTS (SELECT 1 FROM public.consent_settings cs
+                            WHERE cs.applicant_id = a.id AND cs.external_sharing ? 'employer') AS sharing,
+                    EXISTS (SELECT 1 FROM public.matches m
+                            WHERE m.applicant_id = a.id AND m.eligibility_status = 'eligible') AS matched,
+                    EXISTS (SELECT 1 FROM public.saved_jobs sj
+                            WHERE sj.applicant_id = a.id
+                              AND sj.interest_level IN ('interested','applied')) AS interested,
+                    EXISTS (SELECT 1 FROM public.hire_outcomes ho
+                            WHERE ho.applicant_id = a.id
+                              AND ho.outcome_type IN ('placed','hired')) AS placed
+                FROM public.applicants a
+            )
+            SELECT
+                count(*) AS learners,
+                count(*) FILTER (WHERE credentialed) AS credentialed,
+                count(*) FILTER (WHERE credentialed AND verified) AS verified,
+                count(*) FILTER (WHERE credentialed AND verified AND sharing) AS discoverable,
+                count(*) FILTER (WHERE credentialed AND verified AND sharing
+                                   AND matched) AS matched,
+                count(*) FILTER (WHERE credentialed AND verified AND sharing
+                                   AND matched AND interested) AS interested,
+                count(*) FILTER (WHERE credentialed AND verified AND sharing
+                                   AND matched AND interested AND placed) AS placed
+            FROM stage
+            """
         )
-        matched = await v("SELECT count(DISTINCT applicant_id) FROM public.matches WHERE eligibility_status = 'eligible'")
-        interested = await v("SELECT count(DISTINCT applicant_id) FROM public.saved_jobs WHERE interest_level IN ('interested','applied')")
-        placed = await v("SELECT count(DISTINCT applicant_id) FROM public.hire_outcomes WHERE outcome_type IN ('placed','hired')")
+        learners = int(funnel_row["learners"] or 0)
+        with_credential = int(funnel_row["credentialed"] or 0)
+        verified_workers = int(funnel_row["verified"] or 0)
+        discoverable = int(funnel_row["discoverable"] or 0)
+        matched = int(funnel_row["matched"] or 0)
+        interested = int(funnel_row["interested"] or 0)
+        placed = int(funnel_row["placed"] or 0)
 
         # --- Action-needed signals (what an operator should DO) ---
         unmatched = await v(
@@ -403,6 +476,27 @@ async def admin_overview(user=Depends(require_admin)):
         )
         review_queue = await v("SELECT count(*) FROM public.credentials WHERE needs_review = TRUE")
         sync_pending = await v("SELECT count(*) FROM public.event_outbox WHERE published_at IS NULL")
+        # Same definition as GET /admin/analytics/sla (5-day dormancy threshold).
+        sla_breaches = await v(
+            "SELECT count(*) FROM public.applications a "
+            "WHERE a.employer_viewed_at IS NULL "
+            "AND a.status IN ('submitted', 'reviewed') "
+            "AND a.submitted_at < NOW() - INTERVAL '5 days'"
+        )
+        # Job import work awaiting admin review — the ONE shared definition
+        # (app.util.review_queue): submitted batches AND careers-page pulls
+        # with staged rows. The queue page and career sources count the same
+        # way, so these numbers can never contradict each other.
+        from app.util.review_queue import (
+            count_awaiting_import_review,
+            count_pending_review_items,
+        )
+        awaiting_imports = await count_awaiting_import_review(conn)
+        import_batches_pending = awaiting_imports["batches"]
+        import_jobs_pending = awaiting_imports["rows"]
+        # Pending review_queue_items (chat guardrail trips, taxonomy
+        # mismatches, broken apply links, ...) — the /admin/review feed.
+        review_items = await count_pending_review_items(conn)
 
         return {
             "platform": {
@@ -417,16 +511,16 @@ async def admin_overview(user=Depends(require_admin)):
                 "new_applicants_30d": await v(f"SELECT count(*) FROM public.applicants WHERE {W30}"),
                 "new_jobs_7d": await v(f"SELECT count(*) FROM public.jobs WHERE {W7}"),
                 "new_jobs_30d": await v(f"SELECT count(*) FROM public.jobs WHERE {W30}"),
-                "new_credentials_7d": await v(f"SELECT count(*) FROM public.credentials WHERE {W7}"),
-                "new_credentials_30d": await v(f"SELECT count(*) FROM public.credentials WHERE {W30}"),
+                "new_credentials_7d": int(cred_agg["new_7d"] or 0),
+                "new_credentials_30d": int(cred_agg["new_30d"] or 0),
             },
             "verification": {
                 "credentials_total": creds,
-                "self_reported": await v("SELECT count(*) FROM public.credentials WHERE verification_level = 0"),
+                "self_reported": int(cred_agg["self_reported"] or 0),
                 "institution_verified": inst,
                 "skilled_verified": skilled,
                 "verified_rate": round((inst + skilled) / creds * 100, 1) if creds else 0.0,
-                "needs_review": await v("SELECT count(*) FROM public.credentials WHERE needs_review = TRUE"),
+                "needs_review": int(cred_agg["needs_review"] or 0),
             },
             "consent": {
                 "sharing_with_employers": await v(
@@ -436,12 +530,12 @@ async def admin_overview(user=Depends(require_admin)):
             },
             "matching": {
                 "total": m_total,
-                "eligible": await v("SELECT count(*) FROM public.matches WHERE eligibility_status = 'eligible'"),
-                "near_fit": await v("SELECT count(*) FROM public.matches WHERE eligibility_status = 'near_fit'"),
-                "ineligible": await v("SELECT count(*) FROM public.matches WHERE eligibility_status = 'ineligible'"),
-                "avg_fit": await f("SELECT avg(base_fit_score) FROM public.matches"),
-                "strong": await v("SELECT count(*) FROM public.matches WHERE base_fit_score >= 70"),
-                "applicants_matched": await v("SELECT count(DISTINCT applicant_id) FROM public.matches WHERE eligibility_status = 'eligible'"),
+                "eligible": int(match_agg["eligible"] or 0),
+                "near_fit": int(match_agg["near_fit"] or 0),
+                "ineligible": int(match_agg["ineligible"] or 0),
+                "avg_fit": round(float(match_agg["avg_fit"]), 1) if match_agg["avg_fit"] is not None else 0.0,
+                "strong": int(match_agg["strong"] or 0),
+                "applicants_matched": applicants_matched,
             },
             "marketplace": {
                 "active_jobs": await v("SELECT count(*) FROM public.jobs WHERE is_active = TRUE"),
@@ -454,8 +548,14 @@ async def admin_overview(user=Depends(require_admin)):
                 "top_trades": [{"name": r["name"], "count": int(r["c"])} for r in trade_rows],
             },
             "engagement": {
-                "total": await v("SELECT count(*) FROM public.engagement_events"),
-                "total_7d": await v(f"SELECT count(*) FROM public.engagement_events WHERE {W7}"),
+                "total": int(eng_agg["total"] or 0),
+                "total_7d": int(eng_agg["total_7d"] or 0),
+                # Distinct actors, so the UI can say "N events from M people"
+                # instead of implying broad activity that isn't there.
+                "active_applicants_7d": int(eng_agg["active_applicants_7d"] or 0),
+                "active_employers_7d": int(eng_agg["active_employers_7d"] or 0),
+                "active_applicants_total": int(eng_agg["active_applicants_total"] or 0),
+                "active_employers_total": int(eng_agg["active_employers_total"] or 0),
                 "by_type": [{"type": r["event_type"], "count": int(r["c"]), "last_7d": int(r["c7"])} for r in eng_rows],
             },
             "outcomes": {
@@ -486,8 +586,15 @@ async def admin_overview(user=Depends(require_admin)):
                 "review_queue": review_queue,
                 "unmatched_learners": unmatched,
                 "jobs_no_candidates": jobs_no_candidates,
+                "import_batches_pending": import_batches_pending,
+                "import_jobs_pending": import_jobs_pending,
+                "sla_breaches": sla_breaches,
                 "verified_not_sharing": verified_not_sharing,
                 "sync_pending": sync_pending,
+                # /admin/review feed — total + per-type so the inbox can name
+                # the work ("6 chat guardrail flags"), not just count it.
+                "review_items_pending": review_items["total"],
+                "review_items_by_type": review_items["by_type"],
             },
         }
 
@@ -542,6 +649,149 @@ async def job_map_data(user=Depends(require_admin)):
 
 
 # ---------------------------------------------------------------------------
+# Geographic visualization: applicant map + application flows
+# ---------------------------------------------------------------------------
+
+class CityApplicantCluster(BaseModel):
+    """City-level applicant aggregate — counts only, never individual rows (no PII)."""
+    city: str
+    state: str
+    lat: float
+    lng: float
+    applicant_count: int
+
+
+class FlowEndpoint(BaseModel):
+    lat: float
+    lng: float
+    city: str
+    state: str
+
+
+class ApplicationFlow(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    from_: FlowEndpoint = Field(alias="from")
+    to: FlowEndpoint
+    count: int
+
+
+async def _resolve_city_coords(
+    conn, pairs: set[tuple[str, str]],
+) -> dict[tuple[str, str], tuple[float, float]]:
+    """Resolve (city, state) -> (lat, lng).
+
+    Same mechanism the job map uses: the static `_CITY_COORDS` lookup first,
+    then a single batched read of `geocode_cache` (keys normalized the same way
+    as app.skilled_pro.geocode: "city, ST"). Never live-geocodes at request
+    time — cities with no known coords are simply skipped by callers.
+    """
+    resolved: dict[tuple[str, str], tuple[float, float]] = {}
+    cache_keys: dict[str, tuple[str, str]] = {}
+    for city, state in pairs:
+        if not city or not state:
+            continue
+        static_key = f"{city.lower().strip()}, {state.lower().strip()}"
+        if static_key in _CITY_COORDS:
+            resolved[(city, state)] = _CITY_COORDS[static_key]
+        else:
+            cache_keys[f"{city.strip().lower()}, {state.strip().upper()[:2]}"] = (city, state)
+    if cache_keys:
+        rows = await conn.fetch(
+            "SELECT query, lat, lng FROM public.geocode_cache WHERE query = ANY($1::text[])",
+            list(cache_keys),
+        )
+        for r in rows:
+            pair = cache_keys.get(r["query"])
+            if pair and pair not in resolved:
+                resolved[pair] = (float(r["lat"]), float(r["lng"]))
+    # Last resort: state centroid (same fallback job-map uses via _geocode).
+    for city, state in pairs:
+        if (city, state) not in resolved and state:
+            centroid = _STATE_CENTROIDS.get(state.upper().strip())
+            if centroid:
+                resolved[(city, state)] = centroid
+    return resolved
+
+
+@router.get("/analytics/applicant-map", response_model=list[CityApplicantCluster])
+async def applicant_map_data(user=Depends(require_admin)):
+    """Applicant distribution for the admin map. City-level counts only — no PII."""
+    async with get_db() as conn:
+        rows = await conn.fetch("""
+            SELECT city, state, COUNT(*) AS ct
+            FROM public.applicants
+            WHERE city IS NOT NULL AND state IS NOT NULL
+            GROUP BY city, state
+            ORDER BY ct DESC
+            LIMIT 1000
+        """)
+        coords = await _resolve_city_coords(conn, {(r["city"], r["state"]) for r in rows})
+    return [
+        CityApplicantCluster(
+            city=r["city"], state=r["state"],
+            lat=coords[(r["city"], r["state"])][0],
+            lng=coords[(r["city"], r["state"])][1],
+            applicant_count=int(r["ct"]),
+        )
+        for r in rows
+        if (r["city"], r["state"]) in coords
+    ]
+
+
+@router.get("/analytics/application-flows", response_model=list[ApplicationFlow])
+async def application_flows(user=Depends(require_admin)):
+    """Applicant-city -> job-city application flows, aggregated by city pair.
+
+    Signal sources (deduped on applicant+job so one person applying through
+    both paths counts once):
+      1. public.applications — formal submitted applications (primary source).
+      2. public.saved_jobs with interest_level IN ('applied', 'interested') —
+         self-reported application/interest signals. Included because the
+         applications table is sparse in local/demo environments; 'interested'
+         rows are a weaker signal but keep the demo populated. Note the source
+         mix here if this view ever drives real decisions.
+    """
+    async with get_db() as conn:
+        rows = await conn.fetch("""
+            WITH signals AS (
+                SELECT ap.applicant_id, ap.job_id FROM public.applications ap
+                UNION
+                SELECT sj.applicant_id, sj.job_id
+                FROM public.saved_jobs sj
+                WHERE sj.interest_level IN ('applied', 'interested')
+            )
+            SELECT a.city AS from_city, a.state AS from_state,
+                   j.city AS to_city, j.state AS to_state,
+                   COUNT(*) AS ct
+            FROM signals s
+            JOIN public.applicants a ON a.id = s.applicant_id
+            JOIN public.jobs j ON j.id = s.job_id
+            WHERE a.city IS NOT NULL AND a.state IS NOT NULL
+              AND j.city IS NOT NULL AND j.state IS NOT NULL
+            GROUP BY 1, 2, 3, 4
+            ORDER BY ct DESC
+            LIMIT 500
+        """)
+        pairs = {(r["from_city"], r["from_state"]) for r in rows}
+        pairs |= {(r["to_city"], r["to_state"]) for r in rows}
+        coords = await _resolve_city_coords(conn, pairs)
+
+    flows: list[ApplicationFlow] = []
+    for r in rows:
+        src = coords.get((r["from_city"], r["from_state"]))
+        dst = coords.get((r["to_city"], r["to_state"]))
+        if not src or not dst:
+            continue  # no cached coords — skip rather than live-geocode
+        flows.append(ApplicationFlow(
+            from_=FlowEndpoint(lat=src[0], lng=src[1], city=r["from_city"], state=r["from_state"]),
+            to=FlowEndpoint(lat=dst[0], lng=dst[1], city=r["to_city"], state=r["to_state"]),
+            count=int(r["ct"]),
+        ))
+    return flows
+
+
+# ---------------------------------------------------------------------------
 # Admin applicant & employer directory endpoints
 # ---------------------------------------------------------------------------
 
@@ -578,11 +828,23 @@ class AdminEmployerRow(BaseModel):
     active_jobs: int
     contact_email: str | None
     contact_name: str | None
+    created_at: str | None = None
+    has_career_source: bool = False
+    hired_count: int = 0
+    outreach_count: int = 0
+    last_activity_at: str | None = None
+
+
+class AdminEmployerFacets(BaseModel):
+    """Data-backed option lists for the directory filter bar."""
+    industries: list[str] = []
+    states: list[str] = []
 
 
 class AdminEmployerList(BaseModel):
     total: int
     employers: list[AdminEmployerRow]
+    facets: AdminEmployerFacets = AdminEmployerFacets()
 
 
 class AdminEmployerJobRow(BaseModel):
@@ -640,7 +902,8 @@ async def get_employer_detail(employer_id: str, user=Depends(require_admin)):
             employer_id,
         )
         if not emp:
-            from fastapi import HTTPException, status as _status
+            from fastapi import HTTPException
+            from fastapi import status as _status
             raise HTTPException(status_code=_status.HTTP_404_NOT_FOUND, detail="Employer not found")
 
         jobs = await conn.fetch(
@@ -655,7 +918,10 @@ async def get_employer_detail(employer_id: str, user=Depends(require_admin)):
                 j.pay_min, j.pay_max,
                 j.pay_type::text,
                 j.source_url,
-                COUNT(m.id) FILTER (WHERE m.is_visible_to_employer = TRUE) AS total_visible,
+                -- Predicate parity with the employer candidate list: visible
+                -- AND eligible/near_fit only, so this count equals what the
+                -- candidate page actually lists.
+                COUNT(m.id) FILTER (WHERE m.is_visible_to_employer = TRUE AND m.eligibility_status IN ('eligible', 'near_fit')) AS total_visible,
                 COUNT(m.id) FILTER (WHERE m.is_visible_to_employer = TRUE AND m.eligibility_status = 'eligible') AS eligible_count,
                 COUNT(m.id) FILTER (WHERE m.is_visible_to_employer = TRUE AND m.eligibility_status = 'near_fit') AS near_fit_count
             FROM public.jobs j
@@ -715,7 +981,8 @@ async def list_applicants(
 
     if q:
         conditions.append(
-            f"(a.first_name ILIKE ${p} OR a.last_name ILIKE ${p} OR a.email ILIKE ${p})"
+            f"(a.first_name ILIKE ${p} OR a.last_name ILIKE ${p} OR a.email ILIKE ${p} "
+            f"OR (COALESCE(a.first_name, '') || ' ' || COALESCE(a.last_name, '')) ILIKE ${p})"
         )
         params.append(f"%{q}%")
         p += 1
@@ -741,6 +1008,12 @@ async def list_applicants(
             *params,
         )
 
+        # Paginate FIRST, then count matches per returned applicant via a
+        # LATERAL probe. The old join-then-GROUP-BY aggregated the entire
+        # matches table (130k+ rows, ~300ms seq scan + hash agg) before
+        # discarding all but one page; this touches only page_size applicants
+        # and uses the (applicant_id, eligibility_status) index. Results are
+        # identical — ordering does not depend on the aggregated counts.
         rows = await conn.fetch(
             f"""
             SELECT
@@ -763,17 +1036,26 @@ async def list_applicants(
                 ) AS profile_completeness,
                 a.willing_to_relocate,
                 COALESCE(a.available_from_date::text, a.expected_completion_date::text) AS available_from,
-                jf.code AS job_family_code,
-                jf.name AS job_family_name,
-                COUNT(m.id) FILTER (WHERE m.eligibility_status = 'eligible') AS eligible_count,
-                COUNT(m.id) FILTER (WHERE m.eligibility_status = 'near_fit') AS near_fit_count
-            FROM public.applicants a
-            LEFT JOIN public.canonical_job_families jf ON jf.id = a.canonical_job_family_id
-            LEFT JOIN public.matches m ON m.applicant_id = a.id
-            WHERE {where}
-            GROUP BY a.id, jf.code, jf.name
+                a.job_family_code,
+                a.job_family_name,
+                mc.eligible_count,
+                mc.near_fit_count
+            FROM (
+                SELECT a.*, jf.code AS job_family_code, jf.name AS job_family_name
+                FROM public.applicants a
+                LEFT JOIN public.canonical_job_families jf ON jf.id = a.canonical_job_family_id
+                WHERE {where}
+                ORDER BY a.last_name NULLS LAST, a.first_name NULLS LAST
+                LIMIT ${p} OFFSET ${p + 1}
+            ) a
+            LEFT JOIN LATERAL (
+                SELECT
+                    COUNT(*) FILTER (WHERE m.eligibility_status = 'eligible') AS eligible_count,
+                    COUNT(*) FILTER (WHERE m.eligibility_status = 'near_fit') AS near_fit_count
+                FROM public.matches m
+                WHERE m.applicant_id = a.id
+            ) mc ON TRUE
             ORDER BY a.last_name NULLS LAST, a.first_name NULLS LAST
-            LIMIT ${p} OFFSET ${p + 1}
             """,
             *params, page_size, offset,
         )
@@ -800,36 +1082,163 @@ async def list_applicants(
     return AdminApplicantList(total=total, applicants=applicants)
 
 
+# ---------------------------------------------------------------------------
+# POST /admin/view-as/{applicant_id}/start — begin a read-only view-as session
+# ---------------------------------------------------------------------------
+
+class ViewAsStartResponse(BaseModel):
+    applicant_id: str
+    first_name: str | None
+    last_name: str | None
+    email: str | None
+    has_linked_account: bool
+
+
+@router.post("/view-as/{applicant_id}/start", response_model=ViewAsStartResponse)
+async def start_view_as_applicant(
+    applicant_id: UUID,
+    user=Depends(require_admin),
+):
+    """
+    Start an admin "view as applicant" debug session (read-only impersonation).
+
+    Writes ONE audit_logs row per session start — the per-request GETs that
+    follow (carrying X-View-As-Applicant) are not individually logged.
+    Guardrail (CLAUDE.md): all admin overrides are auditable.
+    """
+    async with get_db() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id::text AS id, user_id::text AS user_id,
+                   first_name, last_name, email
+            FROM public.applicants
+            WHERE id = $1::uuid
+            """,
+            str(applicant_id),
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="Applicant not found")
+
+        has_linked_account = bool(row["user_id"])
+        await conn.execute(
+            """
+            INSERT INTO public.audit_logs
+                (actor_id, actor_role, action, entity_type, entity_id, metadata)
+            VALUES ($1::uuid, 'admin', 'admin_view_as_applicant', 'applicant', $2::uuid, $3::jsonb)
+            """,
+            user.user_id,
+            str(applicant_id),
+            {
+                "applicant_email": row["email"],
+                "has_linked_account": has_linked_account,
+                "mode": "read_only_debug",
+            },
+        )
+
+    return ViewAsStartResponse(
+        applicant_id=row["id"],
+        first_name=row["first_name"],
+        last_name=row["last_name"],
+        email=row["email"],
+        has_linked_account=has_linked_account,
+    )
+
+
+# Job-count bands for the employer directory filter. Expressed as predicates
+# over a scalar subquery so the SAME where-clause drives count + list (parity).
+_EMPLOYER_JOBS_EXPR = "(SELECT COUNT(*) FROM public.jobs jb WHERE jb.employer_id = e.id)"
+_EMPLOYER_JOBS_BANDS = {
+    "none": f"{_EMPLOYER_JOBS_EXPR} = 0",
+    "1_10": f"{_EMPLOYER_JOBS_EXPR} BETWEEN 1 AND 10",
+    "11_100": f"{_EMPLOYER_JOBS_EXPR} BETWEEN 11 AND 100",
+    "over_100": f"{_EMPLOYER_JOBS_EXPR} > 100",
+}
+
+# Most-recent touch on the employer record: newest job, outreach, or hire
+# report (falls back to the row's own updated_at). GREATEST ignores NULLs.
+_EMPLOYER_LAST_ACTIVITY = """
+GREATEST(
+    e.updated_at,
+    (SELECT MAX(jx.created_at) FROM public.jobs jx WHERE jx.employer_id = e.id),
+    (SELECT MAX(ox.created_at) FROM public.employer_outreach ox WHERE ox.employer_id = e.id),
+    (SELECT MAX(hx.created_at) FROM public.hire_outcomes hx WHERE hx.employer_id = e.id)
+)
+"""
+
+
 @router.get("/employers", response_model=AdminEmployerList)
 async def list_employers(
     q: str | None = Query(None, description="Search by company name"),
-    state: str | None = Query(None),
+    state: str | None = Query(None, description="Single state (back-compat; prefer states)"),
+    states: str | None = Query(None, description="Comma-separated state codes (multi-select)"),
+    industry: str | None = Query(None, description="Comma-separated industries (multi-select)"),
     is_partner: bool | None = Query(None),
+    has_active_jobs: bool | None = Query(None),
+    jobs_band: str | None = Query(None, description="Total-jobs band: none | 1_10 | 11_100 | over_100"),
+    has_hired: bool | None = Query(None, description="Has at least one reported hire"),
+    has_outreach: bool | None = Query(None, description="Has sent at least one outreach"),
+    has_career_source: bool | None = Query(None, description="Careers-page source connected"),
+    created_from: str | None = Query(None, description="Added on/after YYYY-MM-DD"),
+    created_to: str | None = Query(None, description="Added on/before YYYY-MM-DD"),
+    sort: str = Query("name", description="name | jobs | recent"),
     page: int = Query(1, ge=1),
     page_size: int = Query(50, ge=1, le=200),
     user=Depends(require_admin),
 ):
-    """List all employers with optional filtering for admin directory."""
+    """List all employers with granular, composable filtering for the directory."""
     offset = (page - 1) * page_size
 
     conditions = ["1=1"]
     params: list[Any] = []
-    p = 1
+
+    def bind(value: Any) -> str:
+        params.append(value)
+        return f"${len(params)}"
 
     if q:
-        conditions.append(f"e.name ILIKE ${p}")
-        params.append(f"%{q}%")
-        p += 1
-    if state:
-        conditions.append(f"e.state = ${p}")
-        params.append(state.upper())
-        p += 1
+        conditions.append(f"e.name ILIKE {bind(f'%{q}%')}")
+    state_list = csv_values(states, upper=True) or ([state.upper()] if state else [])
+    if state_list:
+        conditions.append(f"e.state = ANY({bind(state_list)}::text[])")
+    industry_list = csv_values(industry)
+    if industry_list:
+        conditions.append(f"TRIM(e.industry) = ANY({bind(industry_list)}::text[])")
     if is_partner is not None:
-        conditions.append(f"e.is_partner = ${p}")
-        params.append(is_partner)
-        p += 1
+        conditions.append(f"e.is_partner = {bind(is_partner)}")
+    if has_active_jobs is not None:
+        pred = "EXISTS (SELECT 1 FROM public.jobs ja WHERE ja.employer_id = e.id AND ja.is_active = TRUE)"
+        conditions.append(pred if has_active_jobs else f"NOT {pred}")
+    if jobs_band:
+        band = _EMPLOYER_JOBS_BANDS.get(jobs_band)
+        if band is None:
+            raise HTTPException(422, f"jobs_band must be one of: {', '.join(_EMPLOYER_JOBS_BANDS)}")
+        conditions.append(band)
+    if has_hired is not None:
+        pred = ("EXISTS (SELECT 1 FROM public.hire_outcomes h "
+                "WHERE h.employer_id = e.id AND h.outcome_type = 'hired')")
+        conditions.append(pred if has_hired else f"NOT {pred}")
+    if has_outreach is not None:
+        pred = "EXISTS (SELECT 1 FROM public.employer_outreach o WHERE o.employer_id = e.id)"
+        conditions.append(pred if has_outreach else f"NOT {pred}")
+    if has_career_source is not None:
+        pred = "EXISTS (SELECT 1 FROM public.employer_career_sources cs WHERE cs.employer_id = e.id)"
+        conditions.append(pred if has_career_source else f"NOT {pred}")
+    d_from = parse_iso_date(created_from, "created_from")
+    if d_from:
+        conditions.append(f"e.created_at >= {bind(d_from)}")
+    d_to = parse_iso_date(created_to, "created_to")
+    if d_to:
+        conditions.append(f"e.created_at < {bind(d_to)} + INTERVAL '1 day'")
 
     where = " AND ".join(conditions)
+
+    order_by = {
+        "name": "e.name",
+        "jobs": "total_jobs DESC, e.name",
+        "recent": "last_activity_at DESC NULLS LAST, e.name",
+    }.get(sort)
+    if order_by is None:
+        raise HTTPException(422, "sort must be one of: name, jobs, recent")
 
     async with get_db() as conn:
         total = await conn.fetchval(
@@ -846,8 +1255,16 @@ async def list_employers(
                 e.city,
                 e.state::text,
                 e.is_partner,
+                e.created_at::text AS created_at,
                 COUNT(DISTINCT j.id) FILTER (WHERE j.is_active = TRUE) AS active_jobs,
                 COUNT(DISTINCT j.id) AS total_jobs,
+                EXISTS (SELECT 1 FROM public.employer_career_sources cs
+                        WHERE cs.employer_id = e.id) AS has_career_source,
+                (SELECT COUNT(*) FROM public.hire_outcomes h
+                 WHERE h.employer_id = e.id AND h.outcome_type = 'hired') AS hired_count,
+                (SELECT COUNT(*) FROM public.employer_outreach o
+                 WHERE o.employer_id = e.id) AS outreach_count,
+                {_EMPLOYER_LAST_ACTIVITY}::text AS last_activity_at,
                 (
                     SELECT au.email
                     FROM public.employer_contacts ec2
@@ -861,10 +1278,21 @@ async def list_employers(
             LEFT JOIN public.jobs j ON j.employer_id = e.id
             WHERE {where}
             GROUP BY e.id
-            ORDER BY e.name
-            LIMIT ${p} OFFSET ${p + 1}
+            ORDER BY {order_by}
+            LIMIT ${len(params) + 1} OFFSET ${len(params) + 2}
             """,
             *params, page_size, offset,
+        )
+
+        # Facets — data-backed dropdown options over the whole directory
+        # (unfiltered on purpose: options must not vanish as you narrow).
+        industry_rows = await conn.fetch(
+            "SELECT DISTINCT TRIM(industry) AS v FROM public.employers "
+            "WHERE industry IS NOT NULL AND TRIM(industry) <> '' ORDER BY 1"
+        )
+        state_rows = await conn.fetch(
+            "SELECT DISTINCT UPPER(TRIM(state)) AS v FROM public.employers "
+            "WHERE state IS NOT NULL AND TRIM(state) <> '' ORDER BY 1"
         )
 
     employers = [
@@ -879,10 +1307,151 @@ async def list_employers(
             active_jobs=int(r["active_jobs"] or 0),
             contact_email=r["contact_email"],
             contact_name=r["contact_name"],
+            created_at=r["created_at"],
+            has_career_source=bool(r["has_career_source"]),
+            hired_count=int(r["hired_count"] or 0),
+            outreach_count=int(r["outreach_count"] or 0),
+            last_activity_at=r["last_activity_at"],
         )
         for r in rows
     ]
-    return AdminEmployerList(total=total, employers=employers)
+    return AdminEmployerList(
+        total=total,
+        employers=employers,
+        facets=AdminEmployerFacets(
+            industries=[r["v"] for r in industry_rows],
+            states=[r["v"] for r in state_rows],
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# GET /admin/search — combined typeahead search for the admin top bar
+# ---------------------------------------------------------------------------
+
+class AdminSearchRow(BaseModel):
+    id: str
+    label: str
+    subtitle: str | None = None
+    href: str
+
+
+class AdminSearchResponse(BaseModel):
+    applicants: list[AdminSearchRow]
+    employers: list[AdminSearchRow]
+    credentials: list[AdminSearchRow]
+
+
+@router.get("/search", response_model=AdminSearchResponse)
+async def admin_search(
+    q: str = Query(..., min_length=1, max_length=120, description="Partial name / email / title"),
+    limit: int = Query(5, ge=1, le=10),
+    user=Depends(require_admin),
+):
+    """
+    Live type-ahead search across applicants, employers, and credentials.
+
+    Case-insensitive partial matching (ILIKE %q%) on names, emails, company
+    names, and credential titles. Each group is capped at `limit` rows so the
+    dropdown stays scannable.
+    """
+    like = f"%{q.strip()}%"
+    # Prefix matches rank first (Google-style: "ge" puts "GE Vernova" above
+    # "Schneider — Georgia plant"); substring matches follow alphabetically.
+    prefix = f"{q.strip()}%"
+
+    async with get_db() as conn:
+        applicant_rows = await conn.fetch(
+            """
+            SELECT a.id::text, a.first_name, a.last_name, a.email, a.city, a.state::text
+            FROM public.applicants a
+            WHERE a.first_name ILIKE $1 OR a.last_name ILIKE $1 OR a.email ILIKE $1
+               OR (COALESCE(a.first_name, '') || ' ' || COALESCE(a.last_name, '')) ILIKE $1
+            ORDER BY (a.first_name ILIKE $3 OR a.last_name ILIKE $3 OR a.email ILIKE $3) DESC,
+                     a.last_name NULLS LAST, a.first_name NULLS LAST
+            LIMIT $2
+            """,
+            like, limit, prefix,
+        )
+        employer_rows = await conn.fetch(
+            """
+            SELECT e.id::text, e.name, e.industry, e.city, e.state::text,
+                   e.created_at,
+                   (SELECT count(*) FROM public.jobs j
+                     WHERE j.employer_id = e.id AND j.is_active = TRUE) AS job_count
+            FROM public.employers e
+            WHERE e.name ILIKE $1
+            ORDER BY (e.name ILIKE $3) DESC, e.name
+            LIMIT $2
+            """,
+            like, limit, prefix,
+        )
+        credential_rows = await conn.fetch(
+            """
+            SELECT c.id::text,
+                   COALESCE(c.canonical_name, c.raw_name) AS name,
+                   c.issuer,
+                   a.first_name, a.last_name, a.email
+            FROM public.credentials c
+            JOIN public.applicants a ON a.id = c.applicant_id
+            WHERE c.canonical_name ILIKE $1 OR c.raw_name ILIKE $1 OR c.issuer ILIKE $1
+            ORDER BY (COALESCE(c.canonical_name, c.raw_name) ILIKE $3) DESC,
+                     COALESCE(c.canonical_name, c.raw_name)
+            LIMIT $2
+            """,
+            like, limit, prefix,
+        )
+
+    def _person(first: Any, last: Any, email: Any) -> str:
+        return " ".join(s for s in (first, last) if s) or (email or "Unnamed")
+
+    applicants = [
+        AdminSearchRow(
+            id=r["id"],
+            label=_person(r["first_name"], r["last_name"], r["email"]),
+            subtitle=", ".join(
+                s for s in (r["email"], ", ".join(p for p in (r["city"], r["state"]) if p)) if s
+            ) or None,
+            href=f"/admin/applicants?q={quote_plus(r['email'] or _person(r['first_name'], r['last_name'], r['email']))}",
+        )
+        for r in applicant_rows
+    ]
+    # Secondary line disambiguates same-name rows: job count + created year
+    # + id suffix, so "Ford" vs "Ford" is decidable from the dropdown.
+    def _employer_subtitle(r: Any) -> str | None:
+        keys = tuple(r.keys())
+        job_count = int(r["job_count"] or 0) if "job_count" in keys else None
+        created = r["created_at"] if "created_at" in keys else None
+        bits = [
+            r["industry"],
+            ", ".join(p for p in (r["city"], r["state"]) if p) or None,
+            f"{job_count} open job{'s' if job_count != 1 else ''}" if job_count is not None else None,
+            f"since {created.year}" if created else None,
+            f"id {r['id'][:8]}",
+        ]
+        return " · ".join(s for s in bits if s) or None
+
+    employers = [
+        AdminSearchRow(
+            id=r["id"],
+            label=r["name"],
+            subtitle=_employer_subtitle(r),
+            href=f"/admin/employers/{r['id']}",
+        )
+        for r in employer_rows
+    ]
+    credentials = [
+        AdminSearchRow(
+            id=r["id"],
+            label=r["name"] or "Untitled credential",
+            subtitle=", ".join(
+                s for s in (r["issuer"], _person(r["first_name"], r["last_name"], r["email"])) if s
+            ) or None,
+            href=f"/admin/applicants?q={quote_plus(r['email'] or _person(r['first_name'], r['last_name'], r['email']))}",
+        )
+        for r in credential_rows
+    ]
+    return AdminSearchResponse(applicants=applicants, employers=employers, credentials=credentials)
 
 
 # ---------------------------------------------------------------------------
@@ -1023,6 +1592,9 @@ class ApplicantEngagementRow(BaseModel):
 
 class ApplicantEngagementList(BaseModel):
     total: int
+    # How many of `total` have ANY recorded engagement event — the honest
+    # denominator sentence for a population-heavy, activity-sparse platform.
+    active_total: int = 0
     rows: list[ApplicantEngagementRow]
 
 
@@ -1040,7 +1612,10 @@ async def applicant_engagement(
     name_filter = ""
     params_base: list[Any] = []
     if q:
-        name_filter = "WHERE (a.first_name ILIKE $1 OR a.last_name ILIKE $1)"
+        name_filter = (
+            "WHERE (a.first_name ILIKE $1 OR a.last_name ILIKE $1 "
+            "OR (COALESCE(a.first_name, '') || ' ' || COALESCE(a.last_name, '')) ILIKE $1)"
+        )
         params_base = [f"%{q}%"]
 
     sort_col = {
@@ -1059,6 +1634,18 @@ async def applicant_engagement(
             f"""
             SELECT COUNT(DISTINCT a.id)
             FROM public.applicants a
+            {name_filter}
+            """,
+            *params_base,
+        )
+
+        # Same population + name filter, restricted to applicants with at
+        # least one engagement event (matches the LEFT JOIN counted below).
+        active_total = await conn.fetchval(
+            f"""
+            SELECT COUNT(DISTINCT a.id)
+            FROM public.applicants a
+            JOIN public.engagement_events ee ON ee.applicant_id = a.id
             {name_filter}
             """,
             *params_base,
@@ -1089,6 +1676,7 @@ async def applicant_engagement(
 
     return ApplicantEngagementList(
         total=int(total or 0),
+        active_total=int(active_total or 0),
         rows=[
             ApplicantEngagementRow(
                 applicant_id=r["applicant_id"],
@@ -1122,6 +1710,9 @@ class EmployerEngagementRow(BaseModel):
 
 class EmployerEngagementList(BaseModel):
     total: int
+    # How many of `total` have ANY recorded action (outreach, DM,
+    # candidate view, or hire) — denominator for the takeaway sentence.
+    active_total: int = 0
     rows: list[EmployerEngagementRow]
 
 
@@ -1159,30 +1750,62 @@ async def employer_engagement(
             *params_base,
         )
 
+        # Employers with ANY of the four counted actions — the same source
+        # predicates as the lateral aggregates below.
+        active_filter = "AND" if name_filter else "WHERE"
+        active_total = await conn.fetchval(
+            f"""
+            SELECT COUNT(*) FROM public.employers e
+            {name_filter}
+            {active_filter} (
+                EXISTS (SELECT 1 FROM public.employer_outreach o
+                        WHERE o.employer_id = e.id AND o.status = 'sent')
+                OR EXISTS (SELECT 1 FROM public.engagement_events ev
+                           WHERE ev.employer_id = e.id
+                             AND (ev.event_type = 'candidate_viewed'
+                                  OR (ev.event_type = 'dm_sent'
+                                      AND (ev.event_data->>'sender_role') = 'employer')))
+                OR EXISTS (SELECT 1 FROM public.hire_outcomes h
+                           WHERE h.employer_id = e.id)
+            )
+            """,
+            *params_base,
+        )
+
+        # Each source table is aggregated in its OWN lateral before joining.
+        # Joining three one-to-many tables simultaneously multiplies rows
+        # (3 outreach × 2 hires = every event counted 6×), which silently
+        # inflated dms_sent / candidates_viewed here before.
         rows = await conn.fetch(
             f"""
             SELECT
                 e.id::text AS employer_id,
                 e.name,
-                COUNT(DISTINCT eo.id)                                            AS outreach_sent,
-                COUNT(ee.id) FILTER (WHERE ee.event_type = 'dm_sent'
-                    AND (ee.event_data->>'sender_role') = 'employer')            AS dms_sent,
-                COUNT(DISTINCT ho.id)                                            AS hires_reported,
-                COUNT(ee.id) FILTER (WHERE ee.event_type = 'candidate_viewed')  AS candidates_viewed,
-                (
-                    COUNT(DISTINCT eo.id)
-                    + COUNT(ee.id) FILTER (WHERE ee.event_type = 'dm_sent'
-                        AND (ee.event_data->>'sender_role') = 'employer')
-                    + COUNT(DISTINCT ho.id)
-                    + COUNT(ee.id) FILTER (WHERE ee.event_type = 'candidate_viewed')
-                )                                                                AS total_actions
+                COALESCE(eo.n, 0)  AS outreach_sent,
+                COALESCE(ee.dms, 0)   AS dms_sent,
+                COALESCE(ho.n, 0)  AS hires_reported,
+                COALESCE(ee.views, 0) AS candidates_viewed,
+                (COALESCE(eo.n, 0) + COALESCE(ee.dms, 0)
+                 + COALESCE(ho.n, 0) + COALESCE(ee.views, 0)) AS total_actions
             FROM public.employers e
-            LEFT JOIN public.employer_outreach eo ON eo.employer_id = e.id AND eo.status = 'sent'
-            LEFT JOIN public.engagement_events ee ON ee.employer_id = e.id
-            LEFT JOIN public.hire_outcomes ho ON ho.employer_id = e.id
+            LEFT JOIN LATERAL (
+                SELECT COUNT(*) AS n FROM public.employer_outreach o
+                WHERE o.employer_id = e.id AND o.status = 'sent'
+            ) eo ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT
+                    COUNT(*) FILTER (WHERE ev.event_type = 'dm_sent'
+                        AND (ev.event_data->>'sender_role') = 'employer') AS dms,
+                    COUNT(*) FILTER (WHERE ev.event_type = 'candidate_viewed') AS views
+                FROM public.engagement_events ev
+                WHERE ev.employer_id = e.id
+            ) ee ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT COUNT(*) AS n FROM public.hire_outcomes h
+                WHERE h.employer_id = e.id
+            ) ho ON TRUE
             {name_filter}
-            GROUP BY e.id
-            ORDER BY total_actions DESC NULLS LAST, e.name
+            ORDER BY {sort_col} DESC NULLS LAST, e.name
             LIMIT ${p} OFFSET ${p + 1}
             """,
             *params_base, page_size, offset,
@@ -1190,6 +1813,7 @@ async def employer_engagement(
 
     return EmployerEngagementList(
         total=int(total or 0),
+        active_total=int(active_total or 0),
         rows=[
             EmployerEngagementRow(
                 employer_id=r["employer_id"],
@@ -1363,15 +1987,32 @@ async def engagement_summary(user=Depends(require_admin)):
         ) or 0
         emp_act_pct = (emp_activated / emp_with_jobs * 100) if emp_with_jobs > 0 else 0.0
 
-        # Match-to-apply conversion — apply_clicks / match_views (last 30d)
-        m_views = await conn.fetchval(
-            "SELECT COUNT(*) FROM public.engagement_events "
-            "WHERE event_type = 'match_view' AND created_at > NOW() - INTERVAL '30 days'"
-        ) or 0
-        m_applies = await conn.fetchval(
-            "SELECT COUNT(*) FROM public.engagement_events "
-            "WHERE event_type = 'apply_click' AND created_at > NOW() - INTERVAL '30 days'"
-        ) or 0
+        # Match-to-apply conversion — share of applicants who viewed a match in
+        # the last 30d that also clicked apply in that window. Applicant-level
+        # subset ratio, so it is bounded at 100% by construction. (Raw event
+        # ratio apply_clicks/match_views could exceed 100% — one view, many
+        # applies — which is meaningless as a "conversion".)
+        conv_row = await conn.fetchrow(
+            """
+            WITH viewers AS (
+                SELECT DISTINCT applicant_id
+                FROM public.engagement_events
+                WHERE event_type = 'match_view' AND applicant_id IS NOT NULL
+                  AND created_at > NOW() - INTERVAL '30 days'
+            )
+            SELECT
+                (SELECT COUNT(*) FROM viewers) AS viewers,
+                (SELECT COUNT(*) FROM viewers v
+                  WHERE EXISTS (
+                    SELECT 1 FROM public.engagement_events ee
+                    WHERE ee.event_type = 'apply_click'
+                      AND ee.applicant_id = v.applicant_id
+                      AND ee.created_at > NOW() - INTERVAL '30 days'
+                  )) AS converters
+            """
+        )
+        m_views = int(conv_row["viewers"] or 0)
+        m_applies = int(conv_row["converters"] or 0)
         m_conv_pct = (m_applies / m_views * 100) if m_views > 0 else 0.0
 
         def pct_delta(a: int, b: int) -> float | None:
@@ -1412,32 +2053,48 @@ async def engagement_summary(user=Depends(require_admin)):
                 lens="conversion",
                 label="Match to apply",
                 value=f"{m_conv_pct:.0f}%",
-                detail=f"{m_applies} applies on {m_views} match views (30d)",
+                detail=f"{m_applies} of {m_views} match viewers clicked apply (30d)",
                 trend=None,
             ),
         ]
 
         # -------- Applicant activation funnel ----------
-        total_applicants = await conn.fetchval("SELECT COUNT(*) FROM public.applicants") or 0
-        complete_profiles = await conn.fetchval(
-            "SELECT COUNT(*) FROM public.applicants WHERE onboarding_complete = TRUE"
-        ) or 0
-        viewed_match = await conn.fetchval(
-            "SELECT COUNT(DISTINCT applicant_id) FROM public.engagement_events "
-            "WHERE event_type = 'match_view' AND applicant_id IS NOT NULL"
-        ) or 0
-        applied = await conn.fetchval(
-            "SELECT COUNT(DISTINCT applicant_id) FROM public.engagement_events "
-            "WHERE event_type = 'apply_click' AND applicant_id IS NOT NULL"
-        ) or 0
-        got_response = await conn.fetchval(
+        # Cumulative subsets: every stage requires all previous stages, so the
+        # funnel is monotonically non-increasing (an applicant who applied
+        # without a complete profile is off-path and must not widen a later
+        # stage past an earlier one).
+        af = await conn.fetchrow(
             """
-            SELECT COUNT(DISTINCT c.applicant_id)
-            FROM public.conversations c
-            JOIN public.direct_messages dm ON dm.conversation_id = c.id
-            WHERE dm.sender_role = 'employer'
+            WITH s AS (
+                SELECT a.id,
+                    a.onboarding_complete AS complete,
+                    EXISTS (SELECT 1 FROM public.engagement_events ee
+                            WHERE ee.applicant_id = a.id
+                              AND ee.event_type = 'match_view') AS viewed,
+                    EXISTS (SELECT 1 FROM public.engagement_events ee
+                            WHERE ee.applicant_id = a.id
+                              AND ee.event_type = 'apply_click') AS applied,
+                    EXISTS (SELECT 1 FROM public.conversations c
+                            JOIN public.direct_messages dm ON dm.conversation_id = c.id
+                            WHERE c.applicant_id = a.id
+                              AND dm.sender_role = 'employer') AS got_reply
+                FROM public.applicants a
+            )
+            SELECT
+                COUNT(*) AS signed_up,
+                COUNT(*) FILTER (WHERE complete) AS complete,
+                COUNT(*) FILTER (WHERE complete AND viewed) AS viewed,
+                COUNT(*) FILTER (WHERE complete AND viewed AND applied) AS applied,
+                COUNT(*) FILTER (WHERE complete AND viewed AND applied
+                                   AND got_reply) AS got_reply
+            FROM s
             """
-        ) or 0
+        )
+        total_applicants = int(af["signed_up"] or 0)
+        complete_profiles = int(af["complete"] or 0)
+        viewed_match = int(af["viewed"] or 0)
+        applied = int(af["applied"] or 0)
+        got_response = int(af["got_reply"] or 0)
 
         def steps(pairs: list[tuple[str, int]]) -> list[FunnelStep]:
             top = pairs[0][1] if pairs and pairs[0][1] > 0 else 0
@@ -1459,20 +2116,40 @@ async def engagement_summary(user=Depends(require_admin)):
         ])
 
         # -------- Employer activation funnel ----------
-        total_employers = await conn.fetchval("SELECT COUNT(*) FROM public.employers") or 0
-        emp_with_contact = await conn.fetchval(
-            "SELECT COUNT(DISTINCT employer_id) FROM public.employer_contacts"
-        ) or 0
-        emp_posted_job = await conn.fetchval(
-            "SELECT COUNT(DISTINCT employer_id) FROM public.jobs WHERE employer_id IS NOT NULL"
-        ) or 0
-        emp_viewed_applicant = await conn.fetchval(
-            "SELECT COUNT(DISTINCT employer_id) FROM public.engagement_events "
-            "WHERE event_type = 'candidate_viewed' AND employer_id IS NOT NULL"
-        ) or 0
-        emp_hired = await conn.fetchval(
-            "SELECT COUNT(DISTINCT employer_id) FROM public.hire_outcomes WHERE outcome_type = 'hired'"
-        ) or 0
+        # Cumulative subsets, same rationale as the applicant funnel: seeded
+        # employers with jobs but no login account must not make "Posted first
+        # job" wider than "Account created".
+        ef = await conn.fetchrow(
+            """
+            WITH s AS (
+                SELECT e.id,
+                    EXISTS (SELECT 1 FROM public.employer_contacts ec
+                            WHERE ec.employer_id = e.id) AS has_contact,
+                    EXISTS (SELECT 1 FROM public.jobs j
+                            WHERE j.employer_id = e.id) AS posted,
+                    EXISTS (SELECT 1 FROM public.engagement_events ee
+                            WHERE ee.employer_id = e.id
+                              AND ee.event_type = 'candidate_viewed') AS reviewed,
+                    EXISTS (SELECT 1 FROM public.hire_outcomes ho
+                            WHERE ho.employer_id = e.id
+                              AND ho.outcome_type = 'hired') AS hired
+                FROM public.employers e
+            )
+            SELECT
+                COUNT(*) AS onboarded,
+                COUNT(*) FILTER (WHERE has_contact) AS has_contact,
+                COUNT(*) FILTER (WHERE has_contact AND posted) AS posted,
+                COUNT(*) FILTER (WHERE has_contact AND posted AND reviewed) AS reviewed,
+                COUNT(*) FILTER (WHERE has_contact AND posted AND reviewed
+                                   AND hired) AS hired
+            FROM s
+            """
+        )
+        total_employers = int(ef["onboarded"] or 0)
+        emp_with_contact = int(ef["has_contact"] or 0)
+        emp_posted_job = int(ef["posted"] or 0)
+        emp_viewed_applicant = int(ef["reviewed"] or 0)
+        emp_hired = int(ef["hired"] or 0)
 
         employer_funnel = steps([
             ("Onboarded", total_employers),

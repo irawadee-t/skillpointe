@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowRight, ArrowLeft, Check, Sparkles, MapPin, Briefcase, Plane, ShieldCheck, PartyPopper,
@@ -10,7 +10,7 @@ import {
 import { createClient } from "@/lib/supabase/client";
 import {
   US_STATES, CAREER_PATHS, PROGRAM_FIELDS, ENROLLMENT_STATUSES, DEGREE_TYPES,
-  TRAVEL_OPTIONS, RELOCATION_OPTIONS,
+  TRAVEL_OPTIONS, RELOCATION_OPTIONS, COMMUTE_RADIUS_PRESETS,
 } from "@/lib/constants";
 import { SkilledNationLogo } from "@/components/ui/Logo";
 import { easeCohere } from "@/lib/motion";
@@ -84,10 +84,17 @@ export default function ApplicantSetupPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Step 2 helper: instead of a disabled Continue (which gives no feedback),
+  // the button stays enabled and clicking without a selection focuses the
+  // career-path grid + shows an inline hint (GOV.UK error pattern).
+  const [tradeHint, setTradeHint] = useState(false);
+  const careerGridRef = useRef<HTMLDivElement | null>(null);
+
   const [form, setForm] = useState<Record<string, unknown>>({
     first_name: "", last_name: "", enrollment_status: "", degree_type: "", school_name: "",
     career_path: "", program_field: "", specific_career: "", program_name_raw: "",
-    city: "", state: "", expected_completion_date: "", available_from_date: "",
+    city: "", state: "", commute_radius_miles: "" as string | number,
+    expected_completion_date: "", available_from_date: "",
     travel_preference: "within_state", relocation_preference: "stay_current",
     relocation_states: [] as string[],
   });
@@ -117,22 +124,33 @@ export default function ApplicantSetupPage() {
     const payload: Record<string, unknown> = { ...form, onboarding_complete: true };
     payload.willing_to_travel = payload.travel_preference !== "no_travel";
     payload.willing_to_relocate = payload.relocation_preference !== "stay_current";
+    // Commute radius: integer miles or omit.
+    {
+      const raw = payload.commute_radius_miles;
+      const n = typeof raw === "string" ? parseInt(raw, 10) : (raw as number | null);
+      if (n && n > 0) payload.commute_radius_miles = Math.min(n, 500);
+      else delete payload.commute_radius_miles;
+    }
     for (const key of Object.keys(payload)) {
       if (payload[key] === "" || payload[key] === null) delete payload[key];
     }
-    const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/applicant/me/profile`, {
-      method: "PATCH",
-      headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      setError(err.detail ?? "Something went wrong. Please try again.");
+    try {
+      const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/applicant/me/profile`, {
+        method: "PATCH",
+        headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        setError(err.detail ?? "Something went wrong. Please try again.");
+        return;
+      }
+      setStep(5);
+    } catch {
+      setError("Couldn't reach the server. Check your connection and try again.");
+    } finally {
       setLoading(false);
-      return;
     }
-    setLoading(false);
-    setStep(5);
   }
 
   const firstName = (form.first_name as string) || "";
@@ -141,13 +159,13 @@ export default function ApplicantSetupPage() {
     <main className="min-h-[calc(100vh-4rem)]">
       <div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl gap-0 lg:grid-cols-[300px_1fr]">
         {/* Progress rail */}
-        <aside className="hidden flex-col justify-between border-r border-hairline bg-canvas-soft p-10 lg:flex">
+        <aside className="hidden flex-col justify-between border-r border-hairline bg-parchment p-10 lg:flex">
           <div>
             <SkilledNationLogo width={132} />
             <p className="mt-8 font-display text-card leading-tight text-cohere-ink">
               {step === 0 ? "Let's build your profile." : step === 5 ? "You're all set." : "Almost there."}
             </p>
-            <p className="mt-2 text-body text-slate">About three minutes — then employers can find you.</p>
+            <p className="mt-2 text-body text-slate">About three minutes. Then employers can find you.</p>
             <ol className="mt-10 space-y-1">
               {STEPS.map((s) => {
                 const done = step > s.n || step === 5;
@@ -178,7 +196,7 @@ export default function ApplicantSetupPage() {
             {step >= 1 && step <= 4 && (
               <div className="mb-8 flex gap-1.5 lg:hidden">
                 {STEPS.map((s) => (
-                  <div key={s.n} className={`h-1.5 flex-1 rounded-full ${step > s.n ? "bg-cohere-green" : step === s.n ? "bg-studio-dark-cork" : "bg-hairline"}`} />
+                  <div key={s.n} className={`h-1.5 flex-1 rounded-full ${step > s.n ? "bg-cohere-green" : step === s.n ? "bg-ink" : "bg-hairline"}`} />
                 ))}
               </div>
             )}
@@ -206,7 +224,7 @@ export default function ApplicantSetupPage() {
                     {token && (
                       <div className="mt-8 space-y-3">
                         <p className="text-caption text-slate">
-                          Upload a resume and we&apos;ll parse it in a few seconds — then you&apos;ll continue to step 1 with your fields already filled in.
+                          Upload a resume and we&apos;ll parse it in a few seconds. Then you&apos;ll continue to step 1 with your fields already filled in.
                         </p>
                         <ResumeUploader token={token} onApplied={(fields) => {
                           setForm((prev) => ({ ...prev, ...fields }));
@@ -249,16 +267,45 @@ export default function ApplicantSetupPage() {
 
                 {/* ---- Step 2: Your trade ---- */}
                 {step === 2 && (
-                  <form onSubmit={(e) => { e.preventDefault(); if (form.career_path) setStep(3); }} className="space-y-5">
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (form.career_path) {
+                        setStep(3);
+                      } else {
+                        // No selection: focus the grid and explain, instead of
+                        // a silently disabled button.
+                        setTradeHint(true);
+                        careerGridRef.current?.focus();
+                      }
+                    }}
+                    className="space-y-5"
+                  >
                     <StepHead>What's your trade?</StepHead>
-                    <p className="-mt-2 text-body text-slate">Pick the path that fits best — this drives your matches.</p>
-                    <div className="grid grid-cols-2 gap-3">
+                    <p className="-mt-2 text-body text-slate">Pick the path that fits best. This drives your matches.</p>
+                    {tradeHint && !form.career_path && (
+                      <p role="alert" id="trade-hint" className="-mt-2 text-caption font-medium text-studio-maroon">
+                        Pick a trade to continue.
+                      </p>
+                    )}
+                    <div
+                      ref={careerGridRef}
+                      tabIndex={-1}
+                      role="group"
+                      aria-label="Career paths"
+                      aria-describedby={tradeHint && !form.career_path ? "trade-hint" : undefined}
+                      className={`grid grid-cols-2 gap-3 rounded-xl outline-none ${
+                        tradeHint && !form.career_path
+                          ? "ring-1 ring-studio-maroon/40 ring-offset-4 ring-offset-canvas"
+                          : ""
+                      }`}
+                    >
                       {CAREER_PATHS.map((c) => {
                         const selected = form.career_path === c.value;
                         return (
                           <button key={c.value} type="button"
-                            onClick={() => { set("career_path", c.value); set("program_field", ""); }}
-                            className={`rounded-xl border p-4 text-left transition-all ${
+                            onClick={() => { set("career_path", c.value); set("program_field", ""); setTradeHint(false); }}
+                            className={`rounded-xl border p-4 text-left transition-colors duration-150 ease-cohere ${
                               selected ? "border-cohere-green bg-wash-green shadow-[0_1px_2px_rgba(12,10,9,0.04)]"
                                 : "border-hairline bg-white hover:border-cohere-ink"}`}>
                             <span className={`text-body font-medium ${selected ? "text-cohere-green" : "text-cohere-ink"}`}>{c.label}</span>
@@ -279,7 +326,7 @@ export default function ApplicantSetupPage() {
                         </div>
                       </div>
                     )}
-                    <NavRow onBack={() => setStep(1)} nextLabel="Continue" disabled={!form.career_path} />
+                    <NavRow onBack={() => setStep(1)} nextLabel="Continue" />
                   </form>
                 )}
 
@@ -294,6 +341,27 @@ export default function ApplicantSetupPage() {
                           <option value="">Select</option>{US_STATES.map((s) => <option key={s} value={s}>{s}</option>)}
                         </select>
                       </div>
+                    </div>
+                    <div>
+                      <Label>How far will you travel for work?</Label>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {COMMUTE_RADIUS_PRESETS.map((r) => (
+                          <button key={r} type="button" onClick={() => set("commute_radius_miles", r)}
+                            aria-pressed={Number(form.commute_radius_miles) === r}
+                            className={`rounded-full border px-4 py-1.5 text-caption transition-colors ${Number(form.commute_radius_miles) === r ? "border-cohere-ink bg-ink font-medium text-white" : "border-hairline bg-white text-slate hover:border-cohere-ink"}`}>
+                            {r} mi
+                          </button>
+                        ))}
+                        <div className="flex items-center gap-1.5">
+                          <input type="number" min={1} max={500} value={(form.commute_radius_miles as string | number) ?? ""}
+                            onChange={(e) => set("commute_radius_miles", e.target.value)} className="input-cohere w-24"
+                            placeholder="50" aria-label="Commute radius in miles" />
+                          <span className="text-caption text-slate-muted">miles</span>
+                        </div>
+                      </div>
+                      <p className="mt-1.5 text-micro text-slate-muted">
+                        Jobs in any city your radius covers count as in range.
+                      </p>
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div><Label>Program completion</Label><input type="date" value={form.expected_completion_date as string} onChange={(e) => set("expected_completion_date", e.target.value)} className="input-cohere" /></div>
@@ -333,13 +401,13 @@ export default function ApplicantSetupPage() {
                               <button key={s} type="button" onClick={() => {
                                 const cur = (form.relocation_states as string[]) || [];
                                 set("relocation_states", sel ? cur.filter((x) => x !== s) : [...cur, s]);
-                              }} className={`rounded-sm py-1.5 text-micro transition-colors ${sel ? "bg-studio-dark-cork font-medium text-white" : "bg-stone text-slate hover:bg-hairline"}`}>{s}</button>
+                              }} className={`rounded-sm py-1.5 text-micro transition-colors ${sel ? "bg-ink font-medium text-white" : "bg-stone text-slate hover:bg-hairline"}`}>{s}</button>
                             );
                           })}
                         </div>
                       </div>
                     )}
-                    {error && <p className="rounded-md border border-cohere-coral-soft bg-cohere-coral/10 p-3 text-body text-error-red">{error}</p>}
+                    {error && <p className="rounded-md border border-error-red/30 bg-error-red/[0.06] p-3 text-body text-cohere-ink">{error}</p>}
                     <NavRow onBack={() => setStep(3)} nextLabel={loading ? "Saving…" : "Finish setup"} disabled={loading} submit />
                   </form>
                 )}
@@ -375,9 +443,9 @@ function NavRow({ onBack, nextLabel, disabled, submit }: { onBack: () => void; n
 }
 
 // ---------------------------------------------------------------------------
-// Done step — Confetti burst + auto-route to matches after 2.5s if the user
-// hasn't picked the "Add a credential" path. Kept as its own component so
-// we can own timer + celebration lifecycle without cluttering the main body.
+// Done step — Confetti burst, then the moment breathes: no auto-redirect,
+// the user leaves when THEY choose ("See my matches" primary pill, "Add a
+// credential" secondary).
 // ---------------------------------------------------------------------------
 function DoneStep({ firstName, onSeeMatches, onAddCredential }: {
   firstName: string;
@@ -385,21 +453,12 @@ function DoneStep({ firstName, onSeeMatches, onAddCredential }: {
   onAddCredential: () => void;
 }) {
   const [confetti, setConfetti] = useState(false);
-  const [cancelled, setCancelled] = useState(false);
-  const [countdown, setCountdown] = useState(3);
 
   useEffect(() => {
     // One-time confetti — even a returning user who hits step 5 twice only
     // sees the burst once.
     if (fireOnce("first_setup_complete")) setConfetti(true);
   }, []);
-
-  useEffect(() => {
-    if (cancelled) return;
-    if (countdown <= 0) { onSeeMatches(); return; }
-    const t = setTimeout(() => setCountdown((c) => c - 1), 833); // ~2.5s total
-    return () => clearTimeout(t);
-  }, [countdown, cancelled, onSeeMatches]);
 
   return (
     <div className="text-center">
@@ -418,24 +477,12 @@ function DoneStep({ firstName, onSeeMatches, onAddCredential }: {
           See my matches <ArrowRight className="h-4 w-4" />
         </button>
         <button
-          onClick={() => { setCancelled(true); onAddCredential(); }}
+          onClick={onAddCredential}
           className="btn-pill-outline inline-flex items-center gap-2"
         >
           <ShieldCheck className="h-4 w-4" /> Add a credential
         </button>
       </div>
-      {!cancelled && (
-        <p className="mt-4 text-caption text-slate-muted">
-          Redirecting to your matches in {countdown}…{" "}
-          <button
-            type="button"
-            onClick={() => setCancelled(true)}
-            className="underline decoration-hairline underline-offset-2 hover:text-cohere-ink"
-          >
-            stay here
-          </button>
-        </p>
-      )}
     </div>
   );
 }

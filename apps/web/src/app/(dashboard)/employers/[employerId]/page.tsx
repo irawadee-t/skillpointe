@@ -48,13 +48,13 @@ export default async function EmployerPublicPage({
           actions={
             <div className="flex flex-wrap items-center gap-2">
               {emp.verified_worker_count > 0 && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-cohere-green/30 bg-wash-green px-2.5 py-0.5 text-micro font-medium text-cohere-green" title="Applicants with verified credentials who were hired here.">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-cohere-green bg-cohere-green px-2.5 py-0.5 text-micro font-medium text-white" title="Applicants with verified credentials who were hired here.">
                   <ShieldCheck className="h-3 w-3" />
                   {emp.verified_worker_count} verified worker{emp.verified_worker_count === 1 ? "" : "s"} here
                 </span>
               )}
               {emp.open_job_count > 0 && (
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-cohere-blue/30 bg-wash-blue px-2.5 py-0.5 text-micro font-medium text-cohere-blue">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-cohere-blue bg-cohere-blue px-2.5 py-0.5 text-micro font-medium text-white">
                   <Briefcase className="h-3 w-3" />
                   {emp.open_job_count} open job{emp.open_job_count === 1 ? "" : "s"}
                 </span>

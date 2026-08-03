@@ -5,7 +5,7 @@ type BandTone = "green" | "navy" | "ink";
 const TONE: Record<BandTone, string> = {
   green: "bg-cohere-green",
   navy: "bg-cohere-navy",
-  ink: "bg-studio-dark-cork",
+  ink: "bg-ink",
 };
 
 /** Full-width dark product/feature band. Text turns white inside. */

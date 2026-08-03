@@ -8,5 +8,5 @@ export default async function EmployerApplicationsPage() {
   if (!session) redirect("/login");
   const role = session.user.app_metadata?.role;
   if (role !== "employer" && role !== "admin") redirect("/login");
-  return <EmployerApplicationsClient token={session.access_token} />;
+  return <EmployerApplicationsClient token={session.access_token} isEmployer={role === "employer"} />;
 }

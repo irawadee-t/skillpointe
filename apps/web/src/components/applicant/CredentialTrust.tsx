@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 
 import { VerifyPayload, VerifyResult, verifyCredential } from "@/lib/api/robustness";
+import { formatDate } from "@/lib/format";
 import { MonoLabel } from "@/components/ui";
 
 type Provider = "nccer" | "nsc" | "credential_engine" | "state_licensing" | "document_upload" | null;
@@ -42,7 +43,7 @@ export function VerificationBadge({
 }) {
   if (!providerSource) {
     return (
-      <span className={`inline-flex items-center gap-1.5 rounded-full border border-hairline bg-white px-2.5 py-0.5 text-micro text-slate ${className ?? ""}`}>
+      <span className={`inline-flex items-center gap-1.5 rounded-full border border-hairline bg-white px-2 py-0.5 text-[11px] text-slate ${className ?? ""}`}>
         <Shield className="h-3 w-3 text-slate-muted" strokeWidth={1.75} />
         Self-reported
       </span>
@@ -53,7 +54,7 @@ export function VerificationBadge({
     return (
       <span
         title={`Would call ${PROVIDER_LABEL[providerSource] ?? providerSource}. Add API key to enable live verification.`}
-        className={`inline-flex items-center gap-1.5 rounded-full border border-studio-maroon/30 bg-studio-maroon/[0.06] px-2.5 py-0.5 text-micro text-studio-maroon ${className ?? ""}`}
+        className={`inline-flex items-center gap-1.5 rounded-full border border-studio-maroon bg-studio-maroon px-2 py-0.5 text-[11px] text-white ${className ?? ""}`}
       >
         <ShieldQuestion className="h-3 w-3" strokeWidth={1.75} />
         Test verify, {shortLabel(providerSource)}
@@ -66,8 +67,8 @@ export function VerificationBadge({
   const isFresh = verifiedAt ? Date.now() - new Date(verifiedAt).getTime() < 5_000 : false;
   return (
     <span
-      title={`Verified by ${label}${verifiedAt ? `, ${new Date(verifiedAt).toLocaleDateString()}` : ""}${externalRef ? `, ref ${externalRef}` : ""}`}
-      className={`inline-flex items-center gap-1.5 rounded-full border border-cohere-green/30 bg-wash-green px-2.5 py-0.5 text-micro font-medium text-cohere-green ${isFresh ? "cred-pulse" : ""} ${className ?? ""}`}
+      title={`Verified by ${label}${verifiedAt ? `, ${formatDate(verifiedAt)}` : ""}${externalRef ? `, ref ${externalRef}` : ""}`}
+      className={`inline-flex items-center gap-1.5 rounded-full border border-cohere-green bg-cohere-green px-2 py-0.5 text-[11px] font-medium text-white ${isFresh ? "cred-pulse" : ""} ${className ?? ""}`}
     >
       <ShieldCheck className="h-3 w-3" strokeWidth={1.75} />
       Verified, {shortLabel(providerSource)}
@@ -154,7 +155,7 @@ export function VerifyCredentialButton({
 
       {provider === "credential_engine" && (
         <p className="mt-3 text-caption text-slate">
-          This resolves the Credential Engine (CTDL) definition behind this credential — a taxonomy check.
+          This resolves the Credential Engine (CTDL) definition behind this credential, a taxonomy check.
         </p>
       )}
 

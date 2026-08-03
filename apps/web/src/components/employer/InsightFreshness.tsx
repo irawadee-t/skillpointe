@@ -11,7 +11,9 @@ export function InsightFreshness() {
   const [asOf, setAsOf] = useState<string>("");
 
   useEffect(() => {
-    setAsOf(new Date().toLocaleTimeString());
+    // Minute precision — second-level "freshness" over-promises for numbers
+    // that only change on refresh.
+    setAsOf(new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
   }, []);
 
   if (!asOf) return null;

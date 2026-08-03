@@ -11,13 +11,33 @@
  * the employer record already exists at that point.
  */
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ArrowRight, Briefcase, CheckCircle2 } from "lucide-react";
 
 const API_URL =
   typeof window !== "undefined"
     ? (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000")
     : "http://localhost:8000";
+
+// Local-storage keys for resumable onboarding. Mirrors the applicant setup flow
+// (applicant.setup.step / .form): a partial exit (reload, accidental nav away)
+// should resume where the employer left off rather than reset to step 1.
+const ONBOARD_STEP_KEY = "employer.onboarding.step";
+const ONBOARD_COMPANY_KEY = "employer.onboarding.company";
+const ONBOARD_CONTACT_KEY = "employer.onboarding.contact";
+
+function persistDraft(key: string, value: unknown) {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.setItem(key, JSON.stringify(value)); } catch { /* silent */ }
+}
+function clearOnboardingDraft() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(ONBOARD_STEP_KEY);
+    window.localStorage.removeItem(ONBOARD_COMPANY_KEY);
+    window.localStorage.removeItem(ONBOARD_CONTACT_KEY);
+  } catch { /* silent */ }
+}
 
 const INDUSTRIES = [
   "Advanced Manufacturing",
@@ -72,11 +92,11 @@ export function EmployerOnboardingWizard({
   contactEmail: string | null;
 }) {
   const router = useRouter();
-  const [step, setStep] = useState<Step>(1);
+  const [step, _setStep] = useState<Step>(1);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [company, setCompany] = useState<CompanyForm>({
+  const [company, _setCompany] = useState<CompanyForm>({
     name: "",
     industry: "",
     city: "",
@@ -85,7 +105,7 @@ export function EmployerOnboardingWizard({
     description: "",
   });
 
-  const [contact, setContact] = useState<ContactForm>({
+  const [contact, _setContact] = useState<ContactForm>({
     full_name: suggestedContactName ?? "",
     contact_title: "",
     phone: "",
@@ -94,6 +114,34 @@ export function EmployerOnboardingWizard({
         ? Intl.DateTimeFormat().resolvedOptions().timeZone || ""
         : "",
   });
+
+  // Persist-on-change wrappers so every edit survives a reload.
+  const setStep = (next: Step) => {
+    _setStep(next);
+    // Step 3 = company already created server-side → the draft is obsolete.
+    if (next === 3) clearOnboardingDraft();
+    else persistDraft(ONBOARD_STEP_KEY, next);
+  };
+  const setCompany = (v: CompanyForm) => { _setCompany(v); persistDraft(ONBOARD_COMPANY_KEY, v); };
+  const setContact = (v: ContactForm) => { _setContact(v); persistDraft(ONBOARD_CONTACT_KEY, v); };
+
+  // Resume: rehydrate step + drafts from localStorage on mount.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const savedCompany = window.localStorage.getItem(ONBOARD_COMPANY_KEY);
+      if (savedCompany) _setCompany((prev) => ({ ...prev, ...JSON.parse(savedCompany) }));
+      const savedContact = window.localStorage.getItem(ONBOARD_CONTACT_KEY);
+      if (savedContact) _setContact((prev) => ({ ...prev, ...JSON.parse(savedContact) }));
+      const savedStep = window.localStorage.getItem(ONBOARD_STEP_KEY);
+      if (savedStep) {
+        const n = parseInt(savedStep, 10) as Step;
+        // Only steps 1–2 are resumable; step 3 implies the company already exists.
+        if (n === 1 || n === 2) _setStep(n);
+      }
+    } catch { /* silent */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const step1Valid = company.name.trim().length >= 2;
   const step2Valid = contact.full_name.trim().length >= 2;
@@ -120,6 +168,7 @@ export function EmployerOnboardingWizard({
       });
       if (res.status === 409) {
         // Already linked — jump to dashboard.
+        clearOnboardingDraft();
         router.push("/employer");
         router.refresh();
         return;
@@ -144,7 +193,7 @@ export function EmployerOnboardingWizard({
           Set up your company
         </h1>
         <p className="text-body text-slate">
-          Three quick steps to unlock ranked candidate matches.
+          Three quick steps to start receiving ranked candidate matches.
         </p>
       </header>
 
@@ -274,7 +323,7 @@ function StepCompany({
       }}
     >
       <div>
-        <h2 className="font-display text-feature text-cohere-ink">Company profile</h2>
+        <h2 className="text-[1.0625rem] font-medium text-cohere-ink">Company profile</h2>
         <p className="mt-1 text-caption text-slate">
           Tell candidates who they&apos;d be applying to.
         </p>
@@ -345,7 +394,7 @@ function StepCompany({
 
       <Field
         label="Brief description"
-        hint={`${descLen}/400 — what you make, hire for, or specialize in`}
+        hint={`${descLen}/400 · what you make, hire for, or specialize in`}
       >
         <textarea
           rows={3}
@@ -396,7 +445,7 @@ function StepContact({
       }}
     >
       <div>
-        <h2 className="font-display text-feature text-cohere-ink">Verify your contact</h2>
+        <h2 className="text-[1.0625rem] font-medium text-cohere-ink">Verify your contact</h2>
         <p className="mt-1 text-caption text-slate">
           So candidates and the SKILLED Nation team can reach the right person.
         </p>
@@ -408,7 +457,7 @@ function StepContact({
         </div>
       )}
 
-      <Field label="Hiring lead — full name">
+      <Field label="Hiring lead full name">
         <input
           required
           type="text"
@@ -420,7 +469,7 @@ function StepContact({
       </Field>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="Title" hint="Optional — e.g. Talent Acquisition Manager">
+        <Field label="Title" hint="Optional, e.g. Talent Acquisition Manager">
           <input
             type="text"
             value={value.contact_title}
@@ -473,13 +522,11 @@ function StepFirstJob() {
   return (
     <div className="space-y-5">
       <div className="flex items-start gap-3">
-        <div className="mt-0.5 rounded-sm bg-cohere-green/10 p-2">
-          <CheckCircle2 className="h-4 w-4 text-cohere-green" strokeWidth={1.75} />
-        </div>
+        <CheckCircle2 className="mt-1 h-4 w-4 shrink-0 text-cohere-green" strokeWidth={1.75} />
         <div>
-          <h2 className="font-display text-feature text-cohere-ink">Company profile saved</h2>
+          <h2 className="text-[1.0625rem] font-medium text-cohere-ink">Company profile saved</h2>
           <p className="mt-1 text-caption text-slate">
-            Post your first job now to start receiving ranked candidate matches — or come back later.
+            Post your first job now to start receiving ranked candidate matches, or come back later.
           </p>
         </div>
       </div>

@@ -15,8 +15,9 @@ Critical rules under test:
   8. Applicant users are forbidden (403)
   9. Company lookup returns 404 if user has no employer_contacts row
 
-These tests mock the DB layer and RBAC dependencies to isolate
-the routing + scoping logic from live DB connections.
+These tests mock the DB layer and use FastAPI dependency overrides for the
+RBAC dependencies to isolate the routing + scoping logic from live DB
+connections.
 """
 from __future__ import annotations
 
@@ -26,6 +27,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.auth.dependencies import get_current_user, require_employer_or_admin
 from app.auth.schemas import CurrentUser
 from app.main import app
 
@@ -107,14 +109,33 @@ def client() -> TestClient:
     return TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def _clear_dependency_overrides():
+    """Ensure dependency overrides never leak between tests."""
+    yield
+    app.dependency_overrides.clear()
+
+
 # ---------------------------------------------------------------------------
-# Helper: patch DB + auth for a single request
+# Helper: patch DB for a single request
 # ---------------------------------------------------------------------------
 
-def _mock_db_context(fetchval_return=None, fetchrow_return=None, fetch_return=None):
-    """Return a context manager that patches get_db with canned DB responses."""
+def _mock_db_context(fetchval_return=None, fetchrow_return=None, fetch_return=None,
+                     count_return=None):
+    """Return a context manager that patches get_db with canned DB responses.
+
+    fetchval is query-aware: the pagination COUNT(*) query returns
+    `count_return` (defaults to len(fetch_return)) while every other fetchval
+    (e.g. the employer_contacts lookup) returns `fetchval_return`.
+    """
     conn = AsyncMock()
-    conn.fetchval = AsyncMock(return_value=fetchval_return)
+
+    async def _fetchval(query, *args):
+        if "COUNT(*)" in query:
+            return count_return if count_return is not None else len(fetch_return or [])
+        return fetchval_return
+
+    conn.fetchval = AsyncMock(side_effect=_fetchval)
     conn.fetchrow = AsyncMock(return_value=fetchrow_return)
     conn.fetch = AsyncMock(return_value=fetch_return or [])
 
@@ -124,6 +145,11 @@ def _mock_db_context(fetchval_return=None, fetchrow_return=None, fetch_return=No
     mock_ctx.__aexit__ = AsyncMock(return_value=None)
 
     return patch("app.routers.employers.get_db", return_value=mock_ctx), conn
+
+
+def _override_employer(user: CurrentUser | None = None) -> None:
+    """Bypass the auth gate, presenting the endpoint an authenticated employer."""
+    app.dependency_overrides[require_employer_or_admin] = lambda: user or _employer_user()
 
 
 # ---------------------------------------------------------------------------
@@ -146,15 +172,12 @@ class TestEmployerScoping:
             fetchrow_return=None,             # count query finds nothing (wrong employer)
         )
 
+        _override_employer()
         with ctx_patch:
-            with patch(
-                "app.routers.employers.require_employer_or_admin",
-                return_value=_employer_user(),
-            ):
-                response = client.get(
-                    f"/employer/me/jobs/{JOB_B_ID}/applicants",
-                    headers={"Authorization": "Bearer fake-token"},
-                )
+            response = client.get(
+                f"/employer/me/jobs/{JOB_B_ID}/applicants",
+                headers={"Authorization": "Bearer fake-token"},
+            )
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
@@ -175,15 +198,12 @@ class TestEmployerScoping:
             fetch_return=[_make_match_row()],
         )
 
+        _override_employer()
         with ctx_patch:
-            with patch(
-                "app.routers.employers.require_employer_or_admin",
-                return_value=_employer_user(),
-            ):
-                response = client.get(
-                    f"/employer/me/jobs/{JOB_A_ID}/applicants",
-                    headers={"Authorization": "Bearer fake-token"},
-                )
+            response = client.get(
+                f"/employer/me/jobs/{JOB_A_ID}/applicants",
+                headers={"Authorization": "Bearer fake-token"},
+            )
 
         assert response.status_code == 200
         data = response.json()
@@ -229,15 +249,12 @@ class TestVisibilityFlag:
             fetch_return=[_make_match_row()],
         )
 
+        _override_employer()
         with ctx_patch:
-            with patch(
-                "app.routers.employers.require_employer_or_admin",
-                return_value=_employer_user(),
-            ):
-                response = client.get(
-                    f"/employer/me/jobs/{JOB_A_ID}/applicants",
-                    headers={"Authorization": "Bearer fake-token"},
-                )
+            response = client.get(
+                f"/employer/me/jobs/{JOB_A_ID}/applicants",
+                headers={"Authorization": "Bearer fake-token"},
+            )
 
         assert response.status_code == 200
         data = response.json()
@@ -274,15 +291,12 @@ class TestDefaultEligibilityExclusion:
             fetch_return=eligible_rows,
         )
 
+        _override_employer()
         with ctx_patch:
-            with patch(
-                "app.routers.employers.require_employer_or_admin",
-                return_value=_employer_user(),
-            ):
-                response = client.get(
-                    f"/employer/me/jobs/{JOB_A_ID}/applicants",
-                    headers={"Authorization": "Bearer fake-token"},
-                )
+            response = client.get(
+                f"/employer/me/jobs/{JOB_A_ID}/applicants",
+                headers={"Authorization": "Bearer fake-token"},
+            )
 
         assert response.status_code == 200
         data = response.json()
@@ -315,15 +329,12 @@ class TestEligibilityFilter:
             fetch_return=eligible_rows,
         )
 
+        _override_employer()
         with ctx_patch:
-            with patch(
-                "app.routers.employers.require_employer_or_admin",
-                return_value=_employer_user(),
-            ):
-                response = client.get(
-                    f"/employer/me/jobs/{JOB_A_ID}/applicants?eligibility=eligible",
-                    headers={"Authorization": "Bearer fake-token"},
-                )
+            response = client.get(
+                f"/employer/me/jobs/{JOB_A_ID}/applicants?eligibility=eligible",
+                headers={"Authorization": "Bearer fake-token"},
+            )
 
         assert response.status_code == 200
         data = response.json()
@@ -347,15 +358,12 @@ class TestEligibilityFilter:
             fetch_return=near_fit_rows,
         )
 
+        _override_employer()
         with ctx_patch:
-            with patch(
-                "app.routers.employers.require_employer_or_admin",
-                return_value=_employer_user(),
-            ):
-                response = client.get(
-                    f"/employer/me/jobs/{JOB_A_ID}/applicants?eligibility=near_fit",
-                    headers={"Authorization": "Bearer fake-token"},
-                )
+            response = client.get(
+                f"/employer/me/jobs/{JOB_A_ID}/applicants?eligibility=near_fit",
+                headers={"Authorization": "Bearer fake-token"},
+            )
 
         assert response.status_code == 200
         data = response.json()
@@ -382,15 +390,12 @@ class TestMinScoreFilter:
             fetch_return=[_make_match_row(policy_adjusted_score=85.0)],
         )
 
+        _override_employer()
         with ctx_patch:
-            with patch(
-                "app.routers.employers.require_employer_or_admin",
-                return_value=_employer_user(),
-            ):
-                response = client.get(
-                    f"/employer/me/jobs/{JOB_A_ID}/applicants?min_score=70",
-                    headers={"Authorization": "Bearer fake-token"},
-                )
+            response = client.get(
+                f"/employer/me/jobs/{JOB_A_ID}/applicants?min_score=70",
+                headers={"Authorization": "Bearer fake-token"},
+            )
 
         assert response.status_code == 200
         data = response.json()
@@ -403,34 +408,32 @@ class TestMinScoreFilter:
 
 class TestRBAC:
     def test_applicant_role_forbidden(self, client: TestClient) -> None:
-        """Applicants cannot access employer endpoints."""
-        with patch(
-            "app.routers.employers.require_employer_or_admin",
-            side_effect=__import__(
-                "fastapi", fromlist=["HTTPException"]
-            ).HTTPException(status_code=403, detail="Forbidden"),
-        ):
-            response = client.get(
-                "/employer/me/company",
-                headers={"Authorization": "Bearer fake-token"},
-            )
+        """Applicants cannot access employer endpoints.
+
+        Override the base get_current_user with an applicant so the REAL
+        require_employer_or_admin role gate runs and rejects the request.
+        """
+        app.dependency_overrides[get_current_user] = lambda: _applicant_user()
+
+        response = client.get(
+            "/employer/me/company",
+            headers={"Authorization": "Bearer fake-token"},
+        )
         assert response.status_code == 403
 
     def test_no_employer_linked_returns_404(self, client: TestClient) -> None:
         """User with employer role but no employer_contacts row → 404."""
         ctx_patch, conn = _mock_db_context(
-            fetchval_return=None,  # employer_contacts lookup returns None
+            fetchval_return=None,   # employer_contacts lookup returns None
+            fetchrow_return=None,   # company query finds nothing
         )
 
+        _override_employer()
         with ctx_patch:
-            with patch(
-                "app.routers.employers.require_employer_or_admin",
-                return_value=_employer_user(),
-            ):
-                response = client.get(
-                    "/employer/me/company",
-                    headers={"Authorization": "Bearer fake-token"},
-                )
+            response = client.get(
+                "/employer/me/company",
+                headers={"Authorization": "Bearer fake-token"},
+            )
 
         assert response.status_code == 404
         assert "not found" in response.json()["detail"].lower()
@@ -460,15 +463,12 @@ class TestSafeFields:
             fetch_return=[_make_match_row()],
         )
 
+        _override_employer()
         with ctx_patch:
-            with patch(
-                "app.routers.employers.require_employer_or_admin",
-                return_value=_employer_user(),
-            ):
-                response = client.get(
-                    f"/employer/me/jobs/{JOB_A_ID}/applicants",
-                    headers={"Authorization": "Bearer fake-token"},
-                )
+            response = client.get(
+                f"/employer/me/jobs/{JOB_A_ID}/applicants",
+                headers={"Authorization": "Bearer fake-token"},
+            )
 
         assert response.status_code == 200
         applicant = response.json()["applicants"][0]

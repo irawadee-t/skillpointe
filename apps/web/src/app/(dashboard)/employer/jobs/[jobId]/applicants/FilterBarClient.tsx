@@ -1,18 +1,19 @@
 "use client";
 
 /**
- * Filter bar — GETs the applicants page with query params in the URL.
- * The min-score slider and the numeric input share the same state so the
- * employer can drag OR type a value.
+ * Filter bar — live type-ahead filters synced to the URL. Every control
+ * narrows the server-rendered list as you interact (typing filters live,
+ * debounced ~250ms; no Apply button needed).
  */
-import { useState } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+
+import { UrlSearchField, UrlSelectField } from "@/components/ui";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 
 export function FilterBarClient({
-  jobId,
   eligibility,
   minScore,
-  state,
-  relocate,
 }: {
   jobId: string;
   eligibility: string;
@@ -20,29 +21,54 @@ export function FilterBarClient({
   state: string | undefined;
   relocate: boolean | undefined;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [, startTransition] = useTransition();
+
+  // Min score — slider and numeric input share state; URL updates debounced.
   const [score, setScore] = useState<number>(minScore || 0);
+  const debouncedScore = useDebouncedValue(score, 250);
+  const lastPushedScore = useRef(minScore || 0);
+
+  useEffect(() => {
+    if (debouncedScore === lastPushedScore.current) return;
+    lastPushedScore.current = debouncedScore;
+    const params = new URLSearchParams(searchParams.toString());
+    if (debouncedScore > 0) params.set("min_score", String(debouncedScore));
+    else params.delete("min_score");
+    params.delete("page");
+    const qs = params.toString();
+    startTransition(() => {
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedScore]);
 
   return (
-    <form
-      method="GET"
-      action={`/employer/jobs/${jobId}/applicants`}
-      className="rounded-md border border-border-light bg-white p-5"
-    >
+    <div className="rounded-md border border-border-light bg-white p-5">
       <p className="mono-label mb-4">Filters</p>
       <div className="flex flex-wrap gap-4 items-end">
+        {/* Candidate name — live search */}
+        <UrlSearchField
+          param="q"
+          label="Search name"
+          placeholder="Jane Doe…"
+          className="min-w-[180px] flex-1 sm:flex-none"
+        />
+
         {/* Eligibility */}
-        <div className="min-w-[140px]">
-          <label className="block text-micro tracking-wide text-slate mb-1.5">Eligibility</label>
-          <select
-            name="eligibility"
-            defaultValue={eligibility}
-            className="input-cohere"
-          >
-            <option value="all">All (eligible + near fit)</option>
-            <option value="eligible">Eligible only</option>
-            <option value="near_fit">Near fit only</option>
-          </select>
-        </div>
+        <UrlSelectField
+          param="eligibility"
+          label="Eligibility"
+          defaultValue={eligibility || "all"}
+          className="min-w-[140px]"
+          options={[
+            { value: "all", label: "All (eligible + near fit)" },
+            { value: "eligible", label: "Eligible only" },
+            { value: "near_fit", label: "Near fit only" },
+          ]}
+        />
 
         {/* Min score — slider + numeric input sharing state */}
         <div className="min-w-[220px] flex-1 sm:flex-none">
@@ -62,7 +88,6 @@ export function FilterBarClient({
             />
             <input
               type="number"
-              name="min_score"
               min={0}
               max={100}
               step={1}
@@ -80,36 +105,27 @@ export function FilterBarClient({
         </div>
 
         {/* State */}
-        <div className="min-w-[100px]">
-          <label className="block text-micro tracking-wide text-slate mb-1.5">State</label>
-          <input
-            type="text"
-            name="state"
-            maxLength={2}
-            defaultValue={state || ""}
-            placeholder="e.g. TX"
-            className="input-cohere"
-          />
-        </div>
+        <UrlSearchField
+          param="state"
+          label="State"
+          placeholder="e.g. TX"
+          maxLength={2}
+          uppercase
+          className="min-w-[110px]"
+        />
 
         {/* Willing to relocate */}
-        <div className="min-w-[140px]">
-          <label className="block text-micro tracking-wide text-slate mb-1.5">Relocate willingness</label>
-          <select
-            name="relocate"
-            defaultValue={
-              relocate === true ? "true" : relocate === false ? "false" : ""
-            }
-            className="input-cohere"
-          >
-            <option value="">Any</option>
-            <option value="true">Open to relocate</option>
-            <option value="false">Local only</option>
-          </select>
-        </div>
-
-        <button type="submit" className="btn-primary">Apply</button>
+        <UrlSelectField
+          param="relocate"
+          label="Willing to relocate"
+          className="min-w-[140px]"
+          options={[
+            { value: "", label: "Any" },
+            { value: "true", label: "Open to relocate" },
+            { value: "false", label: "Local only" },
+          ]}
+        />
       </div>
-    </form>
+    </div>
   );
 }

@@ -12,18 +12,14 @@
  * Sub-tables (per-applicant / per-employer engagement) are still available
  * via ?view=applicants / ?view=employers for drill-down.
  */
+import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import {
-  UserPlus,
-  Zap,
-  TrendingUp,
-  Target,
-  Activity,
-} from "lucide-react";
 
 import { createClient } from "@/lib/supabase/server";
-import { PageHeader, Breadcrumb } from "@/components/ui";
+import { PageHeader, Breadcrumb, MetricCard, UrlSearchField, UrlSelectField } from "@/components/ui";
+import { MarketplaceFunnel, TrendLine } from "@/components/viz";
+import { MatchQualityCard } from "@/components/admin/MatchQualityCard";
 import { PagerJump } from "@/components/admin/PagerJump";
 import { formatRelative } from "@/lib/time";
 
@@ -59,6 +55,31 @@ interface Summary {
   retention: RetCohort[];
   time_to_hire: TimeToHire;
   employer_response: ResponseSLA;
+}
+
+/**
+ * The stage pair losing the most people — each funnel's one "so what".
+ * Uses absolute loss, not rate: at small scale a "0 of 1" transition would
+ * always win on rate while the real story is the hundreds lost earlier.
+ */
+function funnelDropTakeaway(steps: FunnelStep[]): string | null {
+  if (steps.length < 2 || steps[0].count === 0) return null;
+  let worstIdx = -1;
+  let worstLoss = -1;
+  for (let i = 0; i < steps.length - 1; i++) {
+    if (steps[i].count === 0) break;
+    const loss = steps[i].count - steps[i + 1].count;
+    if (loss > worstLoss) {
+      worstLoss = loss;
+      worstIdx = i;
+    }
+  }
+  if (worstIdx < 0 || worstLoss <= 0) return null;
+  const from = steps[worstIdx];
+  const to = steps[worstIdx + 1];
+  const rate = to.count / from.count;
+  const pctLabel = rate > 0 && rate < 0.005 ? "<1%" : `${Math.round(rate * 100)}%`;
+  return `Biggest drop-off: ${from.label.toLowerCase()} → ${to.label.toLowerCase()}: ${to.count.toLocaleString()} of ${from.count.toLocaleString()} continue (${pctLabel}).`;
 }
 
 interface ApplicantRow {
@@ -104,7 +125,7 @@ async function fetchSummary(token: string): Promise<Summary | null> {
 
 async function fetchApplicants(
   token: string, q: string, sort: string, page: number,
-): Promise<{ total: number; rows: ApplicantRow[] } | null> {
+): Promise<{ total: number; active_total: number; rows: ApplicantRow[] } | null> {
   const params = new URLSearchParams({
     page: String(page),
     page_size: "50",
@@ -124,7 +145,7 @@ async function fetchApplicants(
 
 async function fetchEmployers(
   token: string, q: string, sort: string, page: number,
-): Promise<{ total: number; rows: EmployerRow[] } | null> {
+): Promise<{ total: number; active_total: number; rows: EmployerRow[] } | null> {
   const params = new URLSearchParams({
     page: String(page),
     page_size: "50",
@@ -143,15 +164,15 @@ async function fetchEmployers(
 }
 
 // ---------------------------------------------------------------------------
-// Lens config — icon + descriptive title per AARRR lens
+// Lens config — descriptive title per AARRR lens
 // ---------------------------------------------------------------------------
 
-const LENS_META: Record<Lens["lens"], { icon: React.ElementType; title: string }> = {
-  acquisition: { icon: UserPlus,   title: "Acquisition" },
-  activation:  { icon: Zap,        title: "Activation"  },
-  engagement:  { icon: Activity,   title: "Engagement"  },
-  retention:   { icon: TrendingUp, title: "Retention"   },
-  conversion:  { icon: Target,     title: "Conversion"  },
+const LENS_META: Record<Lens["lens"], { title: string }> = {
+  acquisition: { title: "Acquisition" },
+  activation:  { title: "Activation"  },
+  engagement:  { title: "Engagement"  },
+  retention:   { title: "Retention"   },
+  conversion:  { title: "Conversion"  },
 };
 
 type View = "overview" | "applicants" | "employers";
@@ -190,19 +211,13 @@ export default async function AdminEngagementPage({ searchParams }: PageProps) {
   const sort = sp.sort ?? defaultSort[view];
   const token = session.access_token;
 
-  const [summary, applicantsData, employersData] = await Promise.all([
-    view === "overview"   ? fetchSummary(token) : null,
-    view === "applicants" ? fetchApplicants(token, q, sort, page) : null,
-    view === "employers"  ? fetchEmployers(token, q, sort, page)  : null,
-  ]);
-
   return (
     <main className="py-8">
       <div className="page-shell space-y-6">
         <Breadcrumb items={[{ label: "Admin", href: "/admin" }, { label: "Engagement" }]} />
         <PageHeader
           eyebrow="Engagement analytics"
-          title="Platform Engagement"
+          title="Platform engagement"
           lead="One north star, five lenses, two funnels. Cut deeper only when you have a reason to."
           actions={
             <Link href="/admin" className="btn-secondary">
@@ -212,7 +227,7 @@ export default async function AdminEngagementPage({ searchParams }: PageProps) {
         />
 
         {/* Tabs */}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2" data-tour-id="engagement-tabs">
           {(
             [
               { key: "overview",   label: "Overview" },
@@ -234,11 +249,69 @@ export default async function AdminEngagementPage({ searchParams }: PageProps) {
           ))}
         </div>
 
-        {view === "overview"   && <OverviewView data={summary} />}
-        {view === "applicants" && <ApplicantsView data={applicantsData} q={q} sort={sort} page={page} />}
-        {view === "employers"  && <EmployersView  data={employersData}  q={q} sort={sort} page={page} />}
+        {/* Stream the data section under the (already painted) header + tabs.
+            key={view} remounts the boundary on tab switch so the fallback
+            shows immediately instead of freezing on the previous view. */}
+        <Suspense key={view} fallback={<ViewFallback />}>
+          <EngagementView view={view} token={token} q={q} sort={sort} page={page} />
+        </Suspense>
       </div>
     </main>
+  );
+}
+
+/** Awaits the per-view fetch — identical fetch logic, just streamed. */
+async function EngagementView({
+  view,
+  token,
+  q,
+  sort,
+  page,
+}: {
+  view: View;
+  token: string;
+  q: string;
+  sort: string;
+  page: number;
+}) {
+  const [summary, applicantsData, employersData] = await Promise.all([
+    view === "overview"   ? fetchSummary(token) : null,
+    view === "applicants" ? fetchApplicants(token, q, sort, page) : null,
+    view === "employers"  ? fetchEmployers(token, q, sort, page)  : null,
+  ]);
+
+  if (view === "applicants") return <ApplicantsView data={applicantsData} q={q} sort={sort} page={page} />;
+  if (view === "employers")  return <EmployersView  data={employersData}  q={q} sort={sort} page={page} />;
+  return <OverviewView data={summary} token={token} />;
+}
+
+/** Quiet shape-matched placeholder for the section below the tabs. */
+function ViewFallback() {
+  return (
+    <div className="space-y-4" role="status" aria-live="polite">
+      <span className="sr-only">Loading…</span>
+      <div className="animate-pulse rounded-2xl border border-hairline bg-white p-6 motion-reduce:animate-none">
+        <div className="h-3 w-40 rounded-md bg-stone/70" />
+        <div className="mt-3 h-8 w-24 rounded-md bg-stone/70" />
+        <div className="mt-4 h-16 w-full rounded-md bg-stone/40" />
+      </div>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="animate-pulse rounded-2xl border border-hairline bg-white p-5 motion-reduce:animate-none">
+            <div className="h-3 w-20 rounded-md bg-stone/70" />
+            <div className="mt-3 h-6 w-14 rounded-md bg-stone/70" />
+          </div>
+        ))}
+      </div>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {Array.from({ length: 2 }).map((_, i) => (
+          <div key={i} className="animate-pulse rounded-2xl border border-hairline bg-white p-6 motion-reduce:animate-none">
+            <div className="h-4 w-48 rounded-md bg-stone/70" />
+            <div className="mt-4 h-32 w-full rounded-md bg-stone/40" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -246,10 +319,10 @@ export default async function AdminEngagementPage({ searchParams }: PageProps) {
 // Overview
 // ---------------------------------------------------------------------------
 
-function OverviewView({ data }: { data: Summary | null }) {
+function OverviewView({ data, token }: { data: Summary | null; token: string }) {
   if (!data) {
     return (
-      <div className="bg-cohere-coral/10 border border-cohere-coral-soft rounded-2xl p-5 text-caption text-cohere-ink">
+      <div className="bg-error-red/[0.06] border border-error-red/30 rounded-2xl p-5 text-caption text-cohere-ink">
         <strong>Could not load engagement summary.</strong> Please refresh.
       </div>
     );
@@ -257,11 +330,13 @@ function OverviewView({ data }: { data: Summary | null }) {
 
   return (
     <div className="space-y-4">
-      <NorthStarCard ns={data.north_star} generatedAt={data.generated_at} />
+      <div data-tour-id="engagement-northstar">
+        <NorthStarCard ns={data.north_star} generatedAt={data.generated_at} />
+      </div>
 
       <LensGrid lenses={data.lenses} />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4" data-tour-id="engagement-funnels">
         <FunnelCard
           title="Applicant activation funnel"
           subtitle="Signup → activated → transacting"
@@ -273,6 +348,10 @@ function OverviewView({ data }: { data: Summary | null }) {
           steps={data.employer_funnel}
         />
       </div>
+
+      {/* Marketplace health — how match quality is distributed across every
+          scored pair (viz2 histogram; annotation computed server-side). */}
+      <MatchQualityCard token={token} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <RetentionCard cohorts={data.retention} />
@@ -288,99 +367,56 @@ function OverviewView({ data }: { data: Summary | null }) {
 
 function NorthStarCard({ ns, generatedAt }: { ns: NorthStar; generatedAt: string }) {
   const delta = ns.prev_value === 0 ? null : ((ns.value - ns.prev_value) / ns.prev_value) * 100;
-  const arrow = delta === null ? "" : delta > 0 ? "▲" : delta < 0 ? "▼" : "•";
 
   return (
-    <section className="rounded-2xl border border-studio-dark-cork/15 bg-studio-cream p-6 shadow-subtle">
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr] gap-6 items-center">
+    <section className="rounded-[10px] border border-hairline bg-white p-6">
+      <div className="grid grid-cols-1 items-center gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
         <div>
-          <p className="text-caption font-medium text-studio-sienna">
-            NORTH STAR — LAST 30 DAYS
-          </p>
-          <h2 className="mt-3 font-display text-heading text-studio-maroon leading-none tabular-nums">
-            {ns.value}
+          <p className="text-caption text-slate-muted">North star · last 30 days</p>
+          <h2 className="mt-3 font-display text-heading leading-none tabular-nums text-cohere-ink">
+            {ns.value.toLocaleString()}
           </h2>
-          <p className="mt-3 text-body text-studio-dark-cork">
-            Verified hires reported
+          <p className="mt-3 text-body text-cohere-ink">Verified hires reported</p>
+          <p className="mt-1 text-caption text-slate">
+            {delta === null
+              ? "No prior 30-day baseline yet"
+              : `${delta > 0 ? "Up" : delta < 0 ? "Down" : "Flat at"} ${Math.abs(delta).toFixed(0)}% vs the prior 30 days (${ns.prev_value.toLocaleString()} hires)`}
+            {" · "}
+            {ns.all_time.toLocaleString()} all-time
           </p>
-          <p className="mt-1 text-caption text-studio-dark-cork/70">
-            {delta === null ? (
-              <>No prior 30-day baseline yet.</>
-            ) : (
-              <>
-                <span className={delta > 0 ? "text-studio-forest font-semibold" : delta < 0 ? "text-studio-maroon font-semibold" : ""}>
-                  {arrow} {Math.abs(delta).toFixed(0)}%
-                </span>{" "}
-                vs prior 30d ({ns.prev_value} hires)
-              </>
-            )}
-            {", "}
-            <span className="text-studio-dark-cork/60">
-              {ns.all_time.toLocaleString()} all-time
-            </span>
-          </p>
-          <p className="mt-4 text-micro text-studio-dark-cork/50">
+          <p className="mt-4 text-micro text-slate-muted">
             Refreshed {formatRelative(generatedAt)}
           </p>
         </div>
 
         <div>
-          <p className="text-caption font-medium text-studio-dark-cork/70 mb-2">
-            12-WEEK TREND
-          </p>
-          <Sparkline points={ns.spark} />
+          {(() => {
+            // A trend line with ≤1 non-zero week is a flat line pretending to
+            // be a signal — say what happened in a sentence instead.
+            const nonZero = ns.spark.filter((p) => p.value > 0);
+            if (nonZero.length <= 1) {
+              return (
+                <p className="border-t border-hairline pt-3 text-caption text-slate-muted lg:border-t-0 lg:pt-0">
+                  {nonZero.length === 0
+                    ? `No hires in the last 12 weeks${ns.all_time > 0 ? `. All ${ns.all_time.toLocaleString()} reported hire${ns.all_time === 1 ? "" : "s"} predate this window` : ""}.`
+                    : `One hire in the last 12 weeks (week of ${nonZero[0].label}). A weekly trend appears once hires recur.`}
+                </p>
+              );
+            }
+            return (
+              <>
+                <p className="mb-2 text-caption text-slate-muted">Hires per week, last 12 weeks</p>
+                <TrendLine
+                  points={ns.spark.map((p) => ({ label: p.label.slice(5), value: p.value }))}
+                  height={112}
+                  ariaLabel="Weekly verified hires, last 12 weeks"
+                />
+              </>
+            );
+          })()}
         </div>
       </div>
     </section>
-  );
-}
-
-function Sparkline({ points }: { points: SparkPt[] }) {
-  if (points.length === 0) {
-    return <p className="text-caption text-studio-dark-cork/60">No data yet.</p>;
-  }
-  const w = 560;
-  const h = 100;
-  const pad = 8;
-  const max = Math.max(1, ...points.map(p => p.value));
-  const stepX = (w - pad * 2) / Math.max(1, points.length - 1);
-  const y = (v: number) => h - pad - (v / max) * (h - pad * 2);
-
-  const path = points
-    .map((p, i) => `${i === 0 ? "M" : "L"} ${(pad + i * stepX).toFixed(1)} ${y(p.value).toFixed(1)}`)
-    .join(" ");
-
-  const areaPath =
-    `M ${pad} ${h - pad} ` +
-    points.map((p, i) => `L ${(pad + i * stepX).toFixed(1)} ${y(p.value).toFixed(1)}`).join(" ") +
-    ` L ${(pad + (points.length - 1) * stepX).toFixed(1)} ${h - pad} Z`;
-
-  return (
-    <div className="w-full overflow-x-auto">
-      <svg
-        viewBox={`0 0 ${w} ${h}`}
-        preserveAspectRatio="none"
-        className="w-full h-24"
-        role="img"
-        aria-label="12-week hires trend"
-      >
-        <path d={areaPath} fill="#9E1B32" fillOpacity="0.08" />
-        <path d={path} fill="none" stroke="#9E1B32" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-        {points.map((p, i) => (
-          <circle
-            key={i}
-            cx={pad + i * stepX}
-            cy={y(p.value)}
-            r="2.5"
-            fill="#9E1B32"
-          />
-        ))}
-      </svg>
-      <div className="flex justify-between mt-1 text-micro text-studio-dark-cork/50">
-        <span>{points[0]?.label.slice(5) ?? ""}</span>
-        <span>{points[points.length - 1]?.label.slice(5) ?? ""}</span>
-      </div>
-    </div>
   );
 }
 
@@ -390,47 +426,25 @@ function Sparkline({ points }: { points: SparkPt[] }) {
 
 function LensGrid({ lenses }: { lenses: Lens[] }) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
       {lenses.map((lens, i) => {
         const meta = LENS_META[lens.lens];
-        const Icon = meta.icon;
-        const arrow = lens.trend === null ? "" : lens.trend > 0 ? "▲" : lens.trend < 0 ? "▼" : "•";
-        const trendClass =
-          lens.trend === null ? "text-studio-dark-cork/50"
-          : lens.trend > 0 ? "text-studio-forest"
-          : lens.trend < 0 ? "text-studio-maroon"
-          : "text-studio-dark-cork/60";
+        const trendText =
+          lens.trend === null
+            ? null
+            : lens.trend > 0
+              ? `up ${Math.abs(lens.trend).toFixed(0)}%`
+              : lens.trend < 0
+                ? `down ${Math.abs(lens.trend).toFixed(0)}%`
+                : "flat";
         return (
-          <div
+          <MetricCard
             key={i}
-            className="rounded-2xl border border-studio-dark-cork/15 bg-white p-4 shadow-subtle"
-          >
-            <div className="flex items-center gap-2">
-              <span className="rounded-md bg-studio-cream p-1.5">
-                <Icon className="h-3.5 w-3.5 text-studio-dark-cork" strokeWidth={1.75} />
-              </span>
-              <span className="text-micro font-medium text-studio-dark-cork/70">
-                {meta.title}
-              </span>
-            </div>
-            <p className="mt-2 text-caption text-studio-dark-cork/80">
-              {lens.label}
-            </p>
-            <p className="mt-2 font-display text-card text-studio-maroon leading-none tabular-nums">
-              {lens.value}
-            </p>
-            <p className="mt-3 text-caption text-studio-dark-cork/60 leading-snug">
-              {lens.trend !== null && (
-                <>
-                  <span className={`font-semibold ${trendClass}`}>
-                    {arrow} {Math.abs(lens.trend).toFixed(0)}%
-                  </span>
-                  {", "}
-                </>
-              )}
-              {lens.detail}
-            </p>
-          </div>
+            label={lens.label}
+            value={lens.value}
+            sub={[meta.title, trendText, lens.detail].filter(Boolean).join(" · ")}
+            className="h-full"
+          />
         );
       })}
     </div>
@@ -446,32 +460,17 @@ function FunnelCard({
 }: {
   title: string; subtitle: string; steps: FunnelStep[];
 }) {
+  const takeaway = funnelDropTakeaway(steps);
   return (
-    <section className="rounded-2xl border border-studio-dark-cork/15 bg-white p-5 shadow-subtle">
-      <h3 className="font-display text-subhead text-studio-maroon">{title}</h3>
-      <p className="text-caption text-studio-dark-cork/60 mb-4">{subtitle}</p>
-      <div className="space-y-3">
-        {steps.map((s, i) => {
-          const pct = Math.round(s.pct_of_top * 100);
-          return (
-            <div key={i}>
-              <div className="flex justify-between items-baseline mb-1">
-                <span className="text-caption text-studio-dark-cork">{s.label}</span>
-                <span className="text-caption text-studio-dark-cork tabular-nums">
-                  {s.count.toLocaleString()}
-                  <span className="text-studio-dark-cork/50">, {pct}%</span>
-                </span>
-              </div>
-              <div className="h-2 rounded-sm bg-studio-cream overflow-hidden">
-                <div
-                  className="h-full bg-studio-maroon"
-                  style={{ width: `${Math.max(pct, 2)}%` }}
-                />
-              </div>
-            </div>
-          );
-        })}
-      </div>
+    <section className="rounded-[10px] border border-hairline bg-white p-5">
+      <h3 className="text-[1.0625rem] font-medium text-cohere-ink">{title}</h3>
+      <p className="mb-4 text-caption text-slate-muted">{subtitle}</p>
+      <MarketplaceFunnel
+        stages={steps.map((s) => ({ key: s.label, label: s.label, count: s.count }))}
+      />
+      {takeaway && (
+        <p className="mt-3 border-t border-hairline pt-3 text-caption text-slate">{takeaway}</p>
+      )}
     </section>
   );
 }
@@ -481,76 +480,39 @@ function FunnelCard({
 // ---------------------------------------------------------------------------
 
 function RetentionCard({ cohorts }: { cohorts: RetCohort[] }) {
-  const w = 480;
-  const h = 180;
-  const pad = { l: 32, r: 12, t: 12, b: 28 };
-  const points = cohorts.filter(c => c.n_users > 0);
-  const stepX = points.length > 1 ? (w - pad.l - pad.r) / (points.length - 1) : 0;
-  const y = (pct: number) => pad.t + (1 - pct) * (h - pad.t - pad.b);
-
-  const path = points
-    .map((c, i) => `${i === 0 ? "M" : "L"} ${(pad.l + i * stepX).toFixed(1)} ${y(c.pct_returning).toFixed(1)}`)
-    .join(" ");
+  const points = cohorts.filter((c) => c.n_users > 0);
+  const cohortSize = points[0]?.n_users ?? 0;
+  // Post-signup weeks only: W0 "returning" is just signup-week activity.
+  const anyReturn = points.some((c) => c.week_offset > 0 && c.pct_returning > 0);
 
   return (
-    <section className="rounded-2xl border border-studio-dark-cork/15 bg-white p-5 shadow-subtle">
-      <h3 className="font-display text-subhead text-studio-maroon">Applicant retention</h3>
-      <p className="text-caption text-studio-dark-cork/60 mb-4">
-        % of a signup cohort returning in each subsequent week (last 12 weeks of cohorts)
+    <section className="rounded-[10px] border border-hairline bg-white p-5">
+      <h3 className="text-[1.0625rem] font-medium text-cohere-ink">Applicant retention</h3>
+      <p className="mb-4 text-caption text-slate-muted">
+        Share of a signup cohort returning in each subsequent week (last 12 weeks of cohorts)
       </p>
       {points.length === 0 ? (
-        <p className="text-caption text-studio-dark-cork/60 py-8 text-center">
-          Not enough cohort data yet. Curve appears once applicants have been signed up for at least 1 week.
+        <p className="border-t border-hairline pt-3 text-caption text-slate-muted">
+          Not enough cohort data yet. The curve appears once applicants have been signed up
+          for at least one week.
+        </p>
+      ) : !anyReturn ? (
+        // An all-zero curve is not a curve — state the fact it would draw.
+        <p className="border-t border-hairline pt-3 text-caption text-slate-muted">
+          0 of {cohortSize.toLocaleString()} applicants who signed up in the last 12 weeks
+          came back in a later week. The curve appears once anyone returns.
         </p>
       ) : (
-        <div className="w-full overflow-x-auto">
-          <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-44" role="img" aria-label="Cohort retention curve">
-            {/* gridlines at 0/25/50/75/100% */}
-            {[0, 0.25, 0.5, 0.75, 1].map((g) => (
-              <g key={g}>
-                <line
-                  x1={pad.l} y1={y(g)}
-                  x2={w - pad.r} y2={y(g)}
-                  stroke="#000" strokeOpacity="0.06" strokeDasharray="2 3"
-                />
-                <text
-                  x={pad.l - 6} y={y(g) + 3}
-                  textAnchor="end"
-                  className=""
-                  fontSize="10"
-                  fill="#5c4d3d"
-                >
-                  {Math.round(g * 100)}%
-                </text>
-              </g>
-            ))}
-            {/* x-axis labels */}
-            {points.map((c, i) => (
-              <text
-                key={c.week_offset}
-                x={pad.l + i * stepX}
-                y={h - 8}
-                textAnchor="middle"
-                className=""
-                fontSize="10"
-                fill="#5c4d3d"
-              >
-                W{c.week_offset}
-              </text>
-            ))}
-            {/* line */}
-            <path d={path} fill="none" stroke="#9E1B32" strokeWidth="2" strokeLinejoin="round" />
-            {points.map((c, i) => (
-              <circle
-                key={c.week_offset}
-                cx={pad.l + i * stepX}
-                cy={y(c.pct_returning)}
-                r="3"
-                fill="#9E1B32"
-              />
-            ))}
-          </svg>
-        </div>
+        <TrendLine
+          points={points.map((c) => ({
+            label: `W${c.week_offset}`,
+            value: c.pct_returning,
+          }))}
+          height={168}
+          domainMax={1}
+          format="percent"
+          ariaLabel="Cohort retention curve"
+        />
       )}
     </section>
   );
@@ -564,51 +526,43 @@ function HireEconomicsCard({ tth, sla }: { tth: TimeToHire; sla: ResponseSLA }) 
   const fmtDays = (v: number | null) => v === null ? "—" : v < 1 ? `${(v * 24).toFixed(0)}h` : `${v.toFixed(1)}d`;
   const fmtHrs  = (v: number | null) => v === null ? "—" : v < 24 ? `${v.toFixed(1)}h` : `${(v / 24).toFixed(1)}d`;
   return (
-    <section className="rounded-2xl border border-studio-dark-cork/15 bg-white p-5 shadow-subtle">
-      <h3 className="font-display text-subhead text-studio-maroon">Hire economics</h3>
-      <p className="text-caption text-studio-dark-cork/60 mb-4">
+    <section className="rounded-[10px] border border-hairline bg-white p-5">
+      <h3 className="text-[1.0625rem] font-medium text-cohere-ink">Hire economics</h3>
+      <p className="mb-4 text-caption text-slate-muted">
         The two levers that most correlate with a healthy marketplace: speed to hire, speed of employer response.
       </p>
 
       <div className="grid grid-cols-2 gap-3">
-        <StatBlock
-          label="Time to hire (p50)"
+        <MetricCard
+          label="median time to hire"
           value={fmtDays(tth.p50_days)}
-          detail={`n=${tth.sample_size}`}
+          sub={
+            tth.sample_size === 0
+              ? "No hires recorded yet"
+              : `Across ${tth.sample_size.toLocaleString()} hire${tth.sample_size === 1 ? "" : "s"}${tth.sample_size < 5 ? " (directional only)" : ""}`
+          }
         />
-        <StatBlock
-          label="Time to hire (p90)"
+        <MetricCard
+          label="time to hire, p90"
           value={fmtDays(tth.p90_days)}
-          detail="Long-tail — worst 10%"
+          sub={tth.sample_size < 10 ? "Needs ~10+ hires to mean much" : "Long tail · slowest 10%"}
         />
-        <StatBlock
-          label="Employer reply (median)"
+        <MetricCard
+          label="median employer reply"
           value={fmtHrs(sla.median_hours)}
-          detail={`n=${sla.sample_size} conversations`}
+          sub={
+            sla.sample_size === 0
+              ? "No replied conversations yet"
+              : `Across ${sla.sample_size.toLocaleString()} conversation${sla.sample_size === 1 ? "" : "s"}${sla.sample_size < 5 ? " (directional only)" : ""}`
+          }
         />
-        <StatBlock
-          label="Employer reply (p90)"
+        <MetricCard
+          label="employer reply, p90"
           value={fmtHrs(sla.p90_hours)}
-          detail="Worst 10% of employers"
+          sub={sla.sample_size < 10 ? "Needs ~10+ conversations to mean much" : "Slowest 10% of employers"}
         />
       </div>
     </section>
-  );
-}
-
-function StatBlock({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return (
-    <div className="rounded-xl bg-studio-cream/60 p-3">
-      <p className="text-micro font-medium text-studio-dark-cork/70">
-        {label}
-      </p>
-      <p className="mt-1 font-display text-feature text-studio-maroon tabular-nums leading-none">
-        {value}
-      </p>
-      <p className="mt-1 text-caption text-studio-dark-cork/60">
-        {detail}
-      </p>
-    </div>
   );
 }
 
@@ -619,7 +573,7 @@ function StatBlock({ label, value, detail }: { label: string; value: string; det
 function ApplicantsView({
   data, q, sort, page,
 }: {
-  data: { total: number; rows: ApplicantRow[] } | null;
+  data: { total: number; active_total: number; rows: ApplicantRow[] } | null;
   q: string; sort: string; page: number;
 }) {
   const cols: { key: string; label: string }[] = [
@@ -633,28 +587,23 @@ function ApplicantsView({
 
   return (
     <div className="space-y-4">
-      <form method="GET" action="/admin/engagement" className="flex gap-3 flex-wrap">
-        <input type="hidden" name="view" value="applicants" />
-        <input
-          name="q"
-          defaultValue={q}
+      <div className="flex gap-3 flex-wrap items-center">
+        <UrlSearchField
+          param="q"
           placeholder="Search applicant name…"
-          className="input-cohere px-3 py-1.5 text-caption w-56"
+          className="w-56"
+          inputClassName="px-3 py-1.5 pl-9 text-caption"
         />
-        <select
-          name="sort"
-          defaultValue={sort}
-          className="input-cohere px-3 py-1.5 text-caption w-auto"
-        >
-          {cols.slice(1).map((c) => (
-            <option key={c.key} value={c.key}>Sort: {c.label}</option>
-          ))}
-        </select>
-        <button type="submit" className="btn-sm">Apply</button>
+        <UrlSelectField
+          param="sort"
+          defaultValue="total_events"
+          selectClassName="px-3 py-1.5 text-caption w-auto"
+          options={cols.slice(1).map((c) => ({ value: c.key, label: `Sort: ${c.label}` }))}
+        />
         {(q || sort !== "total_events") && (
           <Link href="/admin/engagement?view=applicants" className="btn-ghost">Reset</Link>
         )}
-      </form>
+      </div>
 
       {!data ? <ErrorBox /> : data.rows.length === 0 ? (
         <EmptyBox>
@@ -662,24 +611,28 @@ function ApplicantsView({
         </EmptyBox>
       ) : (
         <>
-          <p className="text-caption font-medium text-studio-dark-cork/70">
-            {data.total.toLocaleString()} applicant{data.total !== 1 ? "s" : ""}
+          <p className="text-caption text-slate">
+            <span className="tabular-nums">{(data.active_total ?? 0).toLocaleString()}</span> of{" "}
+            <span className="tabular-nums">{data.total.toLocaleString()}</span>{" "}
+            applicant{data.total !== 1 ? "s" : ""} {(data.active_total ?? 0) === 1 ? "has" : "have"}{" "}
+            any recorded activity; the rest have never engaged on the platform.
           </p>
-          <div className="border border-studio-dark-cork/15 rounded-2xl bg-white overflow-x-auto shadow-subtle">
+          <div className="overflow-x-auto rounded-[10px] border border-hairline bg-white">
             <table className="w-full text-body">
               <thead>
-                <tr className="border-b border-studio-dark-cork/10">
+                <tr className="border-b border-hairline">
                   {cols.map((c) => (
                     <th
                       key={c.key}
-                      className={`px-4 py-2.5 text-micro font-medium text-studio-dark-cork/70 ${
+                      aria-sort={c.key !== "name" ? (sort === c.key ? "descending" : "none") : undefined}
+                      className={`px-4 py-2.5 text-micro font-medium text-slate ${
                         c.key === "name" ? "text-left" : "text-right"
                       }`}
                     >
                       {c.key !== "name" ? (
                         <Link
                           href={`/admin/engagement?view=applicants&sort=${c.key}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
-                          className={`hover:text-studio-maroon transition-colors ${sort === c.key ? "text-studio-maroon" : ""}`}
+                          className={`transition-colors hover:text-cohere-ink ${sort === c.key ? "text-cohere-ink" : ""}`}
                         >
                           {c.label} {sort === c.key ? "↓" : ""}
                         </Link>
@@ -688,12 +641,12 @@ function ApplicantsView({
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-studio-dark-cork/10">
+              <tbody className="divide-y divide-hairline">
                 {data.rows.map((r) => (
-                  <tr key={r.applicant_id} className="transition-colors hover:bg-studio-cream/50">
+                  <tr key={r.applicant_id} className="transition-colors hover:bg-parchment/40">
                     <td className="px-4 py-2.5">
-                      <p className="font-semibold text-studio-dark-cork">{r.name}</p>
-                      <p className="text-caption text-studio-dark-cork/60">
+                      <p className="font-medium text-cohere-ink">{r.name}</p>
+                      <p className="text-caption text-slate-muted">
                         {[r.program, r.state].filter(Boolean).join(", ")}
                       </p>
                     </td>
@@ -701,7 +654,7 @@ function ApplicantsView({
                     <NumCell val={r.apply_clicks} />
                     <NumCell val={r.chat_messages} />
                     <NumCell val={r.dms_sent} />
-                    <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-studio-maroon">
+                    <td className="px-4 py-2.5 text-right font-medium tabular-nums text-cohere-ink">
                       {r.total_events}
                     </td>
                   </tr>
@@ -723,7 +676,7 @@ function ApplicantsView({
 function EmployersView({
   data, q, sort, page,
 }: {
-  data: { total: number; rows: EmployerRow[] } | null;
+  data: { total: number; active_total: number; rows: EmployerRow[] } | null;
   q: string; sort: string; page: number;
 }) {
   const cols: { key: string; label: string }[] = [
@@ -737,28 +690,23 @@ function EmployersView({
 
   return (
     <div className="space-y-4">
-      <form method="GET" action="/admin/engagement" className="flex gap-3 flex-wrap">
-        <input type="hidden" name="view" value="employers" />
-        <input
-          name="q"
-          defaultValue={q}
+      <div className="flex gap-3 flex-wrap items-center">
+        <UrlSearchField
+          param="q"
           placeholder="Search employer name…"
-          className="input-cohere px-3 py-1.5 text-caption w-56"
+          className="w-56"
+          inputClassName="px-3 py-1.5 pl-9 text-caption"
         />
-        <select
-          name="sort"
-          defaultValue={sort}
-          className="input-cohere px-3 py-1.5 text-caption w-auto"
-        >
-          {cols.slice(1).map((c) => (
-            <option key={c.key} value={c.key}>Sort: {c.label}</option>
-          ))}
-        </select>
-        <button type="submit" className="btn-sm">Apply</button>
+        <UrlSelectField
+          param="sort"
+          defaultValue="total_actions"
+          selectClassName="px-3 py-1.5 text-caption w-auto"
+          options={cols.slice(1).map((c) => ({ value: c.key, label: `Sort: ${c.label}` }))}
+        />
         {(q || sort !== "total_actions") && (
           <Link href="/admin/engagement?view=employers" className="btn-ghost">Reset</Link>
         )}
-      </form>
+      </div>
 
       {!data ? <ErrorBox /> : data.rows.length === 0 ? (
         <EmptyBox>
@@ -766,24 +714,28 @@ function EmployersView({
         </EmptyBox>
       ) : (
         <>
-          <p className="text-caption font-medium text-studio-dark-cork/70">
-            {data.total.toLocaleString()} employer{data.total !== 1 ? "s" : ""}
+          <p className="text-caption text-slate">
+            <span className="tabular-nums">{(data.active_total ?? 0).toLocaleString()}</span> of{" "}
+            <span className="tabular-nums">{data.total.toLocaleString()}</span>{" "}
+            employer{data.total !== 1 ? "s" : ""} {(data.active_total ?? 0) === 1 ? "has" : "have"}{" "}
+            taken any action (outreach, DM, candidate view, or hire).
           </p>
-          <div className="border border-studio-dark-cork/15 rounded-2xl bg-white overflow-x-auto shadow-subtle">
+          <div className="overflow-x-auto rounded-[10px] border border-hairline bg-white">
             <table className="w-full text-body">
               <thead>
-                <tr className="border-b border-studio-dark-cork/10">
+                <tr className="border-b border-hairline">
                   {cols.map((c) => (
                     <th
                       key={c.key}
-                      className={`px-4 py-2.5 text-micro font-medium text-studio-dark-cork/70 ${
+                      aria-sort={c.key !== "name" ? (sort === c.key ? "descending" : "none") : undefined}
+                      className={`px-4 py-2.5 text-micro font-medium text-slate ${
                         c.key === "name" ? "text-left" : "text-right"
                       }`}
                     >
                       {c.key !== "name" ? (
                         <Link
                           href={`/admin/engagement?view=employers&sort=${c.key}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
-                          className={`hover:text-studio-maroon transition-colors ${sort === c.key ? "text-studio-maroon" : ""}`}
+                          className={`transition-colors hover:text-cohere-ink ${sort === c.key ? "text-cohere-ink" : ""}`}
                         >
                           {c.label} {sort === c.key ? "↓" : ""}
                         </Link>
@@ -792,15 +744,15 @@ function EmployersView({
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-studio-dark-cork/10">
+              <tbody className="divide-y divide-hairline">
                 {data.rows.map((r) => (
-                  <tr key={r.employer_id} className="transition-colors hover:bg-studio-cream/50">
-                    <td className="px-4 py-2.5 font-medium text-studio-dark-cork">{r.name}</td>
+                  <tr key={r.employer_id} className="transition-colors hover:bg-parchment/40">
+                    <td className="px-4 py-2.5 font-medium text-cohere-ink">{r.name}</td>
                     <NumCell val={r.outreach_sent} />
                     <NumCell val={r.dms_sent} />
                     <NumCell val={r.hires_reported} />
                     <NumCell val={r.candidates_viewed} />
-                    <td className="px-4 py-2.5 text-right font-semibold tabular-nums text-studio-maroon">
+                    <td className="px-4 py-2.5 text-right font-medium tabular-nums text-cohere-ink">
                       {r.total_actions}
                     </td>
                   </tr>
@@ -822,7 +774,7 @@ function EmployersView({
 function NumCell({ val }: { val: number }) {
   return (
     <td className={`px-4 py-2.5 text-right text-body tabular-nums ${
-      val > 0 ? "text-studio-dark-cork font-semibold" : "text-studio-dark-cork/30"
+      val > 0 ? "text-cohere-ink" : "text-slate-muted/50"
     }`}>
       {val}
     </td>
@@ -842,7 +794,7 @@ function Pagination({
   return (
     <div className="flex flex-wrap items-center gap-3 justify-end text-caption">
       {page > 1 && (
-        <Link href={`${base}&page=${page - 1}`} className="text-studio-dark-cork hover:text-studio-maroon transition-colors">
+        <Link href={`${base}&page=${page - 1}`} className="text-slate transition-colors hover:text-cohere-ink">
           ← Prev
         </Link>
       )}
@@ -853,7 +805,7 @@ function Pagination({
         totalPages={totalPages}
       />
       {page < totalPages && (
-        <Link href={`${base}&page=${page + 1}`} className="text-studio-dark-cork hover:text-studio-maroon transition-colors">
+        <Link href={`${base}&page=${page + 1}`} className="text-slate transition-colors hover:text-cohere-ink">
           Next →
         </Link>
       )}
@@ -863,7 +815,7 @@ function Pagination({
 
 function ErrorBox() {
   return (
-    <div className="bg-cohere-coral/10 border border-cohere-coral-soft rounded-2xl p-5 text-caption text-cohere-ink">
+    <div className="bg-error-red/[0.06] border border-error-red/30 rounded-2xl p-5 text-caption text-cohere-ink">
       Could not load data. Please refresh.
     </div>
   );
@@ -871,7 +823,7 @@ function ErrorBox() {
 
 function EmptyBox({ children }: { children: React.ReactNode }) {
   return (
-    <div className="border border-studio-dark-cork/15 rounded-2xl bg-white p-10 text-center text-caption text-studio-dark-cork/60">
+    <div className="rounded-[10px] border border-hairline bg-white p-10 text-center text-caption text-slate-muted">
       {children}
     </div>
   );

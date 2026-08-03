@@ -65,7 +65,7 @@ export function ConsentClient({
         <PageHeader
           eyebrow="Your data"
           title="Data sharing & consent"
-          lead="You decide what's shown, what SKILLED Nation can use, and who receives each part of your profile. Nothing goes out unless you turn it on — every change is recorded."
+          lead="You decide what's shown, what SKILLED Nation can use, and who receives each part of your profile. Nothing goes out unless you turn it on. Every change is recorded."
         />
 
         {/* Scope legend */}
@@ -91,7 +91,7 @@ export function ConsentClient({
         </div>
 
         <p className="text-caption text-slate-muted">
-          External sharing is delivered through SKILLED ID and is gated per organization type.
+          External sharing is gated per organization type.
           Consent changes are written to a signed, append-only record for your protection.
         </p>
       </div>
@@ -145,7 +145,7 @@ function CategoryCard({
   return (
     <div className="rounded-md border border-border-light bg-white p-5">
       <div className="flex items-center justify-between gap-3">
-        <h3 className="font-display text-feature text-cohere-ink">
+        <h3 className="text-[1.0625rem] font-medium text-cohere-ink">
           {DATA_CATEGORY_LABELS[cat] ?? cat}
         </h3>
         <SaveBadge state={saveState} />
@@ -170,7 +170,7 @@ function CategoryCard({
         <div className="flex items-center gap-2">
           <Share2 className="h-3.5 w-3.5 text-slate-muted" />
           <span className="text-caption font-medium text-ink">Share externally with</span>
-          {!sharingOn && <span className="text-micro text-slate-muted">— off (private)</span>}
+          {!sharingOn && <span className="text-micro text-slate-muted">· off (private)</span>}
         </div>
         <div className="mt-2.5 flex flex-wrap gap-2">
           {REQUESTER_CATEGORIES.map((req) => {
@@ -197,7 +197,7 @@ function CategoryCard({
       </div>
 
       {saveState === "error" && (
-        <p className="mt-3 text-micro text-error-red">Couldn&apos;t save that change — please retry.</p>
+        <p className="mt-3 text-micro text-error-red">Couldn&apos;t save that change. Please retry.</p>
       )}
     </div>
   );

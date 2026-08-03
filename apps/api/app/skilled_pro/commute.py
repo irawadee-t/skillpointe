@@ -13,8 +13,8 @@ existing gate. Downstream UI can render "27 min drive" instead of "18 mi away".
 """
 from __future__ import annotations
 
-import math
 import logging
+import math
 from typing import Optional, Tuple
 
 import asyncpg

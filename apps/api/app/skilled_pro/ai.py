@@ -145,7 +145,9 @@ async def generate_impact_report(numbers: dict[str, Any]) -> tuple[str, str]:
         return template_impact_report(numbers), "template"
     try:
         import httpx
-        async with httpx.AsyncClient(timeout=30.0) as client:
+
+        from app.util.openai_client import interactive_http_timeout
+        async with httpx.AsyncClient(timeout=interactive_http_timeout()) as client:
             resp = await client.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
@@ -169,12 +171,27 @@ async def generate_impact_report(numbers: dict[str, Any]) -> tuple[str, str]:
 
 
 def template_employer_insights(n: dict[str, Any]) -> str:
-    parts = [
-        f"Across {n.get('hires', 0)} reported placement(s), median time to fill was "
-        f"{n.get('time_to_fill_days')} days at a median wage of {_money(n.get('median_wage'))}."
-    ]
-    pm = n.get("platform_median_wage")
+    """Deterministic narrative. Sentences are only emitted when their numbers
+    exist — a sentence must never contain "n/a"/"None" placeholders."""
+    parts: list[str] = []
+    hires = n.get("hires", 0) or 0
+    ttf = n.get("time_to_fill_days")
     mw = n.get("median_wage")
+    pm = n.get("platform_median_wage")
+
+    hire_bits = []
+    if isinstance(ttf, int):
+        hire_bits.append(f"median time to fill was {ttf} days")
+    if isinstance(mw, int):
+        hire_bits.append(f"median wage was {_money(mw)}")
+    if hires and hire_bits:
+        parts.append(
+            f"Across {hires} reported placement{'s' if hires != 1 else ''}, "
+            + " and ".join(hire_bits) + "."
+        )
+    elif hires:
+        parts.append(f"You have {hires} reported placement{'s' if hires != 1 else ''} so far.")
+
     if isinstance(pm, int) and isinstance(mw, int) and pm:
         delta = round((mw - pm) / pm * 100)
         parts.append(
@@ -186,7 +203,7 @@ def template_employer_insights(n: dict[str, Any]) -> str:
             f"Surfaced candidates averaged a {_pct(n['avg_match_fit'])} fit score, with "
             f"{n.get('strong_matches', 0)} strong matches in the pipeline."
         )
-    return " ".join(parts)
+    return " ".join(parts) or "Not enough data yet to summarize your hiring."
 
 
 async def generate_employer_insights(numbers: dict[str, Any]) -> tuple[str, str]:
@@ -197,7 +214,9 @@ async def generate_employer_insights(numbers: dict[str, Any]) -> tuple[str, str]
     facts = "\n".join(f"{k}: {v}" for k, v in numbers.items() if not isinstance(v, (list, dict)))
     try:
         import httpx
-        async with httpx.AsyncClient(timeout=30.0) as client:
+
+        from app.util.openai_client import interactive_http_timeout
+        async with httpx.AsyncClient(timeout=interactive_http_timeout()) as client:
             resp = await client.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
@@ -232,7 +251,9 @@ async def generate_summary(profile: dict[str, Any]) -> tuple[str, str]:
 
     try:
         import httpx
-        async with httpx.AsyncClient(timeout=30.0) as client:
+
+        from app.util.openai_client import interactive_http_timeout
+        async with httpx.AsyncClient(timeout=interactive_http_timeout()) as client:
             resp = await client.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},

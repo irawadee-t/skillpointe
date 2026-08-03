@@ -1,5 +1,28 @@
 #!/usr/bin/env python3
 """
+DEPRECATED — do not use.
+
+This one-off script DELETES ALL applicants and matches, invents random
+person names for anonymized rows, and bypasses import_runs/import_rows
+tracking (no idempotency, no attribution chain).
+
+Use the tracked, idempotent pipeline instead:
+
+    python scripts/import_applicants.py --file "<path>/Skilled Trades Scholarship Data.csv"
+    python scripts/normalize_data.py
+    python scripts/recompute_matches.py
+
+That path assigns deterministic synthetic identities
+(Scholar NNNN / scholar-NNNN@scholarship-import.local), upserts on email so
+re-imports never duplicate, and records every raw row in import_rows.
+"""
+import sys as _sys
+
+print(__doc__)
+_sys.exit(1)
+
+# --- Legacy code retained below for reference only (unreachable) ---
+"""
 Import 335 applicant profiles from the SkillPointe Foundation
 Skilled Trades Scholarship CSV into the local Supabase applicants table.
 

@@ -9,12 +9,8 @@ Key design rules (DECISIONS.md / SCORING_CONFIG.yaml):
   - Geography is first-class in every response
 """
 from __future__ import annotations
-from __future__ import annotations
-
-from typing import Any
 
 from pydantic import BaseModel
-
 
 # ---------------------------------------------------------------------------
 # Profile
@@ -24,13 +20,21 @@ class ApplicantProfileSummary(BaseModel):
     applicant_id: str
     first_name: str | None
     last_name: str | None
+    # Exposed read/write on the profile: SMS notifications send to this number,
+    # so the applicant must be able to see and correct it.
+    phone: str | None = None
     program_name_raw: str | None
     canonical_job_family_code: str | None
     city: str | None
     state: str | None
     region: str | None
+    # Geocoded home coordinates (city-level centroid, resolved on profile
+    # save) — powers the "near me from profile location" browse fallback.
+    lat: float | None = None
+    lng: float | None = None
     willing_to_relocate: bool
     willing_to_travel: bool
+    commute_radius_miles: int | None
     expected_completion_date: str | None
     available_from_date: str | None
     profile_completeness: int   # 0–100 rough percentage
@@ -98,6 +102,9 @@ class JobMatchSummary(BaseModel):
     # Application
     source_url: str | None
     canonical_job_family_code: str | None
+    # In-platform apply available for this job (jobs.accepts_internal_applications
+    # falling back to the employer default) — powers the list's Apply sheet.
+    internal_apply: bool = False
 
     # Job detail (for expandable card)
     description_raw: str | None
@@ -111,6 +118,11 @@ class JobMatchSummary(BaseModel):
 
     # Applicant's self-reported interest for this job
     applicant_interest: str | None   # interested | applied | not_interested | None
+
+    # Relaxation tier (visibility/grouping only — never a score change)
+    match_tier: str | None = None    # strict | adjacent | stretch | nearby
+    tier_reason: str | None = None   # e.g. "Near you, different trade"
+    distance_miles: float | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -173,6 +185,14 @@ class RankedMatchesResponse(BaseModel):
     # Section 2: "Promising near-fit opportunities" — near_fit only
     near_fit_matches: list[JobMatchSummary]
     total_near_fit: int
+
+    # Section 3: "Near you, different trade" — geography-only relaxation
+    # tier. Populated ONLY when the stricter sections fall below the
+    # configured floor (policy_configs §relaxation.min_results); each entry
+    # carries match_tier='nearby' + tier_reason so the UI groups honestly.
+    nearby_matches: list[JobMatchSummary] = []
+    total_nearby: int = 0
+    relaxation_applied: bool = False
 
     has_matches: bool
     profile_has_family: bool    # job family normalised

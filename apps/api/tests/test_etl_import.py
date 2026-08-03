@@ -15,11 +15,11 @@ import sys
 from datetime import date
 from pathlib import Path
 
-import pytest
-
 # Allow importing from packages/etl
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / "packages"))
 
+from etl.applicant_mapper import map_row as map_applicant
+from etl.applicant_mapper import validate as validate_applicant
 from etl.coerce import (
     coerce_bool,
     coerce_date,
@@ -28,10 +28,9 @@ from etl.coerce import (
     coerce_text,
     split_full_name,
 )
-from etl.applicant_mapper import map_row as map_applicant, validate as validate_applicant, COLUMN_MAP as APPLICANT_COLUMN_MAP
-from etl.job_mapper import map_row as map_job, validate as validate_job, COLUMN_MAP as JOB_COLUMN_MAP
+from etl.job_mapper import map_row as map_job
+from etl.job_mapper import validate as validate_job
 from etl.models import ImportResult, ImportRowResult
-
 
 # ============================================================
 # coerce helpers
@@ -254,18 +253,44 @@ class TestApplicantMapper:
 
     # ---- Real SkillPointe column names ----
 
-    def test_folder_name_splits_to_first_last(self):
-        """'Folder - Name' column (normalized: folder_name) → first/last name."""
-        row = self._make_row(folder_name="Smith, Jane")
-        applicant, _ = map_applicant(row)
-        assert applicant.first_name == "Jane"
-        assert applicant.last_name == "Smith"
+    def test_folder_name_is_review_status_not_name(self):
+        """'Folder - Name' holds a scholarship REVIEW STATUS, never a person's name."""
+        row = self._make_row(folder_name="Internal Review")
+        applicant, _ = map_applicant(row, row_number=7)
+        assert applicant.review_status == "Internal Review"
+        assert applicant.extra["scholarship_review_status"] == "Internal Review"
+        # It must NEVER leak into the name — a synthetic identity is used instead
+        assert applicant.first_name == "Scholar"
+        assert applicant.last_name == "0007"
+        assert applicant.synthetic_identity is True
 
-    def test_linked_personalized_account_to_email(self):
-        """'Linked Personalized Account' (normalized: linked_personalized_account) → email."""
-        row = self._make_row(linked_personalized_account="Jane@Example.COM")
-        applicant, _ = map_applicant(row)
+    def test_linked_personalized_account_never_email(self):
+        """'Linked Personalized Account' is the literal 'First Last' placeholder —
+        not an email, not unique.  It must never become the identity."""
+        row = self._make_row(linked_personalized_account="First Last")
+        applicant, _ = map_applicant(row, row_number=12)
+        assert applicant.email == "scholar-0012@scholarship-import.local"
+        assert applicant.extra["linked_personalized_account"] == "First Last"
+
+    def test_synthetic_identity_deterministic(self):
+        """Same row ordinal → same identity → re-imports are idempotent."""
+        a1, _ = map_applicant(self._make_row(folder_name="Internal Review"), row_number=42)
+        a2, _ = map_applicant(self._make_row(folder_name="Internal Review"), row_number=42)
+        assert a1.email == a2.email == "scholar-0042@scholarship-import.local"
+        assert (a1.first_name, a1.last_name) == (a2.first_name, a2.last_name)
+
+    def test_real_email_not_overridden_by_synthetic(self):
+        row = self._make_row(email="jane@example.com", first_name="Jane", last_name="Smith")
+        applicant, _ = map_applicant(row, row_number=3)
         assert applicant.email == "jane@example.com"
+        assert applicant.synthetic_identity is False
+
+    def test_invalid_email_string_rejected(self):
+        row = self._make_row(email="not an email")
+        applicant, warnings = map_applicant(row, row_number=5)
+        assert applicant.email == "scholar-0005@scholarship-import.local"
+        assert applicant.extra.get("invalid_email_raw") == "not an email"
+        assert any("not an" in w for w in warnings)
 
     def test_school_state_strips_us_prefix(self):
         """'School State:' column returns 'US-TX' in the export; strip 'US-' → 'TX'."""

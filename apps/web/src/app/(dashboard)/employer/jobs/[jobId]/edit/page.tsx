@@ -8,6 +8,7 @@ import { redirect } from "next/navigation";
 
 import { createClient } from "@/lib/supabase/server";
 import { Reveal } from "@/components/ui";
+import { ScreeningEditor } from "@/components/employer/ScreeningEditor";
 import { EditJobFormClient } from "./EditJobFormClient";
 import type { JobFormDefaults } from "../../new/JobFormFields";
 
@@ -52,6 +53,9 @@ export default async function EditJobPage({ params }: PageProps) {
         requirements_raw: job.requirements_raw ?? undefined,
         experience_level: job.experience_level ?? undefined,
         is_active: job.is_active,
+        accepts_internal_applications: job.accepts_internal_applications,
+        internal_apply_effective: job.internal_apply_effective,
+        required_profile_fields: job.required_profile_fields ?? undefined,
       };
     }
   } catch {
@@ -78,6 +82,14 @@ export default async function EditJobPage({ params }: PageProps) {
             defaults={defaults}
           />
         </Reveal>
+
+        {/* Extra questions beyond the profile — shown to applicants inside the
+            apply sheet. Employer-only editor (admin views are read-only). */}
+        {role === "employer" && (
+          <Reveal delay={0.15}>
+            <ScreeningEditor token={session.access_token} jobId={jobId} />
+          </Reveal>
+        )}
       </div>
     </main>
   );

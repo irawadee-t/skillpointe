@@ -7,27 +7,24 @@ from __future__ import annotations
 
 import pytest
 
-from app.skilled_pro import taxonomy
-from app.skilled_pro.taxonomy import CredentialType
-from app.skilled_pro import signing
-from app.skilled_pro.signing import sign_record, verify_record, verify_chain, GENESIS_HASH
-from app.skilled_pro.verification import (
-    VerificationLevel,
-    CredentialSource,
-    VerificationEvidence,
-    derive_level,
-)
+from app.skilled_pro import apikeys, signing, taxonomy
 from app.skilled_pro.consent import (
-    ConsentState,
     ConsentScope,
+    ConsentState,
     RequesterCategory,
     can_share_externally,
     filter_categories_for_requester,
     parse_external_sharing,
 )
-from app.skilled_pro import apikeys
-from app.skilled_pro.ratelimit import RateLimiter, InMemoryBackend, TIERS, RateTier
-
+from app.skilled_pro.ratelimit import TIERS, InMemoryBackend, RateLimiter, RateTier
+from app.skilled_pro.signing import GENESIS_HASH, sign_record, verify_chain, verify_record
+from app.skilled_pro.taxonomy import CredentialType
+from app.skilled_pro.verification import (
+    CredentialSource,
+    VerificationEvidence,
+    VerificationLevel,
+    derive_level,
+)
 
 # ---------------------------------------------------------------------------
 # Taxonomy
@@ -44,9 +41,9 @@ from app.skilled_pro.ratelimit import RateLimiter, InMemoryBackend, TIERS, RateT
     ("ASE Certified", "ASE"),
     ("CDL-A", "CDL_A"),
     ("Class A CDL", "CDL_A"),
-    ("NCCER Core", "NCCER"),
+    ("NCCER Core", "NCCER_CORE"),
     ("forklift certification", "FORKLIFT_PIT"),
-    ("Associate of Applied Science", "ASSOCIATE"),
+    ("Associate of Applied Science", "ASSOCIATE_APPLIED_SCIENCE"),
 ])
 def test_normalize_known_credentials(raw, code):
     res = taxonomy.normalize(raw)

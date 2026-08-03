@@ -25,7 +25,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 # ---------------------------------------------------------------------------
 # Hook 1: Job Description Skill Extraction
 # ---------------------------------------------------------------------------

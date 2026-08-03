@@ -14,7 +14,7 @@ def test_valid_row_normalizes():
     p = plan_row(IngestRowInput(email="Jane@Example.com", credential_name="EPA 608"))
     assert p.ok
     assert p.email == "jane@example.com"          # normalized
-    assert p.canonical_code == "EPA_608"
+    assert p.canonical_code == "epa_608"
     assert not p.needs_review
 
 

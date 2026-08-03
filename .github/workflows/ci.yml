@@ -1,0 +1,131 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: Backend — lint + tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install ruff
+      - name: Ruff (lint)
+        run: ruff check .
+      - name: Pytest (mocked unit tests)
+        env:
+          APP_ENV: test
+          SUPABASE_URL: http://localhost:54321
+          SUPABASE_ANON_KEY: test-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
+          SUPABASE_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+          REDIS_URL: redis://localhost:6379
+        # Real-DB integration tests run in the dedicated `integration` job below.
+        run: python -m pytest tests/ -q -m "not integration"
+
+  frontend:
+    name: Frontend — typecheck + lint + build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Typecheck
+        run: pnpm --filter web typecheck
+      - name: Lint
+        run: pnpm --filter web lint
+      - name: Build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: http://localhost:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: build-time-placeholder
+          NEXT_PUBLIC_API_URL: http://localhost:8000
+        run: pnpm --filter web build
+
+  # Migration validation is folded into the `integration` job below: it applies
+  # every migration in order to a fresh DB (ON_ERROR_STOP=1), which fails CI on
+  # any broken/duplicate migration AND then runs the real-DB tests against the
+  # resulting schema. No separate migrations job needed.
+  integration:
+    name: Backend — real-Postgres integration tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        # pgvector image = stock postgres:17 + the `vector` extension the schema
+        # needs (extracted_signals carry a vector(1536) column). Stock postgres:17
+        # can't CREATE EXTENSION vector.
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+      - name: Install dependencies
+        working-directory: apps/api
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Bootstrap Supabase-style objects the migrations assume
+        env:
+          PGPASSWORD: postgres
+        # Supabase provides the auth/extensions schemas, roles, auth.users and
+        # auth.uid() that the migrations reference; a plain Postgres does not.
+        # This versioned file recreates the minimum so migrations apply.
+        run: psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -f supabase/ci-bootstrap.sql
+      - name: Apply every migration to the test DB (also validates migrations)
+        env:
+          PGPASSWORD: postgres
+        run: |
+          # Fresh-DB migration replay (same loop pattern as the `migrations` job)
+          # so the integration tests run against the real, fully-migrated schema.
+          for f in $(ls supabase/migrations/*.sql | sort); do
+            echo "→ applying $f"
+            psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -f "$f"
+          done
+      - name: Pytest (real-DB integration tests)
+        working-directory: apps/api
+        env:
+          APP_ENV: test
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/postgres
+          SUPABASE_URL: http://localhost:54321
+          SUPABASE_ANON_KEY: test-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: test-service-role-key
+          SUPABASE_JWT_SECRET: super-secret-jwt-token-with-at-least-32-characters-long
+          REDIS_URL: redis://localhost:6379
+        run: python -m pytest tests/integration/ -v -m integration

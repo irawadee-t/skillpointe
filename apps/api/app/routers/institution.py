@@ -16,8 +16,8 @@ from pydantic import BaseModel, Field
 
 from app.auth.dependencies import CurrentUser, require_institution
 from app.db import get_db
+from app.routers.ingest import IngestRequest, IngestRow, IngestSummary, ingest_credentials
 from app.skilled_pro import file_lane
-from app.routers.ingest import IngestRow, IngestRequest, IngestSummary, ingest_credentials
 
 router = APIRouter(prefix="/institution/me", tags=["institution"])
 

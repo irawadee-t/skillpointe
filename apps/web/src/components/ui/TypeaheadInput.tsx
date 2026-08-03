@@ -28,7 +28,7 @@ export function TypeaheadInput<T>({
   getLabel,
   className,
   inputClassName,
-  minChars = 2,
+  minChars = 1,
   emptyLabel = "No matches",
   autoFocus,
   error: externalError,

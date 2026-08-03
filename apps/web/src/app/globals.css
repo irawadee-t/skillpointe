@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    --background: #faf8f3;    /* warm off-white */
+    --background: #fcfcfb;    /* clean near-white (ElevenLabs-grade, not beige) */
     --foreground: #17171c;    /* near-black text */
     --cohere-focus: #9E1B32;  /* Studio Maroon — brand-tied focus ring */
   }
@@ -20,7 +20,7 @@
     font-feature-settings: "ss01", "cv01";
     /* Mobile: 15px baseline (matches text-body token) so trades workers on
        a Pixel 6 in a truck cab aren't squinting at 13px UI text. */
-    font-size: 15px;
+    font-size: 16px;
     /* Guard against horizontal overflow from absolute-positioned children —
        Pixel 6 is 375px and we cannot ship a page that jiggles sideways. */
     overflow-x: hidden;
@@ -47,6 +47,13 @@
 @layer components {
   /* System label — quiet sans, sentence case. (Formerly mono; retired so the
      product speaks in one typeface. Class name kept for its 40+ call sites.) */
+  /* Display sans (ElevenLabs style): large sizes carry tight tracking and
+     modest weight — set here once so every heading inherits it. */
+  .font-display {
+    letter-spacing: -0.02em;
+    font-weight: 450;
+  }
+
   .mono-label {
     @apply font-sans text-caption font-medium tracking-[0.01em] text-slate;
   }
@@ -72,7 +79,7 @@
     position: relative;
     isolation: isolate;
     overflow: hidden;
-    background-color: #16100a;
+    background-color: #0b0b0c;
     color: #ffedd7;
   }
   .aurora-surface::before,
@@ -85,11 +92,11 @@
        deep maroon, and a cream haze — wide luminance range so the surface
        reads as photographed atmosphere rather than a CSS ombre. */
     background:
-      radial-gradient(48% 55% at 78% 22%, rgba(122, 128, 74, 0.95), transparent 68%),
-      radial-gradient(30% 34% at 58% 55%, rgba(196, 148, 58, 0.55), transparent 70%),
+      radial-gradient(48% 55% at 78% 22%, rgba(157, 34, 53, 0.85), transparent 68%),
+      radial-gradient(30% 34% at 58% 55%, rgba(120, 22, 40, 0.6), transparent 70%),
       radial-gradient(44% 52% at 14% 32%, rgba(130, 24, 44, 0.72), transparent 70%),
       radial-gradient(34% 40% at 88% 82%, rgba(255, 237, 215, 0.30), transparent 72%),
-      radial-gradient(46% 52% at 32% 84%, rgba(56, 46, 36, 0.85), transparent 74%);
+      radial-gradient(46% 52% at 32% 84%, rgba(30, 12, 16, 0.85), transparent 74%);
     filter: blur(34px) saturate(1.08);
     animation: auroraDrift 60s ease-in-out infinite alternate;
   }
@@ -142,48 +149,52 @@
 
   /* Default action — dark cork stamped tag with cream text */
   .btn-md {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-[3px]
-           bg-studio-dark-cork px-4 py-2 min-h-[36px]
-           text-[13px] font-semibold uppercase tracking-[0.03em] text-studio-cream
-           border border-studio-dark-cork
-           transition-colors duration-150 ease-cohere
-           hover:bg-studio-maroon hover:border-studio-maroon
+    @apply inline-flex items-center justify-center gap-1.5 rounded-full
+           bg-ink px-4 py-2 min-h-[36px]
+           text-[14px] font-medium text-white
+           border border-ink
+           transition-[color,background-color,border-color,transform] duration-150 ease-cohere
+           active:scale-[0.97] disabled:active:scale-100
+           hover:bg-black hover:border-black
            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-studio-maroon focus-visible:ring-offset-2 focus-visible:ring-offset-canvas
-           disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-studio-dark-cork disabled:hover:border-studio-dark-cork;
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-ink disabled:hover:border-ink;
   }
 
   /* Compact — for dense rows and inline actions (still 44px hit area via padding) */
   .btn-sm {
-    @apply inline-flex items-center justify-center gap-1 rounded-[3px]
-           bg-studio-dark-cork px-3 py-1.5 min-h-[32px]
-           text-[12px] font-semibold uppercase tracking-[0.04em] text-studio-cream
-           border border-studio-dark-cork
-           transition-colors duration-150 ease-cohere
-           hover:bg-studio-maroon hover:border-studio-maroon
+    @apply inline-flex items-center justify-center gap-1 rounded-full
+           bg-ink px-3 py-1.5 min-h-[32px]
+           text-[13px] font-medium text-white
+           border border-ink
+           transition-[color,background-color,border-color,transform] duration-150 ease-cohere
+           active:scale-[0.97] disabled:active:scale-100
+           hover:bg-black hover:border-black
            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-studio-maroon focus-visible:ring-offset-2 focus-visible:ring-offset-canvas
-           disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-studio-dark-cork disabled:hover:border-studio-dark-cork;
+           disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-ink disabled:hover:border-ink;
   }
 
   /* Hero / big empty-state — larger stamp with proportional letter-spacing */
   .btn-lg {
-    @apply inline-flex items-center justify-center gap-2 rounded-[4px]
-           bg-studio-dark-cork px-7 py-3.5 min-h-[52px]
-           text-[15px] font-semibold uppercase tracking-[0.05em] text-studio-cream
-           border border-studio-dark-cork
-           transition-colors duration-150 ease-cohere
-           hover:bg-studio-maroon hover:border-studio-maroon
+    @apply inline-flex items-center justify-center gap-2 rounded-full
+           bg-ink px-7 py-3.5 min-h-[52px]
+           text-[16px] font-medium text-white
+           border border-ink
+           transition-[color,background-color,border-color,transform] duration-150 ease-cohere
+           active:scale-[0.97] disabled:active:scale-100
+           hover:bg-black hover:border-black
            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-studio-maroon focus-visible:ring-offset-2 focus-visible:ring-offset-canvas
            disabled:opacity-40 disabled:cursor-not-allowed;
   }
 
   /* Ghost — alternative choice, transparent with cork stamp border */
   .btn-ghost {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-[3px]
+    @apply inline-flex items-center justify-center gap-1.5 rounded-full
            bg-transparent px-4 py-2 min-h-[36px]
-           text-[13px] font-semibold uppercase tracking-[0.03em] text-studio-dark-cork
-           border border-studio-dark-cork
-           transition-colors duration-150 ease-cohere
-           hover:bg-studio-dark-cork hover:text-studio-cream
+           text-[14px] font-medium text-studio-dark-cork
+           border border-ink
+           transition-[color,background-color,border-color,transform] duration-150 ease-cohere
+           active:scale-[0.97] disabled:active:scale-100
+           hover:border-ink
            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-studio-maroon focus-visible:ring-offset-2 focus-visible:ring-offset-canvas
            disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:text-studio-dark-cork;
   }
@@ -200,13 +211,14 @@
   /* Commit — reserved for Apply / Verify credential / Confirm hire.
      Warm-cream text on forest green stamp — reads as "this action commits". */
   .btn-commit {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-[3px]
-           bg-studio-forest px-4 py-2 min-h-[36px]
-           text-[13px] font-semibold uppercase tracking-[0.03em] text-studio-cream
-           border border-studio-forest
-           transition-colors duration-150 ease-cohere
-           hover:bg-[#3a3b25] hover:border-[#3a3b25]
-           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-studio-forest focus-visible:ring-offset-2 focus-visible:ring-offset-canvas
+    @apply inline-flex items-center justify-center gap-1.5 rounded-full
+           bg-studio-maroon px-4 py-2 min-h-[36px]
+           text-[14px] font-medium text-studio-cream
+           border border-studio-maroon
+           transition-[color,background-color,border-color,transform] duration-150 ease-cohere
+           active:scale-[0.97] disabled:active:scale-100
+           hover:bg-[#7d1526] hover:border-[#7d1526]
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-studio-maroon focus-visible:ring-offset-2 focus-visible:ring-offset-canvas
            disabled:opacity-40 disabled:cursor-not-allowed;
   }
 
@@ -220,25 +232,26 @@
   .btn-secondary       { @apply btn-link; }
   /* Inverted variant kept for landing hero over dark video only. */
   .btn-primary-inverse {
-    @apply inline-flex items-center justify-center gap-1.5 rounded-[3px]
+    @apply inline-flex items-center justify-center gap-1.5 rounded-full
            bg-studio-cream px-4 py-2 min-h-[36px]
-           text-[13px] font-semibold uppercase tracking-[0.03em] text-studio-black
+           text-[14px] font-medium text-studio-black
            border border-studio-cream
-           transition-colors duration-150 ease-cohere
+           transition-[color,background-color,border-color,transform] duration-150 ease-cohere
+           active:scale-[0.97] disabled:active:scale-100
            hover:bg-studio-sienna hover:text-studio-cream hover:border-studio-sienna
            focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-studio-cream focus-visible:ring-offset-2;
   }
 
   /* Standard text input — thin hairline border on white, warm focus */
   .input-cohere {
-    @apply w-full rounded-[3px] border border-hairline bg-white px-3.5 py-2.5 text-[14px] text-ink
+    @apply w-full rounded-[8px] border border-hairline bg-white px-3.5 py-2.5 text-[14px] text-ink
            placeholder:text-slate-muted transition-colors duration-150
-           focus:outline-none focus:border-studio-dark-cork focus:ring-2 focus:ring-studio-maroon/20;
+           focus:outline-none focus:border-ink focus:ring-2 focus:ring-studio-maroon/20;
   }
 
-  /* Bordered editorial card — hairline on white with subtle edge shadow */
+  /* Bordered editorial card — white, hairline, flat at rest (see DESIGN_CONTRACT) */
   .card-cohere {
-    @apply rounded-[6px] border border-hairline bg-white shadow-subtle;
+    @apply rounded-[14px] border border-hairline bg-white;
   }
 }
 
@@ -246,10 +259,11 @@
   /* ── Scroll reveal (CSS/compositor-driven — never stalls on rAF throttle) ── */
   .reveal {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(8px);
+    /* Contract: entrance fades stay <=200ms — snappy, not cinematic. */
     transition:
-      opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
-      transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+      opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     will-change: opacity, transform;
   }
   .reveal.reveal-fade {
@@ -263,10 +277,10 @@
   /* Staggered children reveal */
   .stagger > * {
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(8px);
     transition:
-      opacity 0.55s cubic-bezier(0.16, 1, 0.3, 1),
-      transform 0.55s cubic-bezier(0.16, 1, 0.3, 1);
+      opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+      transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
     will-change: opacity, transform;
   }
   .stagger.is-visible > * {
@@ -274,16 +288,10 @@
     transform: none;
   }
   .stagger.is-visible > *:nth-child(1) { transition-delay: 0s; }
-  .stagger.is-visible > *:nth-child(2) { transition-delay: 0.06s; }
-  .stagger.is-visible > *:nth-child(3) { transition-delay: 0.12s; }
-  .stagger.is-visible > *:nth-child(4) { transition-delay: 0.18s; }
-  .stagger.is-visible > *:nth-child(5) { transition-delay: 0.24s; }
-  .stagger.is-visible > *:nth-child(6) { transition-delay: 0.30s; }
-  .stagger.is-visible > *:nth-child(7) { transition-delay: 0.36s; }
-  .stagger.is-visible > *:nth-child(8) { transition-delay: 0.42s; }
-  .stagger.is-visible > *:nth-child(9) { transition-delay: 0.48s; }
-  .stagger.is-visible > *:nth-child(10) { transition-delay: 0.54s; }
-  .stagger.is-visible > *:nth-child(n + 11) { transition-delay: 0.6s; }
+  .stagger.is-visible > *:nth-child(2) { transition-delay: 0.04s; }
+  .stagger.is-visible > *:nth-child(3) { transition-delay: 0.08s; }
+  .stagger.is-visible > *:nth-child(4) { transition-delay: 0.12s; }
+  .stagger.is-visible > *:nth-child(n + 5) { transition-delay: 0.16s; }
 
   /* Skeleton shimmer surface */
   .shimmer {

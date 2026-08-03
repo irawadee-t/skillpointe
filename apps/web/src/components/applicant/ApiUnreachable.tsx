@@ -24,11 +24,11 @@ export function ApiUnreachable() {
   return (
     <main className="py-8">
       <div className="page-shell">
-        <div className="bg-studio-maroon/10 border border-studio-maroon-soft rounded-md p-5 text-body text-error-red flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="bg-studio-maroon/[0.06] border border-studio-maroon/30 rounded-md p-5 text-body text-cohere-ink flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <strong>Could not reach the API.</strong>{" "}
             <span className="text-cohere-ink/80">
-              The backend may be starting up — try again in a moment.
+              The backend may be starting up. Try again in a moment.
             </span>
           </div>
           <button

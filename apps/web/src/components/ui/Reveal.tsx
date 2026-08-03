@@ -17,6 +17,7 @@ export function Reveal({
   delay = 0,
   as = "div",
   fade = false,
+  "data-tour-id": dataTourId,
 }: {
   children: React.ReactNode;
   className?: string;
@@ -24,6 +25,8 @@ export function Reveal({
   as?: Tag;
   /** Fade only, no upward translate. */
   fade?: boolean;
+  /** Optional anchor id for the coach-mark tour system. */
+  "data-tour-id"?: string;
 }) {
   const ref = useRef<HTMLElement | null>(null);
   const [visible, setVisible] = useState(false);
@@ -47,12 +50,16 @@ export function Reveal({
           }
         }
       },
-      { threshold: 0.15, rootMargin: "0px 0px -8% 0px" },
+      // Reveal ONCE (io.disconnect above), triggered as soon as any pixel is
+      // within the viewport + a generous 25% pre-roll below it — so content is
+      // never a blank viewport under fast scrolling or anchor jumps; the small
+      // 8px rise happens just before it comes into view.
+      { threshold: 0, rootMargin: "0px 0px 25% 0px" },
     );
     io.observe(el);
 
     // Fallback: never leave content hidden if the observer never fires.
-    const fallback = window.setTimeout(() => setVisible(true), 1400);
+    const fallback = window.setTimeout(() => setVisible(true), 900);
 
     return () => {
       io.disconnect();
@@ -64,6 +71,7 @@ export function Reveal({
   return (
     <Tag
       ref={ref}
+      data-tour-id={dataTourId}
       style={delay ? { transitionDelay: `${delay}s` } : undefined}
       className={cn("reveal", fade && "reveal-fade", visible && "is-visible", className)}
     >

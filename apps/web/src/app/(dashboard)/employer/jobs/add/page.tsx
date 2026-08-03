@@ -22,13 +22,14 @@ export default async function AddJobsPage() {
       <div className="page-shell space-y-6">
         <PageHeader
           eyebrow="Employer"
-          title="Add jobs"
+          title="Post jobs"
           lead="Two ways to get roles onto SKILLED. Pick the one that matches how you already work."
         />
 
         <div className="grid gap-4 md:grid-cols-2">
           {/* Single job */}
           <Card
+            tourId="post-single"
             eyebrow="One at a time"
             title="Write one job"
             body="Best if you have a specific role to post and want to write it yourself. Takes a few minutes."
@@ -39,9 +40,10 @@ export default async function AddJobsPage() {
 
           {/* Bulk import */}
           <Card
+            tourId="post-import"
             eyebrow="Bring a batch"
             title="Import your existing jobs"
-            body="Best if your roles already live somewhere — a careers page, a spreadsheet, or a doc. We'll pull them in and you review each one before it goes live."
+            body="Best if your roles already live somewhere: a careers page, a spreadsheet, or a doc. We'll pull them in and you review each one before it goes live."
             icon={Upload}
             href="/employer/jobs/imports"
             cta="Import jobs"
@@ -55,10 +57,10 @@ export default async function AddJobsPage() {
           </Card>
         </div>
 
-        <section className="rounded-xl border border-hairline bg-white p-6">
+        <section className="rounded-xl border border-hairline bg-white p-6" data-tour-id="post-how">
           <MonoLabel className="mb-2 block">How the two work together</MonoLabel>
           <p className="text-body text-slate max-w-prose">
-            Both routes end up in the same place — your published jobs list and the applicant matching engine. Imports go through a quick admin review; single posts publish straight away since you wrote them.
+            Both routes end up in the same place: your published jobs list and the applicant matching engine. Imports go through a quick admin review; single posts publish straight away since you wrote them.
           </p>
           <div className="mt-4">
             <Link href="/employer/jobs/imports/list" className="inline-flex items-center gap-1 text-caption text-cohere-blue underline decoration-cohere-blue/40 underline-offset-2 hover:decoration-cohere-blue">
@@ -72,7 +74,7 @@ export default async function AddJobsPage() {
 }
 
 function Card({
-  eyebrow, title, body, icon: Icon, href, cta, secondary, children,
+  eyebrow, title, body, icon: Icon, href, cta, secondary, children, tourId,
 }: {
   eyebrow: string;
   title: string;
@@ -82,10 +84,12 @@ function Card({
   cta: string;
   secondary?: boolean;
   children?: React.ReactNode;
+  tourId?: string;
 }) {
   return (
     <Link
       href={href}
+      data-tour-id={tourId}
       className="group flex flex-col rounded-xl border border-hairline bg-white p-6 transition-shadow hover:shadow-[0_8px_28px_-12px_rgba(12,10,9,0.12)]"
     >
       <Icon className={`h-5 w-5 ${secondary ? "text-cohere-blue" : "text-cohere-green"}`} strokeWidth={1.75} />

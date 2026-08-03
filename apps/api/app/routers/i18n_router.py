@@ -29,7 +29,7 @@ SUPPORTED_LOCALES = {"en", "es"}
 
 
 class TranslateIn(BaseModel):
-    text: str
+    text: str = Field(max_length=10000)
     target: str = Field(default="es", pattern="^(en|es)$")
     entity_type: Optional[str] = None
     entity_id: Optional[UUID] = None
@@ -169,17 +169,23 @@ async def _llm_translate(text: str, target: str) -> str:
     if target != "es":
         return text
     settings = get_settings()
-    if not settings.openai_api_key:
+    from app.util.openai_client import get_openai_client
+    client = get_openai_client()
+    if client is None:
         return text
-    from openai import OpenAI
-    client = OpenAI(api_key=settings.openai_api_key)
-    resp = client.chat.completions.create(
-        model=settings.llm_extraction_model,
-        messages=[
-            {"role": "system", "content": _SYS_ES},
-            {"role": "user",   "content": text[:8_000]},
-        ],
-        temperature=0.2,
-        max_tokens=2_000,
-    )
-    return (resp.choices[0].message.content or "").strip() or text
+    # Degrade gracefully: an OpenAI outage/timeout returns the original English
+    # text rather than 500-ing the request.
+    try:
+        resp = client.chat.completions.create(
+            model=settings.llm_extraction_model,
+            messages=[
+                {"role": "system", "content": _SYS_ES},
+                {"role": "user",   "content": text[:8_000]},
+            ],
+            temperature=0.2,
+            max_tokens=2_000,
+        )
+        return (resp.choices[0].message.content or "").strip() or text
+    except Exception as exc:
+        logger.warning("Translation degraded to source text (OpenAI error): %s", exc)
+        return text

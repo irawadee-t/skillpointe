@@ -1,28 +1,32 @@
 /**
- * Employer dashboard — Phase 6.2
+ * Employer dashboard — the day's queue, not a second jobs list.
  *
  * Shows:
  *   - Company summary (name, location, partner badge)
- *   - Quick stats (total jobs, active jobs)
- *   - Jobs list with per-job applicant counts
- *   - Links to ranked applicant views + job edit + new job
+ *   - Applications waiting for review (the actual work queue)
+ *   - Careers-page sync health (latest source status)
+ *   - One-line jobs summary linking to the full jobs list
+ *
+ * The full jobs list (with filters and per-job candidate counts) lives at
+ * /employer/jobs — the dashboard links there instead of duplicating it.
  *
  * Server component: fetches data server-side.
  */
+import { Suspense } from "react";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import {
-  Plus,
-  ChevronRight,
-  Users,
-  Edit3,
-} from "lucide-react";
+import { Plus, ChevronRight, Inbox, RefreshCw, Briefcase, CalendarClock } from "lucide-react";
 
-import { fetchMyCompany, fetchMyJobs, formatWorkSetting } from "@/lib/api/employer";
-import type { EmployerJobSummary } from "@/lib/api/employer";
+import { fetchMyCompany } from "@/lib/api/employer";
+import { listEmployerApplications } from "@/lib/api/transactions";
+import { listSchedulingRequests } from "@/lib/api/team";
+import { listCareerSources, type CareerSource } from "@/lib/api/careerSource";
 import { ApiError } from "@/lib/api/client";
+import { formatRelative } from "@/lib/time";
 import { createClient } from "@/lib/supabase/server";
-import { PageHeader, Card, Chip, MonoLabel, Reveal, Stagger, StaggerItem } from "@/components/ui";
+import { PageHeader, MonoLabel, Reveal } from "@/components/ui";
+import { RouteLoading } from "@/components/ui/RouteLoading";
+import { TourWelcomeBand } from "@/components/tour/TourWelcomeBand";
 
 export default async function EmployerDashboard() {
   const supabase = await createClient();
@@ -39,16 +43,26 @@ export default async function EmployerDashboard() {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) redirect("/login");
 
-  const token = session.access_token;
+  // Stream: paint the route shell instantly while the day's queue loads.
+  // Data fetching below is unchanged — only where it is awaited moved.
+  return (
+    <Suspense fallback={<RouteLoading variant="dashboard" headerActions />}>
+      <EmployerHome token={session.access_token} />
+    </Suspense>
+  );
+}
 
+async function EmployerHome({ token }: { token: string }) {
   let apiError = false;
   let companyMissing = false;
-  const [company, jobsList] = await Promise.all([
+  const [company, newApplications, sources, schedInbox] = await Promise.all([
     fetchMyCompany(token).catch((e) => {
       if (e instanceof ApiError && e.status === 404) { companyMissing = true; return null; }
       apiError = true; return null;
     }),
-    fetchMyJobs(token).catch(() => null),
+    listEmployerApplications(token, "submitted").catch(() => null),
+    listCareerSources(token).catch(() => null),
+    listSchedulingRequests(token).catch(() => null),
   ]);
 
   // No company linked but API is reachable → self-serve onboarding.
@@ -58,14 +72,18 @@ export default async function EmployerDashboard() {
     redirect("/employer/onboarding");
   }
 
+  const queueCount = newApplications?.length ?? null;
+
   return (
     <main className="py-8">
       <div className="page-shell space-y-6">
-        {/* Header */}
+        <TourWelcomeBand />
+
+        {/* Header — the ONE "New job" CTA on this page */}
         <PageHeader
           eyebrow="Employer workspace"
           title={company ? company.name : "Employer Dashboard"}
-          lead={company ? "Your jobs and the candidates ranked against them." : undefined}
+          lead={company ? "What needs your attention today." : undefined}
           actions={
             company ? (
               <Link href="/employer/jobs/new" className="btn-primary">
@@ -79,7 +97,7 @@ export default async function EmployerDashboard() {
         {!company && (
           <Reveal className="rounded-md border border-cohere-coral-soft bg-cohere-coral/10 p-5 text-body text-cohere-ink">
             <strong className="font-medium">We couldn&apos;t reach the SKILLED service.</strong>{" "}
-            Refresh in a moment — if the issue continues, contact{" "}
+            Refresh in a moment. If the issue continues, contact{" "}
             <a
               className="underline hover:text-cohere-blue"
               href="mailto:support@skilled-nation.org"
@@ -93,78 +111,132 @@ export default async function EmployerDashboard() {
         {/* Company summary */}
         {company && (
           <Reveal>
-            <div className="card-green p-7">
+            <div className="rounded-[14px] border border-hairline bg-white p-7">
               <div className="flex items-center gap-3 mb-6">
-                <span className="text-caption font-medium tracking-[0.04em] text-white/70">Company</span>
+                <span className="text-caption font-medium tracking-[0.04em] text-slate-muted">Company</span>
                 {company.is_partner && (
-                  <span className="inline-flex items-center rounded-pill bg-white/10 px-3 py-1 text-caption font-medium text-white">
+                  <span className="inline-flex items-center rounded-pill bg-ink px-3 py-1 text-caption font-medium text-white">
                     Partner
                   </span>
                 )}
               </div>
-              <dl className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+              <dl className="grid grid-cols-2 sm:grid-cols-3 gap-6">
                 {company.industry && (
                   <div>
-                    <dt className="text-micro font-medium tracking-wide text-white/70">Industry</dt>
-                    <dd className="mt-1 text-body-lg text-white">{company.industry}</dd>
+                    <dt className="text-micro font-medium tracking-wide text-slate-muted">Industry</dt>
+                    <dd className="mt-1 text-body-lg text-ink">{company.industry}</dd>
                   </div>
                 )}
                 {(company.city || company.state) && (
                   <div>
-                    <dt className="text-micro font-medium tracking-wide text-white/70">Location</dt>
-                    <dd className="mt-1 text-body-lg text-white">
+                    <dt className="text-micro font-medium tracking-wide text-slate-muted">Location</dt>
+                    <dd className="mt-1 text-body-lg text-ink">
                       {[company.city, company.state].filter(Boolean).join(", ")}
                     </dd>
                   </div>
                 )}
                 <div>
-                  <dt className="text-micro font-medium tracking-wide text-white/70">Total jobs</dt>
-                  <dd className="mt-1 font-display text-card leading-none text-white tabular-nums">{company.total_jobs}</dd>
-                </div>
-                <div>
-                  <dt className="text-micro font-medium tracking-wide text-white/70">Active jobs</dt>
-                  <dd className="mt-1 font-display text-card leading-none text-white tabular-nums">{company.active_jobs}</dd>
+                  <dt className="text-micro font-medium tracking-wide text-slate-muted">Jobs</dt>
+                  <dd className="mt-1 text-body-lg text-ink tabular-nums">
+                    {company.total_jobs} total · {company.active_jobs} active
+                  </dd>
                 </div>
               </dl>
             </div>
           </Reveal>
         )}
 
-        {/* Jobs section */}
+        {/* Today — the queue and health lines the jobs list can't give you */}
         {company && (
-          <section>
-            <div className="flex items-center justify-between mb-5">
-              <MonoLabel>Your jobs</MonoLabel>
+          <section data-tour-id="employer-today">
+            <MonoLabel className="mb-5 block">Today</MonoLabel>
+            <div className="rounded-[10px] border border-hairline bg-white">
+              {/* Applications waiting for review */}
               <Link
-                href="/employer/jobs/new"
-                className="btn-pill-outline"
+                href="/employer/applications"
+                className="flex items-center justify-between gap-3 px-5 py-3.5 transition-colors hover:bg-stone/30"
               >
-                <Plus className="w-3.5 h-3.5" /> New job
+                <p className="text-body text-cohere-ink">
+                  <Inbox className="mr-2 inline h-4 w-4 text-slate-muted" aria-hidden="true" />
+                  {queueCount === null
+                    ? "Applications: open the review queue"
+                    : queueCount === 0
+                      ? "No new applications waiting for review"
+                      : (
+                        <>
+                          <span className="font-medium tabular-nums">{queueCount}</span>
+                          {` new application${queueCount === 1 ? "" : "s"} waiting for review`}
+                        </>
+                      )}
+                </p>
+                <ChevronRight className="h-4 w-4 shrink-0 text-slate-muted" aria-hidden="true" />
+              </Link>
+
+              {/* Scheduling requests — interviews a teammate asked YOU to
+                  pick times for. Only renders when there's real work. */}
+              {(schedInbox?.assigned_to_me ?? []).map((req) => (
+                <Link
+                  key={req.id}
+                  href={`/employer/applications/${req.application_id}`}
+                  className="flex items-center justify-between gap-3 border-t border-hairline px-5 py-3.5 transition-colors hover:bg-stone/30"
+                >
+                  <p className="text-body text-cohere-ink">
+                    <CalendarClock className="mr-2 inline h-4 w-4 text-slate-muted" aria-hidden="true" />
+                    Propose interview times for{" "}
+                    <span className="font-medium">{req.applicant_name || "an applicant"}</span>
+                    {req.job_title ? ` (${req.job_title})` : ""}
+                    {req.requester_name ? ` — asked by ${req.requester_name}` : ""}
+                  </p>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-muted" aria-hidden="true" />
+                </Link>
+              ))}
+              {(schedInbox?.waiting_on_others ?? []).map((req) => (
+                <Link
+                  key={req.id}
+                  href={`/employer/applications/${req.application_id}`}
+                  className="flex items-center justify-between gap-3 border-t border-hairline px-5 py-3.5 transition-colors hover:bg-stone/30"
+                >
+                  <p className="text-body text-slate">
+                    <CalendarClock className="mr-2 inline h-4 w-4 text-slate-muted" aria-hidden="true" />
+                    Waiting on {req.assignee_name || "a teammate"} to propose times for{" "}
+                    {req.applicant_name || "an applicant"}
+                    {req.job_title ? ` (${req.job_title})` : ""}
+                  </p>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-muted" aria-hidden="true" />
+                </Link>
+              ))}
+
+              {/* Careers-page sync health */}
+              <Link
+                href="/employer/jobs/imports"
+                className="flex items-center justify-between gap-3 border-t border-hairline px-5 py-3.5 transition-colors hover:bg-stone/30"
+              >
+                <p className="text-body text-cohere-ink">
+                  <RefreshCw className="mr-2 inline h-4 w-4 text-slate-muted" aria-hidden="true" />
+                  {syncHealthLine(sources)}
+                </p>
+                <ChevronRight className="h-4 w-4 shrink-0 text-slate-muted" aria-hidden="true" />
+              </Link>
+
+              {/* Jobs — one line, the list itself lives on /employer/jobs */}
+              <Link
+                href="/employer/jobs"
+                className="flex items-center justify-between gap-3 border-t border-hairline px-5 py-3.5 transition-colors hover:bg-stone/30"
+              >
+                <p className="text-body text-cohere-ink">
+                  <Briefcase className="mr-2 inline h-4 w-4 text-slate-muted" aria-hidden="true" />
+                  {company.total_jobs === 0
+                    ? "No jobs yet. Post your first to start receiving ranked matches"
+                    : (
+                      <>
+                        <span className="font-medium tabular-nums">{company.active_jobs}</span>
+                        {` active job${company.active_jobs === 1 ? "" : "s"}. See matched candidates per job`}
+                      </>
+                    )}
+                </p>
+                <ChevronRight className="h-4 w-4 shrink-0 text-slate-muted" aria-hidden="true" />
               </Link>
             </div>
-
-            {!jobsList || jobsList.jobs.length === 0 ? (
-              <Card tone="stone" className="p-10 text-center">
-                <p className="text-body-lg font-medium text-ink">No jobs yet</p>
-                <p className="text-body text-slate mt-2">
-                  Create your first job posting to start receiving ranked applicant matches.
-                </p>
-                <Link
-                  href="/employer/jobs/new"
-                  className="mt-4 inline-flex items-center gap-1.5 text-body font-medium text-cohere-blue hover:opacity-70 transition-opacity"
-                >
-                  Create a job <ChevronRight className="w-3.5 h-3.5" />
-                </Link>
-              </Card>
-            ) : (
-              <Stagger className="space-y-4">
-                {jobsList.jobs.map((job) => (
-                  <StaggerItem key={job.job_id}>
-                    <JobCard job={job} />
-                  </StaggerItem>
-                ))}
-              </Stagger>
-            )}
           </section>
         )}
       </div>
@@ -173,58 +245,26 @@ export default async function EmployerDashboard() {
 }
 
 // ---------------------------------------------------------------------------
-// Sub-components
+// Helpers
 // ---------------------------------------------------------------------------
 
-function JobCard({ job }: { job: EmployerJobSummary }) {
-  const locationStr = [job.city, job.state].filter(Boolean).join(", ");
-
-  return (
-    <Card className="p-6">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <h3 className="font-display text-feature text-cohere-ink truncate leading-tight">{job.title}</h3>
-            {!job.is_active && (
-              <Chip tone="neutral" size="sm" className="shrink-0">
-                Inactive
-              </Chip>
-            )}
-          </div>
-          <p className="text-body text-slate mt-1">
-            {locationStr || "Location not set"}
-            {job.work_setting && `, ${formatWorkSetting(job.work_setting)}`}
-          </p>
-        </div>
-
-        {/* Applicant counts */}
-        <div className="shrink-0 flex flex-col items-end gap-1.5">
-          <div className="card-green flex items-baseline gap-1.5 rounded-md px-4 py-2">
-            <span className="font-display text-feature leading-none text-white tabular-nums">{job.eligible_count}</span>
-            <span className="text-caption text-white/70">eligible</span>
-          </div>
-          <div className="flex items-baseline gap-1.5 rounded-md bg-stone px-4 py-2">
-            <span className="font-display text-feature leading-none text-cohere-coral tabular-nums">{job.near_fit_count}</span>
-            <span className="text-caption text-slate">near fit</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Actions */}
-      <div className="flex items-center gap-5 mt-5 pt-4 border-t border-hairline">
-        <Link
-          href={`/employer/jobs/${job.job_id}/applicants`}
-          className="inline-flex items-center gap-1.5 text-body font-medium text-cohere-blue hover:opacity-70 transition-opacity"
-        >
-          <Users className="w-3.5 h-3.5" /> View matched candidates ({job.total_visible})
-        </Link>
-        <Link
-          href={`/employer/jobs/${job.job_id}/edit`}
-          className="inline-flex items-center gap-1.5 text-body text-slate hover:text-ink transition-colors"
-        >
-          <Edit3 className="w-3.5 h-3.5" /> Edit
-        </Link>
-      </div>
-    </Card>
-  );
+/** One human sentence describing the latest careers-page sync state. */
+function syncHealthLine(sources: CareerSource[] | null): string {
+  if (!sources || sources.length === 0) {
+    return "No careers page connected. Connect one to keep your jobs synced";
+  }
+  // Most recently pulled source wins; fall back to the newest.
+  const latest = [...sources].sort((a, b) =>
+    (b.last_pulled_at ?? "").localeCompare(a.last_pulled_at ?? ""),
+  )[0];
+  const host = (() => {
+    try { return new URL(latest.url).hostname; } catch { return latest.url; }
+  })();
+  if (!latest.last_pulled_at) {
+    return `Careers page connected (${host}). First pull hasn't run yet`;
+  }
+  if (latest.last_status === "ok") {
+    return `Careers page sync healthy: ${host} synced ${formatRelative(latest.last_pulled_at)}, ${latest.jobs_found} job${latest.jobs_found === 1 ? "" : "s"} on the site`;
+  }
+  return `Careers page sync needs attention: we couldn't connect to ${host}`;
 }

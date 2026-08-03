@@ -62,10 +62,16 @@ async def sla_summary(_: CurrentUser = Depends(require_admin)):
              LIMIT 200
             """,
         )
-        dormant_employers = await conn.fetchval(
+        # Predicate parity with the items query above (same dormancy definition
+        # as the admin-overview sla_breaches alert): still-open statuses only,
+        # and a true COUNT so the headline is not capped by the LIMIT 200 list.
+        totals = await conn.fetchrow(
             f"""
-            SELECT COUNT(DISTINCT a.employer_id) FROM public.applications a
+            SELECT COUNT(*) AS dormant_count,
+                   COUNT(DISTINCT a.employer_id) AS dormant_employers
+              FROM public.applications a
              WHERE a.employer_viewed_at IS NULL
+               AND a.status IN ('submitted', 'reviewed')
                AND a.submitted_at < NOW() - INTERVAL '{_DORMANT_DAYS} days'
             """
         )
@@ -84,8 +90,8 @@ async def sla_summary(_: CurrentUser = Depends(require_admin)):
         for r in rows
     ]
     return SLASummary(
-        dormant_count=len(items),
-        dormant_employers=int(dormant_employers or 0),
+        dormant_count=int(totals["dormant_count"] or 0),
+        dormant_employers=int(totals["dormant_employers"] or 0),
         threshold_days=_DORMANT_DAYS,
         items=items,
     )
@@ -112,13 +118,19 @@ async def nudge_employer(body: NudgeIn, admin_user: CurrentUser = Depends(requir
         )
         if not row or not row["contact_user"]:
             raise HTTPException(status_code=404, detail="Application or employer contact not found.")
+        # Templated body — the admin's note is a labeled detail line, never
+        # the raw body copy.
+        nudge_body = "SkillPointe admin flagged this application as waiting on a review."
+        if body.note and body.note.strip():
+            nudge_body += f' Note from admin: "{body.note.strip()[:300]}"'
         await notify(
             conn,
             recipient_user_id=str(row["contact_user"]),
             kind="sla_dormant_application",
             title=f"Nudge: an applicant is waiting on {row['title_raw']}",
-            body=body.note or "SkillPointe admin has flagged this application as needing a review.",
+            body=nudge_body,
             link_href=f"/employer/applications/{body.application_id}",
             payload={"application_id": str(body.application_id), "nudged_by": admin_user.user_id},
+            dedupe_key=f"sla_nudge:{body.application_id}",
         )
     return {"ok": True}

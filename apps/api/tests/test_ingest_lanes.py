@@ -1,8 +1,8 @@
 """Unit tests for the SFTP/file-drop CSV parser and the SIS mock provider."""
 from datetime import date
 
+from app.integrations.sis import MockSISProvider, SISRecord, get_sis_provider
 from app.skilled_pro import file_lane
-from app.integrations.sis import get_sis_provider, MockSISProvider, SISRecord
 
 
 def test_parse_csv_happy_path_with_aliases():
@@ -29,8 +29,25 @@ def test_parse_csv_empty_optional_fields_become_none():
     assert parsed.rows[0]["issued_date"] is None
 
 
-def test_sis_default_is_mock():
-    assert isinstance(get_sis_provider(), MockSISProvider)
+def test_sis_default_is_safe_outside_local():
+    """Outside local, an unconfigured SIS provider defaults to the null provider
+    so the mock feed can never fabricate 'verified' records against real data."""
+    from app.config import get_settings
+    from app.integrations.sis import NullSISProvider
+
+    get_settings.cache_clear()
+    assert isinstance(get_sis_provider(), NullSISProvider)  # APP_ENV=test in conftest
+
+
+def test_sis_mock_selectable_explicitly(monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.setenv("SIS_PROVIDER", "mock")
+    get_settings.cache_clear()
+    try:
+        assert isinstance(get_sis_provider(), MockSISProvider)
+    finally:
+        get_settings.cache_clear()
 
 
 def test_sis_mock_feed_is_deterministic_and_targets_seeded_user():

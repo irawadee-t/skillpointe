@@ -32,6 +32,20 @@ class CommuteOut(BaseModel):
     from_label: Optional[str] = None
     to_label: Optional[str] = None
     unavailable_reason: Optional[str] = None
+    # Geodesic miles between the applicant's home and the job city — the same
+    # number the commute-radius gate uses.
+    distance_miles: Optional[float] = None
+
+
+def _geodesic_miles(a_lat, a_lng, j_lat, j_lng) -> Optional[float]:
+    if None in (a_lat, a_lng, j_lat, j_lng):
+        return None
+    import math
+    phi1, phi2 = math.radians(a_lat), math.radians(j_lat)
+    dphi = math.radians(j_lat - a_lat)
+    dlam = math.radians(j_lng - a_lng)
+    x = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlam / 2) ** 2
+    return round(2 * 3958.7613 * math.asin(math.sqrt(x)), 1)
 
 
 @router.get("/matches/{match_id}/commute", response_model=CommuteOut)
@@ -44,19 +58,25 @@ async def match_commute(match_id: UUID, user: CurrentUser = Depends(require_appl
             SELECT m.id,
                    m.drive_minutes, m.drive_provider,
                    a.city AS a_city, a.state AS a_state, a.zip_code AS a_zip,
-                   j.city AS j_city, j.state AS j_state, j.zip_code AS j_zip
+                   a.lat AS a_lat, a.lng AS a_lng,
+                   j.city AS j_city, j.state AS j_state, j.zip_code AS j_zip,
+                   j.lat AS j_lat, j.lng AS j_lng
               FROM public.matches m
               JOIN public.applicants a ON a.id = m.applicant_id
               JOIN public.jobs j       ON j.id = m.job_id
-             WHERE m.id = $1 AND a.user_id = $2
+             WHERE m.id = $1
+               AND a.id = COALESCE($3::uuid, (SELECT id FROM public.applicants WHERE user_id = $2::uuid))
             """,
-            match_id, user.user_id,
+            match_id, user.user_id, user.view_as_applicant_id,
         )
         if not row:
             raise HTTPException(status_code=404, detail="Match not found.")
 
         from_label = _label(row["a_city"], row["a_state"])
         to_label   = _label(row["j_city"], row["j_state"])
+        stored_distance = _geodesic_miles(
+            row["a_lat"], row["a_lng"], row["j_lat"], row["j_lng"]
+        )
 
         # Fast path — already computed and stored on the match row.
         if row["drive_minutes"] is not None:
@@ -65,6 +85,7 @@ async def match_commute(match_id: UUID, user: CurrentUser = Depends(require_appl
                 provider=row["drive_provider"] or "cached",
                 from_label=from_label,
                 to_label=to_label,
+                distance_miles=stored_distance,
             )
 
         # Geocode both endpoints. If either fails, tell the UI why so we can
@@ -97,6 +118,8 @@ async def match_commute(match_id: UUID, user: CurrentUser = Depends(require_appl
         provider=provider,
         from_label=from_label,
         to_label=to_label,
+        distance_miles=stored_distance
+        or _geodesic_miles(origin[0], origin[1], dest[0], dest[1]),
     )
 
 

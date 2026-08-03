@@ -1,5 +1,6 @@
 import { MonoLabel } from "./MonoLabel";
 import { Reveal } from "./Reveal";
+import { TourLaunchButton } from "@/components/tour/TourLaunchButton";
 
 /** Standard dashboard page header: mono eyebrow + display title + lead + actions. */
 export function PageHeader({
@@ -8,9 +9,9 @@ export function PageHeader({
   lead,
   actions,
 }: {
-  eyebrow?: string;
+  eyebrow?: React.ReactNode;
   title: string;
-  lead?: string;
+  lead?: React.ReactNode;
   actions?: React.ReactNode;
 }) {
   return (
@@ -22,7 +23,11 @@ export function PageHeader({
         </h1>
         {lead && <p className="mt-3 text-body-lg text-slate">{lead}</p>}
       </div>
-      {actions && <div className="flex flex-shrink-0 items-center gap-3">{actions}</div>}
+      {/* The tour icon renders itself only on pages with a registered tour. */}
+      <div className="flex flex-shrink-0 items-center gap-3">
+        {actions}
+        <TourLaunchButton />
+      </div>
     </Reveal>
   );
 }

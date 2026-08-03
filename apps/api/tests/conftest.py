@@ -94,3 +94,21 @@ def client(mock_supabase_client: MagicMock) -> TestClient:
 
     from app.main import app
     return TestClient(app, raise_server_exceptions=False)
+
+
+@pytest.fixture(autouse=True)
+def _isolated_rate_limiter(monkeypatch):
+    """Force a fresh in-memory rate limiter for every test.
+
+    The production limiter latches onto the local dev Redis when reachable, so
+    sliding-window state LEAKS across test runs — e.g. repeated suite runs
+    within a minute trip the 5/min LLM tier for the shared test user and turn
+    422-validation tests into flaky 429s. Tests must be deterministic: each
+    test gets its own in-memory backend (still real limiter semantics, so
+    tests that intentionally exhaust a tier keep working).
+    """
+    import app.util.rate_limit as rl
+    from app.skilled_pro.ratelimit import InMemoryBackend, RateLimiter
+
+    monkeypatch.setattr(rl, "_limiter", RateLimiter(InMemoryBackend()))
+    yield

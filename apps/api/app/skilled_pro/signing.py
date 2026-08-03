@@ -19,7 +19,7 @@ import base64
 import hashlib
 import json
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives import serialization
@@ -149,6 +149,53 @@ def verify_record(
         return True
     except (InvalidSignature, ValueError):
         return False
+
+
+# ---------------------------------------------------------------------------
+# Calendar-feed tokens (HMAC)
+# ---------------------------------------------------------------------------
+#
+# A feed token authenticates the per-user ICS subscription URL
+# (GET /calendar/feed.ics?token=...). Unlike the Ed25519 credential signatures
+# above, feed tokens are keyed by a PER-USER random secret stored in
+# public.calendar_feed_secrets — so rotating that secret revokes every feed URL
+# previously handed to that user, without touching anyone else.
+#
+# Token shape:  base64url(user_id) + "." + hex(HMAC-SHA256(secret, user_id))
+# Pure stdlib, no DB — the router looks up the secret and calls verify.
+
+import hmac as _hmac
+
+
+def make_feed_token(user_id: str, secret: str) -> str:
+    """Mint the opaque token embedded in a user's calendar feed URL."""
+    uid = base64.urlsafe_b64encode(user_id.encode("utf-8")).decode("ascii").rstrip("=")
+    mac = _hmac.new(secret.encode("utf-8"), user_id.encode("utf-8"), hashlib.sha256).hexdigest()
+    return f"{uid}.{mac}"
+
+
+def parse_feed_token(token: str) -> str | None:
+    """Extract the (unverified) user_id from a feed token; None if malformed."""
+    try:
+        uid_part, mac_part = token.split(".", 1)
+    except ValueError:
+        return None
+    if not uid_part or not mac_part:
+        return None
+    try:
+        padded = uid_part + "=" * (-len(uid_part) % 4)
+        return base64.urlsafe_b64decode(padded.encode("ascii")).decode("utf-8")
+    except Exception:
+        return None
+
+
+def verify_feed_token(token: str, secret: str) -> bool:
+    """Constant-time check that ``token`` was minted with ``secret``."""
+    user_id = parse_feed_token(token)
+    if user_id is None:
+        return False
+    expected = make_feed_token(user_id, secret)
+    return _hmac.compare_digest(token, expected)
 
 
 def verify_chain(items: list[tuple[dict[str, Any], SignedRecord]], public_pem: str) -> bool:

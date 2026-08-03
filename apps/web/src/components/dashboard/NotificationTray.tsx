@@ -9,7 +9,9 @@ import {
   getMyNotifications, markAllNotificationsRead, markNotificationRead,
 } from "@/lib/api/transactions";
 import { useRealtimeChannel } from "@/hooks/useRealtimeChannel";
+import { formatDateShort } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { STATUS_TONE_CLASSES } from "@/components/ui/statusTones";
 
 /**
  * Sidebar notification tray. Bell icon with a subtle unread badge; opens a
@@ -66,6 +68,59 @@ export function NotificationTray({ token }: { token: string }) {
     return () => window.removeEventListener("mousedown", onDoc);
   }, [open]);
 
+  // Keyboard: Escape closes and returns focus to the bell; Tab is contained
+  // inside the open panel (minimal dialog behavior — swap for a shared
+  // accessible dialog primitive if/when one lands in components/ui).
+  useEffect(() => {
+    if (!open) return;
+    // Land keyboard focus in the tray when it opens.
+    panelRef.current?.focus();
+
+    function focusables(): HTMLElement[] {
+      const root = panelRef.current;
+      if (!root) return [];
+      return Array.from(
+        root.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => el.offsetParent !== null);
+    }
+
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        e.stopPropagation();
+        setOpen(false);
+        btnRef.current?.focus();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const els = focusables();
+      const root = panelRef.current;
+      if (!root) return;
+      if (els.length === 0) {
+        e.preventDefault();
+        root.focus();
+        return;
+      }
+      const first = els[0];
+      const last = els[els.length - 1];
+      const active = document.activeElement as HTMLElement | null;
+      const inside = active ? root.contains(active) : false;
+      if (e.shiftKey) {
+        if (!inside || active === first || active === root) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else if (!inside || active === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [open]);
+
   const unread = summary?.unread ?? 0;
   const items = summary?.items ?? [];
 
@@ -85,7 +140,7 @@ export function NotificationTray({ token }: { token: string }) {
         {unread > 0 && (
           <span
             aria-hidden
-            className="absolute -right-0.5 -top-0.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-cohere-coral px-1 text-[10px] font-semibold leading-none text-white"
+            className="absolute -right-0.5 -top-0.5 inline-flex min-w-[18px] items-center justify-center rounded-full bg-studio-maroon px-1 text-[10px] font-semibold leading-none text-white"
           >
             {unread > 99 ? "99+" : unread}
           </span>
@@ -95,9 +150,11 @@ export function NotificationTray({ token }: { token: string }) {
       {open && (
         <div
           ref={panelRef}
-          className="absolute right-4 top-14 z-50 w-[calc(100vw-2rem)] max-w-[380px] max-h-[540px] overflow-hidden rounded-xl border border-hairline bg-white shadow-[0_18px_44px_-12px_rgba(12,10,9,0.22)] md:right-6 md:w-[380px]"
+          className="absolute right-4 top-14 z-50 w-[calc(100vw-2rem)] max-w-[380px] max-h-[540px] overflow-hidden rounded-[14px] border border-hairline bg-white shadow-float focus:outline-none md:right-6 md:w-[380px]"
           role="dialog"
+          aria-modal="true"
           aria-label="Notifications"
+          tabIndex={-1}
         >
           <TrayHeader unread={unread} token={token} onAllRead={refresh} />
           <div className="max-h-[440px] overflow-y-auto">
@@ -178,7 +235,7 @@ function NotificationRow({
   const meta = KIND_META[item.kind] ?? KIND_META.default;
 
   const inner = (
-    <div className={cn("flex gap-3 px-4 py-3 transition-colors", !item.read && "bg-wash-blue/30")}>
+    <div className={cn("flex gap-3 px-4 py-3 transition-colors", !item.read && "bg-stone/40")}>
       <div className={cn("mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border", meta.tone)}>
         <meta.Icon className="h-4 w-4" strokeWidth={1.75} />
       </div>
@@ -192,7 +249,7 @@ function NotificationRow({
         )}
       </div>
       {!item.read && (
-        <span aria-hidden className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-cohere-blue" />
+        <span aria-hidden className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-studio-maroon" />
       )}
     </div>
   );
@@ -233,7 +290,7 @@ function formatWhen(iso: string): string {
   if (h < 24)   return `${h}h`;
   const d = Math.floor(h / 24);
   if (d < 7)    return `${d}d`;
-  return new Date(iso).toLocaleDateString();
+  return formatDateShort(iso);
 }
 
 // ---------------------------------------------------------------------------
@@ -244,23 +301,29 @@ import {
   Sparkles, Eye, Calendar, ShieldCheck, ShieldAlert, Send, FileWarning, Mail, MessageSquare, UserRound,
 } from "lucide-react";
 
+// Tones come from the semantic slot system (statusTones.ts): good news =
+// positive (solid dark green), informational = progress (solid blue),
+// action-required = attention (solid maroon). Solid dark fill + white icon —
+// never a light tint with a same-hue icon (banned highlighter pattern).
 const KIND_META: Record<string, { Icon: typeof Bell; tone: string }> = {
   default:                    { Icon: Bell,        tone: "border-hairline text-slate-muted bg-white" },
-  new_match:                  { Icon: Sparkles,    tone: "border-cohere-green/30 bg-wash-green text-cohere-green" },
-  application_submitted:      { Icon: Send,        tone: "border-cohere-blue/30  bg-wash-blue  text-cohere-blue" },
-  application_viewed:         { Icon: Eye,         tone: "border-cohere-blue/30  bg-wash-blue  text-cohere-blue" },
-  interview_proposed:         { Icon: Calendar,    tone: "border-cohere-green/30 bg-wash-green text-cohere-green" },
-  interview_accepted:         { Icon: Calendar,    tone: "border-cohere-green/30 bg-wash-green text-cohere-green" },
-  interview_declined:         { Icon: Calendar,    tone: "border-studio-maroon/30 bg-studio-maroon/[0.06] text-studio-maroon" },
-  offer_received:             { Icon: Sparkles,    tone: "border-cohere-green/30 bg-wash-green text-cohere-green" },
-  credential_verified:        { Icon: ShieldCheck, tone: "border-cohere-green/30 bg-wash-green text-cohere-green" },
-  credential_needs_review:    { Icon: ShieldAlert, tone: "border-studio-maroon/30 bg-studio-maroon/[0.06] text-studio-maroon" },
-  job_import_submitted:       { Icon: Send,        tone: "border-cohere-blue/30  bg-wash-blue  text-cohere-blue" },
-  job_import_approved:        { Icon: ShieldCheck, tone: "border-cohere-green/30 bg-wash-green text-cohere-green" },
-  job_import_rejected:        { Icon: FileWarning, tone: "border-studio-maroon/30 bg-studio-maroon/[0.06] text-studio-maroon" },
-  sla_dormant_application:    { Icon: MessageSquare, tone: "border-studio-maroon/30 bg-studio-maroon/[0.06] text-studio-maroon" },
-  account_email_change_code:  { Icon: Mail,        tone: "border-cohere-blue/30  bg-wash-blue  text-cohere-blue" },
-  account_phone_change_code:  { Icon: MessageSquare, tone: "border-cohere-blue/30 bg-wash-blue text-cohere-blue" },
-  account_recovery_ticket:    { Icon: UserRound,   tone: "border-studio-maroon/30 bg-studio-maroon/[0.06] text-studio-maroon" },
-  account_recovery_resolved:  { Icon: ShieldCheck, tone: "border-cohere-green/30 bg-wash-green text-cohere-green" },
+  new_match:                  { Icon: Sparkles,    tone: STATUS_TONE_CLASSES.positive },
+  application_submitted:      { Icon: Send,        tone: STATUS_TONE_CLASSES.progress },
+  application_viewed:         { Icon: Eye,         tone: STATUS_TONE_CLASSES.progress },
+  interview_proposed:         { Icon: Calendar,    tone: STATUS_TONE_CLASSES.positive },
+  interview_accepted:         { Icon: Calendar,    tone: STATUS_TONE_CLASSES.positive },
+  interview_declined:         { Icon: Calendar,    tone: STATUS_TONE_CLASSES.attention },
+  interview_cancelled:        { Icon: Calendar,    tone: STATUS_TONE_CLASSES.attention },
+  offer_received:             { Icon: Sparkles,    tone: STATUS_TONE_CLASSES.positive },
+  credential_verified:        { Icon: ShieldCheck, tone: STATUS_TONE_CLASSES.positive },
+  credential_needs_review:    { Icon: ShieldAlert, tone: STATUS_TONE_CLASSES.attention },
+  credential_review_dismissed: { Icon: ShieldAlert, tone: STATUS_TONE_CLASSES.attention },
+  job_import_submitted:       { Icon: Send,        tone: STATUS_TONE_CLASSES.progress },
+  job_import_approved:        { Icon: ShieldCheck, tone: STATUS_TONE_CLASSES.positive },
+  job_import_rejected:        { Icon: FileWarning, tone: STATUS_TONE_CLASSES.attention },
+  sla_dormant_application:    { Icon: MessageSquare, tone: STATUS_TONE_CLASSES.attention },
+  account_email_change_code:  { Icon: Mail,        tone: STATUS_TONE_CLASSES.progress },
+  account_phone_change_code:  { Icon: MessageSquare, tone: STATUS_TONE_CLASSES.progress },
+  account_recovery_ticket:    { Icon: UserRound,   tone: STATUS_TONE_CLASSES.attention },
+  account_recovery_resolved:  { Icon: ShieldCheck, tone: STATUS_TONE_CLASSES.positive },
 };

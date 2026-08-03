@@ -90,9 +90,50 @@ eligibility:
 
 base_fit:
   formula: "hard_gate_cap * (weighted_structured_score * 0.75 + semantic_score * 0.25)"
+  weights:
+    structured: 0.75
+    semantic: 0.25
   bounds:
     min: 0
     max: 100
+
+# policy_adjusted_score thresholds for match_label buckets. Eligibility still
+# caps labels: ineligible is always low_fit; near_fit can never show strong_fit.
+match_labels:
+  strong_fit_min: 80
+  good_fit_min: 60
+  moderate_fit_min: 40
+
+# Progressive relaxation (sparse-market tiered surfacing). When an applicant's
+# strict results fall below min_results, the matches surface expands through
+# explicit LABELED tiers instead of showing nothing. Tiers change visibility
+# and grouping only — never any score.
+relaxation:
+  enabled: true
+  min_results: 5
+  # Nearby tier requires VERIFIED proximity: known distance within
+  # max(applicant's radius, nearby_max_miles). Never label unassessed or
+  # remote locations "Near you".
+  nearby_max_miles: 75
+  tiers:
+    adjacent: true            # near-fit, adjacent trade, geography works
+    nearby_other_trade: true  # geography passes, unrelated trade ("Near you — different trade")
+
+# Hard-gate toggles (admin-configurable). A disabled gate is skipped (PASS).
+gates:
+  job_family_compatibility: true
+  required_credential_compatibility: true
+  readiness_timing_compatibility: true
+  geography_feasibility: true
+  explicit_minimum_requirement_compatibility: true
+  seniority_compatibility: true
+
+# Sparse-data geography rule: an applicant who has never stated ANY geography
+# preference (no chosen radius, no relocation states, no willingness flags)
+# gets NEAR_FIT instead of a hard FAIL for beyond-radius jobs — absence of a
+# stated preference is missing data, not a stated refusal to move.
+geography_relaxation:
+  relax_unknown_prefs: true
 
 structured_score:
   total_weight: 100

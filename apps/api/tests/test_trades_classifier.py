@@ -9,7 +9,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "packages"))
 
 from scraper.trades import classify, is_trade  # noqa: E402
 
-
 # ---------------------------------------------------------------------------
 # Should match — every common trade title shape the user might miss
 # ---------------------------------------------------------------------------

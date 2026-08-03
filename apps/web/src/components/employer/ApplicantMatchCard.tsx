@@ -16,7 +16,6 @@ import {
   Calendar,
   CheckCircle2,
   AlertTriangle,
-  Info,
   ThumbsUp,
   ThumbsDown,
   ClipboardCheck,
@@ -31,6 +30,7 @@ import {
 import { EligibilityBadge, MatchLabel } from "@/components/matches/MatchLabel";
 import { CandidateActions } from "./CandidateActions";
 import { Tooltip } from "./Tooltip";
+import { WhyThisRanking } from "./WhyThisRanking";
 
 interface ApplicantMatchCardProps {
   match: ApplicantMatchSummary;
@@ -59,7 +59,6 @@ export function ApplicantMatchCard({ match, jobId, jobTitle, token, isAdmin = fa
     top_gaps,
     recommended_next_step,
     confidence_level,
-    requires_review,
     geography_note,
     applicant_interest,
   } = match;
@@ -67,16 +66,21 @@ export function ApplicantMatchCard({ match, jobId, jobTitle, token, isAdmin = fa
   const name = formatApplicantName(first_name, last_name);
   const locationStr = [city, state].filter(Boolean).join(", ");
   const availability = formatAvailability(available_from_date, expected_completion_date);
-  const programDisplay = canonical_job_family_code
-    ? `${program_name_raw ?? ""} (${canonical_job_family_code})`
-    : (program_name_raw ?? null);
+  const tradeDisplay = canonical_job_family_code
+    ? _formatTrade(canonical_job_family_code)
+    : null;
+  const programDisplay = program_name_raw
+    ? tradeDisplay
+      ? `${program_name_raw} · ${tradeDisplay}`
+      : program_name_raw
+    : tradeDisplay;
 
   return (
-    <div className="bg-white border border-border-light rounded-md p-6 transition-colors">
+    <div className="rounded-[14px] border border-hairline bg-white p-6 transition-[color,background-color,border-color,box-shadow] duration-200 ease-cohere hover:shadow-float">
       {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <h3 className="font-display text-feature text-cohere-ink leading-tight truncate">
+          <h3 className="text-[1.0625rem] font-medium text-cohere-ink leading-tight truncate">
             {name}
           </h3>
           {programDisplay && (
@@ -90,16 +94,20 @@ export function ApplicantMatchCard({ match, jobId, jobTitle, token, isAdmin = fa
             label="Weighted fit across trade, credentials, location, availability, pay. 80+ = strong fit."
             className="shrink-0"
           >
-            <div
-              className="shrink-0 card-green rounded-md px-4 py-3 text-center cursor-help"
+            {/* Floor, never round — matches the applicant-side convention so
+                both sides of the marketplace display the same number for the
+                same stored score (98.6 must not read 98 to the worker and 99
+                to the employer). */}
+            <p
+              className="shrink-0 cursor-help text-body text-slate"
               tabIndex={0}
-              aria-label={`Fit score ${Math.round(policy_adjusted_score)} out of 100`}
+              aria-label={`Fit score ${Math.min(99, Math.floor(policy_adjusted_score))} out of 100`}
             >
-              <div className="font-display text-card text-white leading-none tabular-nums">
-                {Math.round(policy_adjusted_score)}
-              </div>
-              <div className="text-micro text-white/70 mt-1">/ 100</div>
-            </div>
+              <span className="font-medium text-cohere-ink tabular-nums">
+                {Math.min(99, Math.floor(policy_adjusted_score))}
+              </span>
+              <span className="text-slate-muted"> / 100 fit</span>
+            </p>
           </Tooltip>
         )}
       </div>
@@ -134,12 +142,12 @@ export function ApplicantMatchCard({ match, jobId, jobTitle, token, isAdmin = fa
       {(willing_to_relocate || willing_to_travel) && (
         <div className="flex gap-2 mt-2">
           {willing_to_relocate && (
-            <span className="text-micro bg-stone text-slate border border-hairline rounded-sm px-2 py-0.5">
+            <span className="text-micro bg-stone text-slate border border-hairline rounded-full px-2 py-0.5">
               Open to relocate
             </span>
           )}
           {willing_to_travel && (
-            <span className="text-micro bg-stone text-slate border border-hairline rounded-sm px-2 py-0.5">
+            <span className="text-micro bg-stone text-slate border border-hairline rounded-full px-2 py-0.5">
               Open to travel
             </span>
           )}
@@ -152,7 +160,7 @@ export function ApplicantMatchCard({ match, jobId, jobTitle, token, isAdmin = fa
           {top_strengths.slice(0, 2).map((s, i) => (
             <span
               key={i}
-              className="inline-flex items-center gap-1 text-micro bg-wash-green text-cohere-green border border-cohere-green/20 rounded-sm px-2 py-0.5"
+              className="inline-flex items-center gap-1 text-micro bg-cohere-green text-white border border-cohere-green rounded-full px-2 py-0.5"
             >
               <CheckCircle2 className="w-3 h-3" /> {_short(s)}
             </span>
@@ -166,7 +174,7 @@ export function ApplicantMatchCard({ match, jobId, jobTitle, token, isAdmin = fa
           {top_gaps.slice(0, 2).map((g, i) => (
             <span
               key={i}
-              className="inline-flex items-center gap-1 text-micro bg-studio-maroon/10 text-studio-maroon border border-studio-maroon-soft rounded-sm px-2 py-0.5"
+              className="inline-flex items-center gap-1 text-micro bg-studio-maroon text-white border border-studio-maroon rounded-full px-2 py-0.5"
             >
               <AlertTriangle className="w-3 h-3" /> {_short(g)}
             </span>
@@ -181,21 +189,19 @@ export function ApplicantMatchCard({ match, jobId, jobTitle, token, isAdmin = fa
         </p>
       )}
 
-      {/* Flags */}
-      {(confidence_level === "low" || requires_review) && (
+      {/* Flags — internal review state (requires_review) is intentionally not
+          shown to employers per DESIGN_CONTRACT. */}
+      {confidence_level === "low" && (
         <div className="mt-4 flex gap-3 text-micro text-slate-muted">
-          {confidence_level === "low" && (
-            <span className="flex items-center gap-1 text-studio-maroon">
-              <AlertTriangle className="w-3 h-3" /> Low confidence
-            </span>
-          )}
-          {requires_review && (
-            <span className="flex items-center gap-1 text-slate">
-              <Info className="w-3 h-3" /> Pending review
-            </span>
-          )}
+          <span className="flex items-center gap-1 text-studio-maroon">
+            <AlertTriangle className="w-3 h-3" /> Low confidence
+          </span>
         </div>
       )}
+
+      {/* Why this ranking — lazy viz2 explanation in job context (read-only,
+          so it renders for admin sessions too). Collapsed by default. */}
+      <WhyThisRanking matchId={match.match_id} token={token} />
 
       {/* Actions: reach out + hire — hidden for admin (admin cannot act as employer) */}
       {!isAdmin && (
@@ -215,21 +221,21 @@ export function ApplicantMatchCard({ match, jobId, jobTitle, token, isAdmin = fa
 function ApplicantInterestBadge({ level }: { level: string }) {
   if (level === "applied") {
     return (
-      <span className="inline-flex items-center gap-1 text-micro bg-wash-green text-cohere-green border border-cohere-green/20 rounded-sm px-2 py-0.5">
+      <span className="inline-flex items-center gap-1 text-micro bg-cohere-green text-white border border-cohere-green rounded-full px-2 py-0.5">
         <ClipboardCheck className="w-3 h-3" /> Candidate applied
       </span>
     );
   }
   if (level === "interested") {
     return (
-      <span className="inline-flex items-center gap-1 text-micro bg-wash-blue text-cohere-blue border border-cohere-blue/20 rounded-sm px-2 py-0.5">
+      <span className="inline-flex items-center gap-1 text-micro bg-cohere-blue text-white border border-cohere-blue rounded-full px-2 py-0.5">
         <ThumbsUp className="w-3 h-3" /> Candidate interested
       </span>
     );
   }
   if (level === "not_interested") {
     return (
-      <span className="inline-flex items-center gap-1 text-micro bg-stone text-slate-muted border border-hairline rounded-sm px-2 py-0.5">
+      <span className="inline-flex items-center gap-1 text-micro bg-stone text-slate-muted border border-hairline rounded-full px-2 py-0.5">
         <ThumbsDown className="w-3 h-3" /> Not interested
       </span>
     );
@@ -237,8 +243,22 @@ function ApplicantInterestBadge({ level }: { level: string }) {
   return null;
 }
 
+/** "electrical" / "hvac_r" → "Electrical" / "Hvac R" (human-readable trade name). */
+function _formatTrade(code: string): string {
+  return code
+    .split(/[_\s]+/)
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 function _short(text: string): string {
   const colonIdx = text.indexOf(":");
   if (colonIdx > 0 && colonIdx < 40) return text.slice(0, colonIdx);
+  // Distance strengths ("~14 mi from Troy, within their 50 mi commute
+  // radius"): keep the verified fact, drop the clause — no mid-word ellipsis.
+  // (Engine strings use ", " where they used " — " before the de-dash pass.)
+  const sepIdx = text.indexOf(", ");
+  if (sepIdx > 0 && sepIdx <= 50) return text.slice(0, sepIdx);
   return text.length > 50 ? text.slice(0, 50) + "…" : text;
 }

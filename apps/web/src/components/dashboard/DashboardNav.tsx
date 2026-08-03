@@ -57,7 +57,7 @@ export function DashboardNav({
                     {active && (
                       <motion.span
                         layoutId="nav-active"
-                        className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-studio-dark-cork"
+                        className="absolute inset-x-2 -bottom-px h-0.5 rounded-full bg-ink"
                         transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
                       />
                     )}

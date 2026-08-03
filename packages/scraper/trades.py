@@ -58,6 +58,12 @@ FAMILIES: list[tuple[str, list[str]]] = [
         r"\bairframe (?:&|and) powerplant\b",
         r"\bflight line (?:tech|technician|mechanic)\b",
     ]),
+    ("power_plant", [
+        # Nuclear/reactor roles are their own canonical family; generic
+        # "power plant operator" stays in utilities_energy (test-pinned).
+        r"\bnuclear (?:tech|technician|operator)\b",
+        r"\breactor operator\b",
+    ]),
     ("utilities_energy", [
         r"\bwind (?:tech|technician|turbine|hub)\b",
         r"\bwind \w+ (?:tech|technician)\b",     # "Wind Hub Technician"
@@ -108,6 +114,13 @@ FAMILIES: list[tuple[str, list[str]]] = [
         r"\bsmaw\b", r"\bgmaw\b", r"\bfcaw\b", r"\bgtaw\b",
         r"\bcombo welder\b", r"\bpipe welder\b",
         r"\bstructural welder\b",
+        r"\bship ?builder\b", r"\bshipfitter\b",
+    ]),
+    ("building_automation", [
+        r"\bbuilding automation (?:tech|technician|specialist)\b",
+        r"\bbas tech(?:nician)?\b",
+        r"\bbuilding controls (?:tech|technician)\b",
+        r"\benergy management tech(?:nician)?\b",
     ]),
     ("hvac_r", [
         r"\bhvac\b", r"\bhvac/?r\b",
@@ -121,6 +134,27 @@ FAMILIES: list[tuple[str, list[str]]] = [
         r"\bplumber\b", r"\bplumbers?\b",
         r"\bpipefitter\b", r"\bpipe[- ]?fitter\b",
         r"\bsteamfitter\b", r"\bgas fitter\b",
+    ]),
+    ("rail_transit", [
+        # Must precede automotive_diesel — "Locomotive Diesel Technician"
+        # would otherwise hit the generic diesel pattern.
+        r"\blocomotive (?:diesel )?(?:tech|technician|mechanic)\b",
+        r"\brail(?:car|road) (?:tech|technician|mechanic)\b",
+        r"\btrack (?:worker|maintainer|technician)\b",
+        r"\bsignal maintainer\b",
+        r"\bbridge[/\s].*?(?:rail|structure).*?tech(?:nician)?\b",
+    ]),
+    ("marine", [
+        # Must precede automotive_diesel — "Marine Mechanic" would otherwise
+        # hit the bare \bmechanic\b pattern.
+        r"\bmarine (?:tech|technician|mechanic)\b",
+        r"\boutboard (?:tech|technician|mechanic)\b",
+        r"\bshipwright\b",
+    ]),
+    ("field_service", [
+        # Must precede automotive_diesel — "Field Service Technician" would
+        # otherwise hit the generic "service technician" pattern.
+        r"\bfield service (?:tech|technician|specialist|representative)\b",
     ]),
     ("automotive_diesel", [
         r"\bdiesel (?:tech|technician|mechanic)\b",
@@ -171,6 +205,11 @@ FAMILIES: list[tuple[str, list[str]]] = [
         r"\bchemical (?:operator|technician|tech)\b",
         r"\bstranding (?:operator|helper|associate)\b",
     ]),
+    ("civil_survey", [
+        r"\bsurvey(?:ing)? (?:and mapping )?tech(?:nician)?\b",
+        r"\bcivil engineering tech(?:nician)?\b",
+        r"\bland surveyor\b",
+    ]),
     ("construction_skilled", [
         r"\bcarpenter\b", r"\bcarpenters?\b",
         r"\bmason\b", r"\bmasons?\b", r"\bbrick(?:layer|mason)\b",
@@ -193,6 +232,7 @@ FAMILIES: list[tuple[str, list[str]]] = [
         r"\bmaterials? associate\b",
         r"\bwarehouse (?:associate|operator|specialist|technician|coordinator)\b",
         r"\bcdl driver\b", r"\bclass [ab] driver\b",
+        r"\b(?:commercial )?truck driver\b",
         r"\bshipping (?:and|&) receiving (?:clerk|associate|tech)\b",
         r"\breceiving (?:clerk|associate|tech|technician)\b",
         r"\binventory (?:specialist|associate|technician)\b",
@@ -200,6 +240,73 @@ FAMILIES: list[tuple[str, list[str]]] = [
         r"\btool room (?:attendant|associate|tech)\b",
         r"\bstorekeeper\b",
         r"\bdistribution (?:associate|specialist|operator|supervisor)\b",
+    ]),
+    # ---- 2026-07 expansion: security, electronics, data center ----
+    ("security", [
+        r"\b(?:security|fire) alarm (?:tech|technician|installer)\b",
+        r"\balarm (?:installer|technician)\b",
+    ]),
+    ("electronics", [
+        r"\belectro[- ]?mechanical tech(?:nician)?\b",
+        r"\belectronics? engineering tech(?:nician)?\b",
+    ]),
+    ("data_center", [
+        r"\bdata center (?:tech|technician|specialist|operator)\b",
+        r"\bcritical facilities (?:tech|technician)\b",
+    ]),
+    # ---- 2026-07 expansion: healthcare (SPF definitive job list) ----
+    ("healthcare_support", [
+        r"\bcertified nursing assistant\b", r"\bcna\b",
+        r"\bmedical assistant\b",
+        r"\bphlebotomist\b",
+        r"\bpatient care (?:tech|technician)\b",
+        r"\bhome health aide\b",
+    ]),
+    ("nursing", [
+        r"\blpn\b", r"\blvn\b",
+        r"\blicensed (?:practical|vocational) nurse\b",
+    ]),
+    ("dental", [
+        r"\bdental (?:assistant|hygienist)\b",
+    ]),
+    ("radiology", [
+        r"\bradiolog(?:y|ic) tech(?:nologist|nician)?\b",
+        r"\bmri tech(?:nician|nologist)?\b",
+        r"\bsonographer\b",
+        r"\bcardiovascular tech(?:nician|nologist)?\b",
+        r"\bx[- ]?ray tech(?:nician)?\b",
+        r"\bekg tech(?:nician)?\b",
+    ]),
+    ("respiratory", [
+        r"\brespiratory therapist\b",
+    ]),
+    ("physical_therapy", [
+        r"\b(?:physical|occupational) therap(?:y|ist) (?:assistant|aide)\b",
+    ]),
+    ("pharmacy", [
+        r"\bpharmacy tech(?:nician)?\b",
+    ]),
+    ("surgical_tech", [
+        r"\bsurgical tech(?:nologist|nician)?\b",
+        r"\boperating room tech(?:nician)?\b",
+        r"\bscrub tech\b",
+    ]),
+    ("lab_sciences", [
+        r"\b(?:medical )?lab(?:oratory)? tech(?:nician|nologist)\b",
+    ]),
+    ("veterinary", [
+        r"\bvet(?:erinary)? tech(?:nician)?\b",
+        r"\bveterinary assistant\b",
+    ]),
+    ("health_information", [
+        r"\bhealth information tech(?:nician|nologist)?\b",
+        r"\bmedical records\b",
+        r"\bmedical (?:coder|coding|billing)\b",
+    ]),
+    ("dietetics", [
+        r"\b(?:registered )?dietitian\b",
+        r"\bdietetic tech(?:nician)?\b",
+        r"\bnutritionist\b",
     ]),
 ]
 

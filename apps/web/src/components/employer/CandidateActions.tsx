@@ -8,6 +8,8 @@ import { useEffect, useState } from "react";
 import { Mail, CheckCircle2, Loader2, MessageSquare, History } from "lucide-react";
 import { OutreachModal } from "./OutreachModal";
 import { useRouter } from "next/navigation";
+import { useToast } from "@/components/ui";
+import { formatDateShort } from "@/lib/format";
 
 interface CandidateActionsProps {
   matchId: string;
@@ -32,12 +34,17 @@ export function CandidateActions({
   token,
 }: CandidateActionsProps) {
   const router = useRouter();
+  const toast = useToast();
   const [showOutreach, setShowOutreach] = useState(false);
   const [hiring, setHiring] = useState(false);
   const [hired, setHired] = useState(false);
+  const [confirmingHire, setConfirmingHire] = useState(false);
   const [hireError, setHireError] = useState<string | null>(null);
   const [startingDM, setStartingDM] = useState(false);
   const [priorOutreachAt, setPriorOutreachAt] = useState<string | null>(null);
+  // Optional annual wage, reported at hire time — feeds Foundation outcome
+  // analytics (median placement wage). Left blank = not reported.
+  const [hireWage, setHireWage] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -74,14 +81,13 @@ export function CandidateActions({
       const data = await res.json();
       router.push(`/employer/messages/${data.conversation_id}`);
     } catch {
-      alert("Could not open conversation. Please try again.");
+      toast.error("Could not open conversation. Please try again.");
     } finally {
       setStartingDM(false);
     }
   }
 
   async function handleHire() {
-    if (!confirm(`Mark ${applicantName} as hired for ${jobTitle}?`)) return;
     setHiring(true);
     setHireError(null);
     try {
@@ -93,7 +99,13 @@ export function CandidateActions({
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({ outcome_type: "hired", match_id: matchId }),
+          body: JSON.stringify({
+            outcome_type: "hired",
+            match_id: matchId,
+            reported_wage_annual: /^\d{4,7}$/.test(hireWage.trim())
+              ? Number(hireWage.trim())
+              : null,
+          }),
         }
       );
       if (!res.ok) throw new Error("Failed");
@@ -109,21 +121,17 @@ export function CandidateActions({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-2 mt-4 pt-4 border-t border-hairline">
-        <div className="flex flex-col items-start">
-          <button
-            onClick={() => setShowOutreach(true)}
-            className="btn-pill-outline text-micro"
-          >
-            <Mail className="w-3.5 h-3.5" /> {priorOutreachAt ? "Reach out again" : "Reach out"}
-          </button>
-          {priorOutreachAt && (
-            <span className="mt-1 inline-flex items-center gap-1 text-micro text-slate-muted">
-              <History className="w-3 h-3" />
-              Previously reached out {new Date(priorOutreachAt).toLocaleDateString()}
-            </span>
-          )}
-        </div>
+      <div className="mt-4 pt-4 border-t border-hairline">
+        {/* All action buttons share ONE baseline row — the prior-outreach
+            caption renders on its own line below so it can never push a
+            button out of alignment. */}
+        <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => setShowOutreach(true)}
+          className="btn-pill-outline text-micro"
+        >
+          <Mail className="w-3.5 h-3.5" /> {priorOutreachAt ? "Reach out again" : "Reach out"}
+        </button>
 
         <button
           onClick={handleMessage}
@@ -142,23 +150,57 @@ export function CandidateActions({
           <span className="inline-flex items-center gap-1 text-micro text-cohere-green font-medium">
             <CheckCircle2 className="w-3.5 h-3.5" /> Marked as hired
           </span>
+        ) : confirmingHire ? (
+          <span className="inline-flex flex-wrap items-center gap-2">
+            <span className="text-micro text-slate">
+              Mark {applicantName} as hired for {jobTitle}?
+            </span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={hireWage}
+              onChange={(e) => setHireWage(e.target.value)}
+              placeholder="Annual wage (optional)"
+              aria-label="Annual wage in dollars (optional)"
+              className="input-cohere w-40 px-2 py-1 text-micro"
+              disabled={hiring}
+            />
+            <button
+              onClick={handleHire}
+              disabled={hiring}
+              className="inline-flex items-center gap-1 rounded-pill bg-cohere-green px-3 py-1.5 text-micro font-medium text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {hiring ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+              {hiring ? "Saving…" : "Confirm"}
+            </button>
+            <button
+              onClick={() => setConfirmingHire(false)}
+              disabled={hiring}
+              className="text-micro text-slate hover:text-ink"
+            >
+              Cancel
+            </button>
+          </span>
         ) : (
           <button
-            onClick={handleHire}
-            disabled={hiring}
+            onClick={() => setConfirmingHire(true)}
             className="btn-pill-outline text-micro hover:text-cohere-green hover:border-cohere-green/40"
           >
-            {hiring ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <CheckCircle2 className="w-3.5 h-3.5" />
-            )}
-            {hiring ? "Saving…" : "Mark as hired"}
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            Mark as hired
           </button>
         )}
 
         {hireError && (
           <span className="text-micro text-error-red">{hireError}</span>
+        )}
+        </div>
+
+        {priorOutreachAt && (
+          <p className="mt-1.5 flex items-center gap-1 text-micro text-slate-muted">
+            <History className="w-3 h-3" />
+            Previously reached out {formatDateShort(priorOutreachAt)}
+          </p>
         )}
       </div>
 

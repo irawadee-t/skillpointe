@@ -79,7 +79,7 @@ export function FoundationClient({
         <div className="flex items-center gap-2">
           <div className="h-1.5 w-24 overflow-hidden rounded-full bg-stone">
             <div
-              className="h-full rounded-full bg-cohere-green transition-[width] duration-500 ease-cohere"
+              className="h-full rounded-full bg-cohere-green transition-[width] duration-300 ease-cohere"
               style={{ width: `${Math.round((r.employment_rate ?? 0) * 100)}%` }}
             />
           </div>
@@ -122,16 +122,38 @@ export function FoundationClient({
         <PageHeader
           eyebrow="SKILLED Foundation"
           title="Impact & outcomes"
-          lead="WIOA-style outcomes across all workers served — employment, earnings, credential attainment, and time to hire. Cohort breakdowns support a publish-safe view that suppresses any group smaller than 10 (k-anonymity)."
+          lead="WIOA-style outcomes across all workers served: employment, earnings, credential attainment, and time to hire. Cohort breakdowns support a publish-safe view that suppresses any group smaller than 10 (k-anonymity)."
         />
 
-        {/* Headline KPI row — rhythmic mix of tones so it doesn't read as a monotone slab. */}
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
-          <MetricCard label="Workers served" value={summary.total_served.toLocaleString()} icon={Users} tone="green" />
-          <MetricCard label="Employment rate" value={pct(summary.employment_rate)} icon={Briefcase} tone="stone" />
-          <MetricCard label="Median wage" value={money(summary.median_wage)} icon={DollarSign} tone="white" />
-          <MetricCard label="Credential attainment" value={pct(summary.attainment_rate)} icon={Award} tone="stone" />
-          <MetricCard label="Median time to hire" value={`${summary.median_time_to_hire_days ?? "—"}d`} icon={Clock} tone="white" />
+        {/* Headline phrase-stats + one honest reading of the coverage. */}
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+            <MetricCard label="workers served" value={summary.total_served.toLocaleString()} icon={Users} />
+            <MetricCard label="employment rate" value={pct(summary.employment_rate)} icon={Briefcase} />
+            <MetricCard label="median wage" value={money(summary.median_wage)} icon={DollarSign} />
+            <MetricCard label="credential attainment" value={pct(summary.attainment_rate)} icon={Award} />
+            <MetricCard
+              label="median time to hire"
+              value={summary.median_time_to_hire_days != null ? `${summary.median_time_to_hire_days}d` : "—"}
+              icon={Clock}
+            />
+          </div>
+          <p className="text-caption text-slate">
+            {summary.total_served > 0 ? (
+              <>
+                Placements are on record for{" "}
+                <span className="tabular-nums">{summary.placed.toLocaleString()}</span> of{" "}
+                <span className="tabular-nums">{summary.total_served.toLocaleString()}</span> workers
+                served (
+                {summary.placed > 0 && summary.placed / summary.total_served < 0.005
+                  ? "<1%"
+                  : `${Math.round((100 * summary.placed) / summary.total_served)}%`}
+                ). Wage and time-to-hire figures reflect reported outcomes only, not everyone served.
+              </>
+            ) : (
+              <>No workers served yet. Outcomes appear once workers are imported or sign up.</>
+            )}
+          </p>
         </div>
 
         {/* Cohort table — sortable, filterable, zebra rows, muted for suppressed. */}
@@ -149,7 +171,7 @@ export function FoundationClient({
                     onClick={() => setGroupBy(d.key)}
                     className={cn(
                       "rounded-sm px-3 py-1.5 text-caption transition-colors",
-                      groupBy === d.key ? "bg-studio-dark-cork text-white" : "text-slate hover:text-cohere-ink",
+                      groupBy === d.key ? "bg-ink text-white" : "text-slate hover:text-cohere-ink",
                     )}
                   >
                     {d.label}
@@ -208,7 +230,7 @@ export function FoundationClient({
               <div className="rounded-md border border-hairline bg-parchment/40 p-4">
                 <p className="whitespace-pre-line text-body leading-relaxed text-cohere-ink">{report.narrative}</p>
                 <p className="mt-3 text-micro text-slate-muted">
-                  Numbers computed deterministically — narrative {report.source === "ai" ? "AI-drafted" : "auto-drafted (no AI key)"}.
+                  Numbers computed deterministically. Narrative {report.source === "ai" ? "AI-drafted" : "auto-drafted (no AI key)"}.
                 </p>
               </div>
             </motion.div>

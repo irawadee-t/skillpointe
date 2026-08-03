@@ -86,6 +86,7 @@ def main() -> int:
     # Load reference data
     job_families = _load_job_families(conn)
     geo_regions = _load_geo_regions(conn)
+    career_pathways = _load_career_pathways(conn)
 
     if not job_families:
         print("WARNING: no canonical_job_families found in DB.")
@@ -100,7 +101,7 @@ def main() -> int:
     # ----------------------------------------------------------------
     if not args.jobs_only:
         a_results = _normalize_applicants(
-            conn, job_families, geo_regions, args, verbose=args.verbose
+            conn, job_families, geo_regions, career_pathways, args, verbose=args.verbose
         )
         results["applicant"] = a_results
 
@@ -152,10 +153,10 @@ def main() -> int:
 # Applicant normalization
 # ---------------------------------------------------------------------------
 
-def _normalize_applicants(conn, job_families, geo_regions, args, verbose=False):
+def _normalize_applicants(conn, job_families, geo_regions, career_pathways, args, verbose=False):
     where = "" if args.all else "WHERE canonical_job_family_id IS NULL"
     limit = f"LIMIT {args.limit}" if args.limit else ""
-    sql = f"SELECT id, program_name_raw, state, city FROM public.applicants {where} {limit}"
+    sql = f"SELECT id, program_name_raw, state, city, career_path FROM public.applicants {where} {limit}"
 
     with conn.cursor() as cur:
         cur.execute(sql)
@@ -176,6 +177,7 @@ def _normalize_applicants(conn, job_families, geo_regions, args, verbose=False):
         norm = normalize_program_to_job_family(program, job_families)
         family_id = _family_code_to_id(norm.family_code, job_families)
         region = normalize_location(row.get("city"), state, geo_regions)
+        pathway_id = _career_path_to_pathway_id(row.get("career_path"), career_pathways)
 
         if norm.family_code:
             stats["matched"] += 1
@@ -198,11 +200,12 @@ def _normalize_applicants(conn, job_families, geo_regions, args, verbose=False):
                     """
                     UPDATE public.applicants
                     SET canonical_job_family_id = %s,
+                        canonical_career_pathway_id = COALESCE(%s, canonical_career_pathway_id),
                         region = %s,
                         updated_at = NOW()
                     WHERE id = %s
                     """,
-                    (family_id, region, app_id),
+                    (family_id, pathway_id, region, app_id),
                 )
 
     return stats
@@ -297,6 +300,33 @@ def _load_job_families(conn) -> list[dict]:
         cur.execute("SELECT id, code, name, aliases FROM public.canonical_job_families WHERE is_active = TRUE")
         cols = [d[0] for d in cur.description]
         return [dict(zip(cols, r)) for r in cur.fetchall()]
+
+
+def _load_career_pathways(conn) -> list[dict]:
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT id, code, name, aliases FROM public.canonical_career_pathways WHERE is_active = TRUE"
+        )
+        cols = [d[0] for d in cur.description]
+        return [dict(zip(cols, r)) for r in cur.fetchall()]
+
+
+def _career_path_to_pathway_id(career_path: str | None, pathways: list[dict]):
+    """
+    Exact (case-insensitive) match of an applicant's career_path value against
+    canonical_career_pathways name/aliases.  Used for the CSV 'Career Path'
+    umbrella values (Building, Transportation, Healthcare, ...).
+    """
+    if not career_path or not career_path.strip():
+        return None
+    v = career_path.strip().lower()
+    for p in pathways:
+        if v == (p.get("name") or "").strip().lower():
+            return p["id"]
+        for alias in (p.get("aliases") or []):
+            if v == alias.strip().lower():
+                return p["id"]
+    return None
 
 
 def _load_geo_regions(conn) -> list[dict]:

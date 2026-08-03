@@ -9,6 +9,7 @@ import { PreferencesPanel } from "@/components/applicant/PreferencesPanel";
 import { ResumeUploader } from "@/components/applicant/ResumeUploader";
 import { useAutosave } from "@/lib/useAutosave";
 import { SaveIndicator } from "@/components/ui/SaveIndicator";
+import { useViewAs, VIEW_AS_READONLY_TOOLTIP } from "@/hooks/useViewAs";
 import {
   US_STATES,
   CAREER_PATHS,
@@ -17,6 +18,7 @@ import {
   DEGREE_TYPES,
   TRAVEL_OPTIONS,
   RELOCATION_OPTIONS,
+  COMMUTE_RADIUS_PRESETS,
   WAGE_RANGES,
   AGE_RANGES,
   GENDER_OPTIONS,
@@ -24,8 +26,41 @@ import {
 
 type FormState = Record<string, unknown>;
 
+/**
+ * Build the PATCH payload from form state.
+ *
+ * Every managed field is sent — an explicitly-emptied field goes as `null`
+ * (rather than being omitted) so clearing e.g. city actually persists. We only
+ * ever send keys the form itself manages; `extra` merges in fields the form
+ * doesn't own (e.g. onboarding_complete on an explicit save).
+ */
+function buildProfilePayload(
+  form: FormState,
+  extra?: Record<string, unknown>,
+): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(form)) {
+    out[k] = v === "" || v === undefined ? null : v;
+  }
+  // GPA: numeric or null (empty clears it).
+  if (typeof form.gpa === "string") {
+    out.gpa = form.gpa.trim() === "" ? null : parseFloat(form.gpa) || null;
+  }
+  // Commute radius: integer miles or null (empty clears it).
+  if ("commute_radius_miles" in form) {
+    const raw = form.commute_radius_miles;
+    const n = typeof raw === "string" ? parseInt(raw, 10) : (raw as number | null);
+    out.commute_radius_miles = n && n > 0 ? Math.min(n, 500) : null;
+  }
+  // Derive legacy booleans from the new enum fields for backward compat.
+  if (form.travel_preference) out.willing_to_travel = form.travel_preference !== "no_travel";
+  if (form.relocation_preference) out.willing_to_relocate = form.relocation_preference !== "stay_current";
+  return { ...out, ...extra };
+}
+
 export default function EditProfilePage() {
   const router = useRouter();
+  const { isViewAs } = useViewAs();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,24 +69,23 @@ export default function EditProfilePage() {
 
   // Autosave: after the first load, silently PATCH ~800ms after every edit.
   // Skips onboarding_complete so we don't accidentally finalize onboarding here.
-  const autosave = useAutosave(loading ? null : form, 800, async (payload) => {
+  const autosave = useAutosave(loading || isViewAs ? null : form, 800, async (payload) => {
     if (!payload) return;
     const supabase = createClient();
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return;
-    const clean: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(payload)) {
-      if (v === "" || v === null || v === undefined) continue;
-      clean[k] = v;
-    }
-    if (typeof clean.gpa === "string" && clean.gpa) clean.gpa = parseFloat(clean.gpa as string) || undefined;
-    if (clean.travel_preference)      clean.willing_to_travel   = clean.travel_preference !== "no_travel";
-    if (clean.relocation_preference)  clean.willing_to_relocate = clean.relocation_preference !== "stay_current";
-    await fetch(`${process.env.NEXT_PUBLIC_API_URL}/applicant/me/profile`, {
+    const body = buildProfilePayload(payload as FormState);
+    const resp = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/applicant/me/profile`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${session.access_token}`, "Content-Type": "application/json" },
-      body: JSON.stringify(clean),
+      body: JSON.stringify(body),
     });
+    // Surface a real failure to the autosave hook (→ "error" state) instead of
+    // silently showing "Saved" on a 4xx/5xx.
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.detail ?? `Autosave failed (${resp.status})`);
+    }
   });
 
   useEffect(() => {
@@ -70,9 +104,11 @@ export default function EditProfilePage() {
       setForm({
         first_name: data.first_name ?? "",
         last_name: data.last_name ?? "",
+        phone: data.phone ?? "",
         program_name_raw: data.program_name_raw ?? "",
         city: data.city ?? "",
         state: data.state ?? "",
+        commute_radius_miles: data.commute_radius_miles ?? "",
         willing_to_relocate: data.willing_to_relocate ?? false,
         willing_to_travel: data.willing_to_travel ?? false,
         expected_completion_date: data.expected_completion_date ?? "",
@@ -122,23 +158,8 @@ export default function EditProfilePage() {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.push("/login"); return; }
 
-    const payload: Record<string, unknown> = { ...form, onboarding_complete: true };
-
-    // Clean empty strings → omit from PATCH
-    for (const key of Object.keys(payload)) {
-      if (payload[key] === "" || payload[key] === null) delete payload[key];
-    }
-    // Convert GPA to number
-    if (typeof payload.gpa === "string" && payload.gpa) {
-      payload.gpa = parseFloat(payload.gpa as string) || undefined;
-    }
-    // Derive legacy booleans from new enums for backward compat
-    if (payload.travel_preference) {
-      payload.willing_to_travel = payload.travel_preference !== "no_travel";
-    }
-    if (payload.relocation_preference) {
-      payload.willing_to_relocate = payload.relocation_preference !== "stay_current";
-    }
+    // Send every managed field (emptied → null) so clearing a field persists.
+    const payload = buildProfilePayload(form, { onboarding_complete: true });
 
     const resp = await fetch(
       `${process.env.NEXT_PUBLIC_API_URL}/applicant/me/profile`,
@@ -225,6 +246,10 @@ export default function EditProfilePage() {
                 <Input value={form.last_name as string} onChange={(v) => set("last_name", v)} placeholder="Smith" />
               </Field>
             </Row>
+            <Field label="Phone">
+              <PhoneInput value={(form.phone as string) ?? ""} onChange={(v) => set("phone", v)} />
+              <p className="text-micro text-slate-muted mt-1">Used for text notifications when you turn them on.</p>
+            </Field>
             <Row>
               <Field label="Age range">
                 <Select value={form.age_range as string} onChange={(v) => set("age_range", v)} options={AGE_RANGES.map((a) => ({ value: a, label: a }))} />
@@ -279,7 +304,7 @@ export default function EditProfilePage() {
             </Field>
             <Field label="Specific career or program name">
               <Input value={form.specific_career as string} onChange={(v) => set("specific_career", v)} placeholder="e.g. A.A.S. Building Construction Technologies" />
-              <p className="text-micro text-slate-muted mt-1">Free text — describe exactly what you study or want to do</p>
+              <p className="text-micro text-slate-muted mt-1">Free text. Describe exactly what you study or want to do</p>
             </Field>
             <Field label="Program name (as you know it)">
               <Input value={form.program_name_raw as string} onChange={(v) => set("program_name_raw", v)} placeholder="e.g. Electrician Apprentice" />
@@ -316,11 +341,44 @@ export default function EditProfilePage() {
                 <Select value={form.state as string} onChange={(v) => set("state", v)} options={US_STATES.map((s) => ({ value: s, label: s }))} />
               </Field>
             </Row>
+            <Field label="How far will you travel for work?">
+              <div className="flex flex-wrap items-center gap-2">
+                {COMMUTE_RADIUS_PRESETS.map((r) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => set("commute_radius_miles", r)}
+                    aria-pressed={Number(form.commute_radius_miles) === r}
+                    className={`rounded-full border px-4 py-1.5 text-caption transition-colors ${Number(form.commute_radius_miles) === r ? "border-cohere-ink bg-ink font-medium text-white" : "border-hairline bg-white text-slate hover:border-cohere-ink"}`}
+                  >
+                    {r} mi
+                  </button>
+                ))}
+                <div className="flex items-center gap-1.5">
+                  <input
+                    type="number"
+                    min={1}
+                    max={500}
+                    value={(form.commute_radius_miles as number | string) ?? ""}
+                    onChange={(e) => set("commute_radius_miles", e.target.value)}
+                    className="input-cohere w-24"
+                    placeholder="50"
+                    aria-label="Commute radius in miles"
+                  />
+                  <span className="text-caption text-slate-muted">miles</span>
+                </div>
+              </div>
+              <p className="text-micro text-slate-muted mt-1.5">
+                Jobs within this distance of {(form.city as string) || "your home city"}
+                {form.state ? `, ${form.state}` : ""} count as in range, including jobs in
+                nearby cities your radius covers. Your matches update when you change it.
+              </p>
+            </Field>
           </Section>
 
           {/* ---- Travel & Relocation ---- */}
           <Section title="Travel & relocation preferences">
-            <Field label="Willingness to travel for work">
+            <Field label="Willing to travel for work">
               <div className="space-y-2">
                 {TRAVEL_OPTIONS.map((opt) => (
                   <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-sm border cursor-pointer transition-colors ${form.travel_preference === opt.value ? "border-cohere-ink bg-stone" : "border-hairline hover:border-cohere-ink"}`}>
@@ -341,7 +399,7 @@ export default function EditProfilePage() {
               </div>
             </Field>
 
-            <Field label="Willingness to relocate">
+            <Field label="Willing to relocate">
               <div className="space-y-2">
                 {RELOCATION_OPTIONS.map((opt) => (
                   <label key={opt.value} className={`flex items-start gap-3 p-3 rounded-sm border cursor-pointer transition-colors ${form.relocation_preference === opt.value ? "border-cohere-ink bg-stone" : "border-hairline hover:border-cohere-ink"}`}>
@@ -375,7 +433,7 @@ export default function EditProfilePage() {
                           const current = (form.relocation_states as string[]) || [];
                           set("relocation_states", selected ? current.filter((x) => x !== s) : [...current, s]);
                         }}
-                        className={`text-micro py-1.5 rounded-sm transition-colors ${selected ? "bg-studio-dark-cork text-white font-medium" : "bg-stone text-slate hover:bg-hairline hover:text-ink"}`}
+                        className={`text-micro py-1.5 rounded-sm transition-colors ${selected ? "bg-ink text-white font-medium" : "bg-stone text-slate hover:bg-hairline hover:text-ink"}`}
                       >
                         {s}
                       </button>
@@ -415,10 +473,10 @@ export default function EditProfilePage() {
 
           {/* ---- Submit ---- */}
           {error && (
-            <p className="text-body text-error-red bg-cohere-coral/10 border border-cohere-coral-soft rounded-md p-3">{error}</p>
+            <p className="text-body text-cohere-ink bg-error-red/[0.06] border border-error-red/30 rounded-md p-3">{error}</p>
           )}
           {saved && (
-            <p className="text-body text-cohere-green bg-wash-green border border-cohere-green/20 rounded-md p-3">
+            <p className="text-body text-cohere-ink bg-wash-green border border-cohere-green/30 rounded-md p-3">
               Profile saved. Your program has been automatically matched to a job family.
             </p>
           )}
@@ -429,7 +487,8 @@ export default function EditProfilePage() {
             </Link>
             <button
               type="submit"
-              disabled={saving}
+              disabled={saving || isViewAs}
+              title={isViewAs ? VIEW_AS_READONLY_TOOLTIP : undefined}
               className="btn-primary flex-1 disabled:opacity-50"
             >
               {saving ? "Saving..." : "Save changes"}
@@ -476,7 +535,7 @@ function ResumeAutoFillShortcut({ onFilled }: { onFilled: (fields: Record<string
       className="mb-6 flex flex-col gap-3 rounded-xl border border-hairline bg-white p-5 sm:flex-row sm:items-center sm:justify-between"
     >
       <div className="min-w-0">
-        <h2 className="font-display text-feature text-cohere-ink">Have a resume already?</h2>
+        <h2 className="text-[1.0625rem] font-medium text-cohere-ink">Have a resume already?</h2>
         <p className="mt-1 text-caption text-slate">Drop it here and we'll pre-fill what we can read. You review every field before anything saves.</p>
       </div>
       <button
@@ -502,7 +561,7 @@ function PreferencesPanelWrapper() {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="bg-white border border-border-light rounded-md p-6 space-y-5">
-      <h2 className="font-display text-feature text-cohere-ink">{title}</h2>
+      <h2 className="text-[1.0625rem] font-medium text-cohere-ink">{title}</h2>
       {children}
     </div>
   );
@@ -538,6 +597,36 @@ function Input({
       max={max}
       className="input-cohere"
     />
+  );
+}
+
+/**
+ * Phone input with the same inline validation the apply sheet uses (a real
+ * number is at least 7 characters). Validates on blur; the hint clears as
+ * soon as the value is fixed or emptied.
+ */
+function PhoneInput({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [touched, setTouched] = useState(false);
+  const invalid = touched && value.trim().length > 0 && value.trim().length < 7;
+  return (
+    <>
+      <input
+        type="tel"
+        inputMode="tel"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onBlur={() => setTouched(true)}
+        placeholder="(555) 555-0100"
+        maxLength={40}
+        aria-invalid={invalid || undefined}
+        className={`input-cohere ${invalid ? "border-studio-maroon" : ""}`}
+      />
+      {invalid && (
+        <p className="text-micro text-studio-maroon mt-1" role="alert">
+          That number looks too short. Enter at least 7 digits.
+        </p>
+      )}
+    </>
   );
 }
 

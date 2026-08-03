@@ -26,7 +26,7 @@ export function SaveIndicator({ status, lastSavedAt }: { status: SaveStatus; las
   if (status === "error") {
     return (
       <span className="inline-flex items-center gap-1 text-micro text-studio-maroon">
-        <AlertTriangle className="h-3 w-3" /> Couldn't save — check your connection
+        <AlertTriangle className="h-3 w-3" /> Couldn't save. Check your connection
       </span>
     );
   }

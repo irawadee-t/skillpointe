@@ -18,17 +18,19 @@ Architecture notes (CLAUDE.md):
 - All enforcement is in backend — never trust frontend-only checks.
 """
 import logging
+import uuid as _uuid
 from functools import lru_cache
 from typing import Annotated
 
 import httpx
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import ExpiredSignatureError, JWTError, jwt
 from supabase import Client, create_client
 
 from app.auth.schemas import CurrentUser, TokenPayload
 from app.config import get_settings
+from app.db import get_db
 
 logger = logging.getLogger(__name__)
 
@@ -189,8 +191,106 @@ def _require_roles(*roles: str):
 
 # Public aliases — use these in route handlers
 require_admin = _require_roles("admin")
-require_applicant = _require_roles("applicant")
 require_employer = _require_roles("employer")
+
+
+# ---------------------------------------------------------------------------
+# Applicant dependency + admin "view as applicant" debug mode
+# ---------------------------------------------------------------------------
+
+# Header an admin sends to resolve /applicant/me/* endpoints against a chosen
+# applicant instead of themselves. Strictly read-only (GET/HEAD) and admin-only.
+VIEW_AS_HEADER = "X-View-As-Applicant"
+
+_VIEW_AS_READONLY_METHODS = {"GET", "HEAD"}
+
+
+async def _resolve_view_as_target(applicant_id: str, admin: CurrentUser) -> CurrentUser:
+    """
+    Resolve the target applicant for an admin view-as request.
+
+    Returns a CurrentUser that impersonates the applicant (role='applicant').
+    `view_as_applicant_id` is ALWAYS set and is what applicant endpoints use to
+    resolve the applicant row — this works even for bulk-imported applicants
+    with no linked auth user. For those, `user_id` stays the ADMIN's own auth
+    id (never a fabricated UUID); it is only a fallback key and matches no
+    applicant row, which is fine because view-as is GET-only.
+    `impersonated_by` records the real admin for downstream awareness.
+    """
+    try:
+        _uuid.UUID(applicant_id)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Applicant not found for view-as",
+        )
+
+    async with get_db() as conn:
+        row = await conn.fetchrow(
+            """
+            SELECT id::text AS id, user_id::text AS user_id, email
+            FROM public.applicants
+            WHERE id = $1::uuid
+            """,
+            applicant_id,
+        )
+
+    if not row:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Applicant not found for view-as",
+        )
+
+    return CurrentUser(
+        user_id=row["user_id"] or admin.user_id,
+        email=row["email"] or "",
+        role="applicant",
+        onboarding_complete=True,
+        impersonated_by=admin.user_id,
+        view_as_applicant_id=row["id"],
+    )
+
+
+async def require_applicant(
+    request: Request,
+    current_user: Annotated[CurrentUser, Depends(get_current_user)],
+) -> CurrentUser:
+    """
+    Applicant-scoped dependency for every /applicant/me/* endpoint.
+
+    Normal sessions: behaves exactly like the old _require_roles("applicant") —
+    applicants pass through unchanged, every other role gets 403.
+
+    Admin view-as debug mode: when the caller is an admin AND the request
+    carries the X-View-As-Applicant header, the target applicant is resolved
+    instead. Guardrails (CLAUDE.md — admin must never act on behalf of others):
+      - admin-only: any non-admin sending the header gets 403
+      - read-only:  any non-GET/HEAD method under view-as gets 403
+      - auditable:  session starts are logged via POST /admin/view-as/{id}/start
+    """
+    view_as_id = request.headers.get(VIEW_AS_HEADER)
+
+    if view_as_id is None:
+        # Zero behavior change for normal sessions.
+        if current_user.role != "applicant":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Role '{current_user.role}' is not permitted for this resource",
+            )
+        return current_user
+
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="View-as is restricted to admins",
+        )
+    if request.method.upper() not in _VIEW_AS_READONLY_METHODS:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="View-as is read-only",
+        )
+
+    return await _resolve_view_as_target(view_as_id.strip(), current_user)
 # Alias of require_employer with an explicit name at call sites for endpoints
 # that MUST NOT be reachable by admins (mutations that would create/modify data
 # on behalf of an employer). Use this whenever an endpoint's business logic

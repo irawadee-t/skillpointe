@@ -22,8 +22,25 @@ def test_heuristic_provider_extracts_fields():
     assert ex.confidence > 0
 
 
-def test_default_provider_is_heuristic():
-    assert isinstance(get_ocr_provider(), HeuristicOCRProvider)
+def test_default_provider_is_safe_outside_local(monkeypatch):
+    """Outside local, an unconfigured OCR provider defaults to the safe null
+    provider — never the heuristic, which must not be trusted to auto-verify."""
+    from app.config import get_settings
+    from app.integrations.ocr import NullOCRProvider
+
+    get_settings.cache_clear()
+    assert isinstance(get_ocr_provider(), NullOCRProvider)  # APP_ENV=test in conftest
+
+
+def test_heuristic_provider_selectable_explicitly(monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.setenv("OCR_PROVIDER", "heuristic")
+    get_settings.cache_clear()
+    try:
+        assert isinstance(get_ocr_provider(), HeuristicOCRProvider)
+    finally:
+        get_settings.cache_clear()
 
 
 def test_assess_verifies_matching_authentic_doc():

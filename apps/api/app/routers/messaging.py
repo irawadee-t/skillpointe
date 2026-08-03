@@ -16,12 +16,13 @@ from __future__ import annotations
 import logging
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel, Field, field_validator
 
 from app.auth.dependencies import require_authenticated
 from app.auth.schemas import CurrentUser
 from app.db import get_db
+from app.skilled_pro.notifications import notify
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ class ConversationSummary(BaseModel):
     last_message_at: str
     unread_count: int
     message_count: int
+    last_message_preview: str | None = None  # trimmed snippet of the newest message
 
 
 class DirectMessageOut(BaseModel):
@@ -63,11 +65,18 @@ class StartConversationRequest(BaseModel):
     employer_id: str | None = None    # required when applicant starts
     job_id: str | None = None
     match_id: str | None = None
-    initial_message: str | None = None
+    initial_message: str | None = Field(default=None, max_length=5000)
 
 
 class SendMessageRequest(BaseModel):
-    content: str
+    content: str = Field(min_length=1, max_length=5000)
+
+    @field_validator("content")
+    @classmethod
+    def _content_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("content must not be blank")
+        return v
 
 
 # ---------------------------------------------------------------------------
@@ -95,6 +104,14 @@ async def _resolve_ids(conn: Any, user: CurrentUser) -> tuple[str, str, str]:
         raise HTTPException(status_code=403, detail="Role not permitted")
 
 
+def _preview(content: str | None, limit: int = 120) -> str | None:
+    """One-line snippet of the newest message for inbox rows."""
+    if not content:
+        return None
+    flat = " ".join(content.split())
+    return flat[: limit - 1] + "…" if len(flat) > limit else flat
+
+
 # ---------------------------------------------------------------------------
 # GET /conversations
 # ---------------------------------------------------------------------------
@@ -115,7 +132,10 @@ async def list_conversations(
                     COALESCE(j.title_normalized, j.title_raw) AS job_title,
                     c.last_message_at::text,
                     c.applicant_unread AS unread_count,
-                    COUNT(dm.id) AS message_count
+                    COUNT(dm.id) AS message_count,
+                    (SELECT dm2.content FROM public.direct_messages dm2
+                      WHERE dm2.conversation_id = c.id
+                      ORDER BY dm2.created_at DESC LIMIT 1) AS last_message_preview
                 FROM public.conversations c
                 JOIN public.employers e ON e.id = c.employer_id
                 LEFT JOIN public.jobs j ON j.id = c.job_id
@@ -135,7 +155,10 @@ async def list_conversations(
                     COALESCE(j.title_normalized, j.title_raw) AS job_title,
                     c.last_message_at::text,
                     c.employer_unread AS unread_count,
-                    COUNT(dm.id) AS message_count
+                    COUNT(dm.id) AS message_count,
+                    (SELECT dm2.content FROM public.direct_messages dm2
+                      WHERE dm2.conversation_id = c.id
+                      ORDER BY dm2.created_at DESC LIMIT 1) AS last_message_preview
                 FROM public.conversations c
                 JOIN public.applicants a ON a.id = c.applicant_id
                 LEFT JOIN public.jobs j ON j.id = c.job_id
@@ -155,6 +178,7 @@ async def list_conversations(
             last_message_at=r["last_message_at"],
             unread_count=int(r["unread_count"] or 0),
             message_count=int(r["message_count"] or 0),
+            last_message_preview=_preview(r["last_message_preview"]),
         )
         for r in rows
     ]
@@ -416,6 +440,16 @@ async def send_message(
             conversation_id,
         )
 
+        # Tray signal for the recipient. The messages surfaces poll (thread 15s,
+        # inbox 60s), but the rest of the app only hears about a new DM through
+        # the notification tray. Deduped per conversation inside a 15-minute
+        # window so a burst of messages produces one tray item, not ten.
+        # Guarded: a notification hiccup must never 500 the send itself.
+        try:
+            await _notify_dm_recipient(conn, role, applicant_id, employer_id, conv, conversation_id, body.content)
+        except Exception as exc:
+            logger.warning("DM notification failed for conversation %s: %s", conversation_id, exc)
+
         # Log engagement event
         conv_applicant_id = applicant_id if role == "applicant" else str(conv["applicant_id"])
         conv_employer_id = employer_id if role != "applicant" else str(conv["employer_id"])
@@ -436,6 +470,45 @@ async def send_message(
         created_at=msg_row["created_at"],
         is_mine=True,
     )
+
+
+async def _notify_dm_recipient(
+    conn: Any, role: str, applicant_id: str | None, employer_id: str | None,
+    conv: Any, conversation_id: str, content: str,
+) -> None:
+    if role == "applicant":
+        recipient = await conn.fetchrow(
+            "SELECT ec.user_id, a.first_name, a.last_name FROM public.employer_contacts ec "
+            "JOIN public.applicants a ON a.id = $2::uuid "
+            "WHERE ec.employer_id = $1::uuid ORDER BY ec.created_at LIMIT 1",
+            conv["employer_id"], applicant_id,
+        )
+        sender_name = (
+            f"{recipient['first_name']} {recipient['last_name']}".strip() if recipient else "An applicant"
+        )
+    else:
+        recipient = await conn.fetchrow(
+            "SELECT a.user_id, e.name AS employer_name FROM public.applicants a "
+            "JOIN public.employers e ON e.id = $2::uuid WHERE a.id = $1::uuid",
+            conv["applicant_id"], employer_id,
+        )
+        sender_name = recipient["employer_name"] if recipient else "An employer"
+    if recipient and recipient["user_id"]:
+        await notify(
+            conn,
+            recipient_user_id=str(recipient["user_id"]),
+            kind="dm_received",
+            title=f"New message from {sender_name or 'your contact'}",
+            body=content.strip()[:140],
+            link_href=(
+                f"/employer/messages/{conversation_id}"
+                if role == "applicant"
+                else f"/applicant/messages/{conversation_id}"
+            ),
+            payload={"conversation_id": conversation_id},
+            dedupe_key=f"dm:{conversation_id}",
+            dedupe_window_minutes=15,
+        )
 
 
 # ---------------------------------------------------------------------------

@@ -41,7 +41,7 @@ export function PreferencesPanel({ token }: { token: string }) {
 
       <Row
         icon={Mail}
-        label="Email — new matches and messages"
+        label="Email: new matches and messages"
         sub="Short digest, never every event."
         on={prefs.email_opt_in}
         saving={saving === "email_opt_in"}
@@ -49,7 +49,7 @@ export function PreferencesPanel({ token }: { token: string }) {
       />
       <Row
         icon={MessageSquare}
-        label="Text — time-sensitive things only"
+        label="Text: time-sensitive things only"
         sub="Interview times, employer messages, new match near you. Standard message rates apply."
         on={prefs.sms_opt_in}
         saving={saving === "sms_opt_in"}
@@ -69,7 +69,7 @@ export function PreferencesPanel({ token }: { token: string }) {
               disabled={saving === "preferred_locale"}
               className={`px-4 py-1.5 text-caption font-medium transition-colors ${
                 prefs.preferred_locale === locale
-                  ? "bg-studio-dark-cork text-canvas"
+                  ? "bg-ink text-canvas"
                   : "text-slate hover:text-cohere-ink"
               }`}
             >

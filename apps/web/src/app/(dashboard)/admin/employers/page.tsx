@@ -1,26 +1,69 @@
 /**
  * Admin Employers Directory
  *
- * Lists all employers with search and filter controls.
- * Admin can see contact emails, partner status, and job counts.
+ * Org-profile directory with granular, data-backed filtering: name search,
+ * state + industry multi-selects, partner status, job-count bands, hiring
+ * activity (real engagement data), careers-source connection, and date added.
+ * All filters are URL-synced and compose (AND across facets).
  */
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { MessageSquare, MapPin, Building2, ArrowRight } from "lucide-react";
+import { MessageSquare, MapPin, Building2, ArrowRight, Link2 } from "lucide-react";
 
 import { fetchAdminEmployers } from "@/lib/api/admin";
 import { ApiError } from "@/lib/api/client";
 import { createClient } from "@/lib/supabase/server";
-import { PageHeader, Reveal, Stagger, StaggerItem, MetricCard, Breadcrumb } from "@/components/ui";
+import {
+  PageHeader,
+  Reveal,
+  Stagger,
+  StaggerItem,
+  Breadcrumb,
+  UrlSelectField,
+  UrlMultiSelectField,
+  UrlDateField,
+  ActiveFilterChips,
+  FilterBar,
+  FilterGroup,
+  FilterTransition,
+  SearchSuggestField,
+  describeActiveFilters,
+  type FilterChipDef,
+} from "@/components/ui";
 import { PagerJump } from "@/components/admin/PagerJump";
 
 interface PageProps {
   searchParams: Promise<{
     q?: string;
-    state?: string;
+    states?: string;
+    industry?: string;
     is_partner?: string;
+    has_active_jobs?: string;
+    jobs_band?: string;
+    has_hired?: string;
+    has_outreach?: string;
+    has_career_source?: string;
+    created_from?: string;
+    created_to?: string;
+    sort?: string;
     page?: string;
   }>;
+}
+
+const BOOL_OPTIONS = (yes: string, no: string) => [
+  { value: "true", label: yes },
+  { value: "false", label: no },
+];
+
+const JOBS_BAND_OPTIONS = [
+  { value: "none", label: "No jobs" },
+  { value: "1_10", label: "1–10 jobs" },
+  { value: "11_100", label: "11–100 jobs" },
+  { value: "over_100", label: "100+ jobs" },
+];
+
+function parseBool(v: string | undefined): boolean | undefined {
+  return v === "true" ? true : v === "false" ? false : undefined;
 }
 
 export default async function AdminEmployersPage({ searchParams }: PageProps) {
@@ -32,29 +75,52 @@ export default async function AdminEmployersPage({ searchParams }: PageProps) {
   if (session.user.app_metadata?.role !== "admin") redirect("/login");
 
   const page = sp.page ? Math.max(1, parseInt(sp.page)) : 1;
-  const isPartnerFilter =
-    sp.is_partner === "true" ? true : sp.is_partner === "false" ? false : undefined;
 
   let data;
   try {
     data = await fetchAdminEmployers(session.access_token, {
       q: sp.q,
-      state: sp.state,
-      is_partner: isPartnerFilter,
+      states: sp.states,
+      industry: sp.industry,
+      is_partner: parseBool(sp.is_partner),
+      has_active_jobs: parseBool(sp.has_active_jobs),
+      jobs_band: sp.jobs_band,
+      has_hired: parseBool(sp.has_hired),
+      has_outreach: parseBool(sp.has_outreach),
+      has_career_source: parseBool(sp.has_career_source),
+      created_from: sp.created_from,
+      created_to: sp.created_to,
+      sort: sp.sort,
       page,
     });
   } catch (e) {
     return (
       <main className="py-8">
-        <div className="page-shell bg-cohere-coral/10 border border-cohere-coral-soft rounded-md p-5 text-body text-cohere-ink">
-          {e instanceof ApiError ? `API error ${e.status}` : "Could not reach the API — please refresh."}
+        <div className="page-shell bg-error-red/[0.06] border border-error-red/30 rounded-md p-5 text-body text-cohere-ink">
+          {e instanceof ApiError ? `API error ${e.status}` : "Could not reach the API. Please refresh."}
         </div>
       </main>
     );
   }
 
-  const hasFilters = !!(sp.q || sp.state || sp.is_partner);
-  const partnerCount = data.employers.filter((emp) => emp.is_partner).length;
+  const chipFields: FilterChipDef[] = [
+    { param: "q", label: "Name" },
+    { param: "states", label: "State", multi: true },
+    { param: "industry", label: "Industry", multi: true },
+    { param: "is_partner", label: "Partner", options: BOOL_OPTIONS("Partners only", "Non-partners") },
+    { param: "has_active_jobs", label: "Active jobs", options: BOOL_OPTIONS("Has active", "None active") },
+    { param: "jobs_band", label: "Job count", options: JOBS_BAND_OPTIONS },
+    { param: "has_hired", label: "Hiring", options: BOOL_OPTIONS("Has hired", "No hires") },
+    { param: "has_outreach", label: "Outreach", options: BOOL_OPTIONS("Has sent", "None sent") },
+    { param: "has_career_source", label: "Careers source", options: BOOL_OPTIONS("Connected", "Not connected") },
+    { param: "created_from", label: "Added from" },
+    { param: "created_to", label: "Added to" },
+  ];
+  const hasFilters = chipFields.some((f) => !!sp[f.param as keyof typeof sp]);
+  const filterSentence = describeActiveFilters(sp as Record<string, string | undefined>, chipFields);
+
+  const from = data.total === 0 ? 0 : (page - 1) * 50 + 1;
+  const to = Math.min(page * 50, data.total);
 
   return (
     <main className="py-8">
@@ -72,78 +138,137 @@ export default async function AdminEmployersPage({ searchParams }: PageProps) {
           }
         />
 
-        {/* Stat cards — deep-green KPIs */}
-        <Stagger className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          <StaggerItem>
-            <MetricCard label="Total employers" value={data.total.toLocaleString()} icon={Building2} />
-          </StaggerItem>
-          <StaggerItem>
-            <MetricCard label="Partners (this page)" value={partnerCount.toLocaleString()} icon={MessageSquare} />
-          </StaggerItem>
-          <StaggerItem>
-            <MetricCard
-              label="Active jobs (this page)"
-              value={data.employers.reduce((n, e) => n + e.active_jobs, 0).toLocaleString()}
-              icon={MapPin}
-            />
-          </StaggerItem>
-        </Stagger>
-
-        {/* Filter bar */}
+        {/* Filter bar — 4 primary controls; long tail behind "More filters" */}
         <Reveal>
-          <form method="GET" action="/admin/employers" className="border border-border-light rounded-md bg-white p-4">
-            <div className="flex flex-wrap gap-3 items-end">
-              <div className="flex-1 min-w-[180px]">
-                <label className="mono-label mb-1.5 block">Search company name</label>
-                <input
-                  name="q"
-                  type="text"
-                  defaultValue={sp.q ?? ""}
+          <FilterBar
+            footer={<ActiveFilterChips fields={chipFields} className="mt-3" />}
+            moreParams={[
+              "is_partner",
+              "jobs_band",
+              "has_active_jobs",
+              "has_hired",
+              "has_outreach",
+              "has_career_source",
+              "created_from",
+              "created_to",
+            ]}
+            primary={
+              <>
+                <SearchSuggestField
+                  param="q"
+                  suggest="admin-employers"
+                  label="Search company name"
                   placeholder="Acme Industrial…"
-                  className="input-cohere px-3 py-2 text-body"
+                  className="flex-1 min-w-[180px]"
+                  inputClassName="px-3 py-2 pl-9 text-body"
                 />
-              </div>
-              <div className="min-w-[90px]">
-                <label className="mono-label mb-1.5 block">State</label>
-                <input
-                  name="state"
-                  type="text"
-                  maxLength={2}
-                  defaultValue={sp.state ?? ""}
-                  placeholder="TX"
-                  className="input-cohere px-3 py-2 text-body"
+                <UrlMultiSelectField
+                  param="states"
+                  label="State"
+                  options={data.facets.states.map((s) => ({ value: s, label: s }))}
+                  className="min-w-[110px]"
                 />
-              </div>
-              <div className="min-w-[130px]">
-                <label className="mono-label mb-1.5 block">Partner status</label>
-                <select
-                  name="is_partner"
-                  defaultValue={sp.is_partner ?? ""}
-                  className="input-cohere px-2 py-2 text-body"
-                >
-                  <option value="">All</option>
-                  <option value="true">Partners only</option>
-                  <option value="false">Non-partners</option>
-                </select>
-              </div>
-              <button type="submit" className="btn-primary px-5 py-2 text-button">
-                Search
-              </button>
-              {hasFilters && (
-                <Link href="/admin/employers" className="btn-pill-outline">
-                  Clear
-                </Link>
-              )}
-            </div>
-          </form>
+                <UrlMultiSelectField
+                  param="industry"
+                  label="Industry"
+                  options={data.facets.industries.map((i) => ({ value: i, label: i }))}
+                  className="min-w-[150px]"
+                />
+                <UrlSelectField
+                  param="sort"
+                  label="Sort"
+                  className="min-w-[130px]"
+                  selectClassName="px-2 py-2 text-body"
+                  options={[
+                    { value: "", label: "Name" },
+                    { value: "jobs", label: "Most jobs" },
+                    { value: "recent", label: "Recent activity" },
+                  ]}
+                />
+              </>
+            }
+          >
+            <FilterGroup label="Partnership">
+              <UrlSelectField
+                param="is_partner"
+                label="Partner status"
+                className="min-w-[130px]"
+                selectClassName="px-2 py-2 text-body"
+                options={[{ value: "", label: "All" }, ...BOOL_OPTIONS("Partners only", "Non-partners")]}
+              />
+              <UrlSelectField
+                param="has_career_source"
+                label="Careers source"
+                className="min-w-[130px]"
+                selectClassName="px-2 py-2 text-body"
+                options={[{ value: "", label: "Any" }, ...BOOL_OPTIONS("Connected", "Not connected")]}
+              />
+            </FilterGroup>
+            <FilterGroup label="Jobs & hiring activity">
+              <UrlSelectField
+                param="jobs_band"
+                label="Job count"
+                className="min-w-[120px]"
+                selectClassName="px-2 py-2 text-body"
+                options={[{ value: "", label: "Any" }, ...JOBS_BAND_OPTIONS]}
+              />
+              <UrlSelectField
+                param="has_active_jobs"
+                label="Active jobs"
+                className="min-w-[120px]"
+                selectClassName="px-2 py-2 text-body"
+                options={[{ value: "", label: "Any" }, ...BOOL_OPTIONS("Has active", "None active")]}
+              />
+              <UrlSelectField
+                param="has_hired"
+                label="Hiring"
+                className="min-w-[120px]"
+                selectClassName="px-2 py-2 text-body"
+                options={[{ value: "", label: "Any" }, ...BOOL_OPTIONS("Has hired", "No hires")]}
+              />
+              <UrlSelectField
+                param="has_outreach"
+                label="Outreach"
+                className="min-w-[120px]"
+                selectClassName="px-2 py-2 text-body"
+                options={[{ value: "", label: "Any" }, ...BOOL_OPTIONS("Has sent", "None sent")]}
+              />
+            </FilterGroup>
+            <FilterGroup label="Date added">
+              <UrlDateField
+                param="created_from"
+                label="Added from"
+                className="min-w-[140px]"
+                inputClassName="px-2 py-1.5 text-body"
+              />
+              <UrlDateField
+                param="created_to"
+                label="Added to"
+                className="min-w-[140px]"
+                inputClassName="px-2 py-1.5 text-body"
+              />
+            </FilterGroup>
+          </FilterBar>
         </Reveal>
+
+        {/* Result count — same predicates as the list (parity-tested server-side).
+            FilterTransition fades fresh results in (~150ms) on filter changes. */}
+        <FilterTransition className="space-y-6">
+        <p className="text-body text-slate" aria-live="polite">
+          Showing {from}–{to} of {data.total}
+          {hasFilters ? " matching employers" : " employers"}
+        </p>
 
         {/* Results */}
         {data.employers.length === 0 ? (
-          <div className="border border-border-light rounded-md bg-white p-8 text-center">
-            <p className="text-ink font-medium">No employers found</p>
+          <div className="rounded-[10px] border border-hairline bg-white p-8 text-center">
+            <p className="text-ink font-medium">
+              {hasFilters ? "No employers match these filters" : "No employers found"}
+            </p>
             {hasFilters && (
-              <p className="text-body text-slate mt-1">Try adjusting your filters.</p>
+              <p className="text-body text-slate mt-1">
+                Active filters: {filterSentence || "none"}. Remove one, or clear all to widen the results.
+              </p>
             )}
           </div>
         ) : (
@@ -153,7 +278,7 @@ export default async function AdminEmployersPage({ searchParams }: PageProps) {
               return (
                 <StaggerItem
                   key={emp.id}
-                  className="rounded-md border border-hairline bg-white p-5 shadow-subtle transition-shadow hover:shadow-medium"
+                  className="rounded-[14px] border border-hairline bg-white p-5 transition-[color,background-color,border-color,box-shadow] duration-200 ease-cohere hover:shadow-float"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div className="min-w-0 flex-1">
@@ -165,8 +290,15 @@ export default async function AdminEmployersPage({ searchParams }: PageProps) {
                           {emp.name}
                         </Link>
                         {emp.is_partner && (
-                          <span className="inline-flex items-center text-micro font-medium text-cohere-coral bg-cohere-coral/10 border border-cohere-coral-soft rounded-sm px-2 py-0.5">
+                          // Emphasis, not a status — solid ink so maroon stays
+                          // reserved for attention states.
+                          <span className="inline-flex items-center rounded-full border border-cohere-ink bg-ink px-2 py-0.5 text-[11px] font-medium text-white">
                             Partner
+                          </span>
+                        )}
+                        {emp.has_career_source && (
+                          <span className="inline-flex items-center gap-1 rounded-full border border-hairline px-2 py-0.5 text-[11px] font-medium text-slate">
+                            <Link2 className="h-3 w-3" /> Careers source
                           </span>
                         )}
                       </div>
@@ -182,6 +314,13 @@ export default async function AdminEmployersPage({ searchParams }: PageProps) {
                             <Building2 className="w-3.5 h-3.5" /> {emp.industry}
                           </span>
                         )}
+                        {(emp.hired_count > 0 || emp.outreach_count > 0) && (
+                          <span className="tabular-nums">
+                            {emp.hired_count > 0 && `${emp.hired_count} hired`}
+                            {emp.hired_count > 0 && emp.outreach_count > 0 && " · "}
+                            {emp.outreach_count > 0 && `${emp.outreach_count} outreach sent`}
+                          </span>
+                        )}
                         {emp.contact_name && (
                           <span className="text-slate font-medium">{emp.contact_name}</span>
                         )}
@@ -189,26 +328,22 @@ export default async function AdminEmployersPage({ searchParams }: PageProps) {
                     </div>
 
                     {/* Job counts — clickable, link into filtered jobs list */}
-                    <div className="shrink-0 flex gap-3 text-center">
+                    <div className="shrink-0 flex flex-col items-end gap-1 text-caption">
                       <Link
                         href={`/admin/employers/${emp.id}?jobs=active`}
-                        className="group rounded-md border border-transparent bg-cohere-green px-3 py-2 transition-all hover:-translate-y-0.5 hover:border-studio-dark-cork hover:shadow-[0_6px_20px_-6px_rgba(74,75,47,0.55)]"
+                        className="group inline-flex items-center gap-1 text-slate hover:text-cohere-ink transition-colors"
                       >
-                        <div className="text-body-lg font-display text-studio-cream leading-none tabular-nums">{emp.active_jobs}</div>
-                        <div className="mono-label mt-1 inline-flex items-center gap-1 text-studio-cream/70 group-hover:text-studio-cream transition-colors">
-                          active jobs
-                          <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
-                        </div>
+                        <span className="font-medium text-cohere-ink tabular-nums">{emp.active_jobs}</span>
+                        active jobs
+                        <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
                       </Link>
                       <Link
                         href={`/admin/employers/${emp.id}?jobs=all`}
-                        className="group rounded-md border border-hairline bg-white px-3 py-2 transition-all hover:-translate-y-0.5 hover:border-studio-dark-cork hover:shadow-[0_6px_20px_-6px_rgba(12,10,9,0.15)]"
+                        className="group inline-flex items-center gap-1 text-slate hover:text-cohere-ink transition-colors"
                       >
-                        <div className="text-body-lg font-display text-cohere-ink leading-none tabular-nums">{emp.total_jobs}</div>
-                        <div className="mono-label mt-1 inline-flex items-center gap-1 group-hover:text-studio-dark-cork transition-colors">
-                          total jobs
-                          <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
-                        </div>
+                        <span className="font-medium text-cohere-ink tabular-nums">{emp.total_jobs}</span>
+                        total jobs
+                        <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
                       </Link>
                     </div>
                   </div>
@@ -239,7 +374,7 @@ export default async function AdminEmployersPage({ searchParams }: PageProps) {
         {data.total > 50 && (
           <div className="flex flex-wrap items-center justify-between gap-3 text-caption text-slate">
             <span>
-              Showing {(page - 1) * 50 + 1}–{Math.min(page * 50, data.total)} of {data.total}
+              Showing {from}–{to} of {data.total}
             </span>
             <div className="flex items-center gap-3">
               <PagerJump
@@ -269,6 +404,7 @@ export default async function AdminEmployersPage({ searchParams }: PageProps) {
             </div>
           </div>
         )}
+        </FilterTransition>
       </div>
     </main>
   );

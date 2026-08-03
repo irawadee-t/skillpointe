@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import InteractiveOrb from "@/components/InteractiveOrb";
+import AuroraWater from "@/components/AuroraWater";
 import { Reveal } from "@/components/ui";
 import { SkilledNationLogo } from "@/components/ui/Logo";
 
@@ -11,10 +11,20 @@ export default function AuthLayout({
 }) {
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
-      {/* Brand panel — the orb's world, live. Same silk scene as the landing
-          hero, no intro (it's simply there), scrimmed for copy legibility. */}
+      {/* Brand panel — same light-ribbon scene as the landing hero, no intro
+          (it's simply there), scrimmed for copy legibility. */}
       <aside className="relative hidden flex-col justify-between overflow-hidden p-12 text-studio-cream lg:flex">
-        <InteractiveOrb
+        {/* Static red-sphere fallback — always present so the panel never
+            renders flat black if WebGL is slow or unavailable. */}
+        <div
+          aria-hidden
+          className="absolute inset-0 bg-[#0b0b0c]"
+          style={{
+            backgroundImage:
+              "radial-gradient(58% 74% at 34% 26%, rgba(157,34,53,0.85), rgba(92,16,30,0.55) 45%, rgba(11,11,12,0) 72%)",
+          }}
+        />
+        <AuroraWater
           className="absolute inset-0"
           intro={false}
           orb={{ x: 0.3, y: 0.2, r: 0.62 }}
@@ -35,7 +45,7 @@ export default function AuthLayout({
             The right place.
           </h2>
           <p className="mt-5 text-body-lg text-studio-cream/85 drop-shadow-[0_1px_8px_rgba(0,0,0,0.4)]">
-            Ranked matches, verified credentials, and a clear next step —
+            Ranked matches, verified credentials, and a clear next step
             for SKILLED Scholars, employers, and the staff between them.
           </p>
         </div>

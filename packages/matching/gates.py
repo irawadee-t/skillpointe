@@ -21,10 +21,15 @@ DECISIONS.md 1.12 hard rule:
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import date
 from typing import Any
 
-from .normalizer import TimingResult, JOB_FAMILY_ADJACENCY
+from .geo import (
+    NEAR_RADIUS_FACTOR,
+    SAME_CITY_MILES,
+    effective_radius_miles,
+    haversine_miles,
+)
+from .normalizer import JOB_FAMILY_ADJACENCY, TimingResult
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -96,7 +101,7 @@ def evaluate_job_family_gate(
     if applicant_family_code is None or job_family_code is None:
         return GateDetail(
             "job_family_compatibility", NEAR_FIT,
-            "one or both family codes unknown — cannot confirm compatibility",
+            "one or both family codes unknown; cannot confirm compatibility",
             needs_review=True,
         )
 
@@ -165,7 +170,7 @@ def evaluate_credential_gate(
         else:
             sub_results.append((FAIL, f"education mismatch: job requires {job_min_education}, applicant has {applicant_education}", "critical"))
     elif job_min_education:
-        sub_results.append((NEAR_FIT, f"job requires {job_min_education} — applicant education unknown", "normal"))
+        sub_results.append((NEAR_FIT, f"job requires {job_min_education}, applicant education unknown", "normal"))
 
     # --- B) Specific credentials check ---
     if required_credentials:
@@ -186,11 +191,11 @@ def evaluate_credential_gate(
             if not unmatched:
                 sub_results.append((PASS, f"all {cred_count} credentials matched", "normal"))
             elif matched:
-                sub_results.append((NEAR_FIT, f"partial credential match — has [{', '.join(matched)}], missing [{', '.join(unmatched)}]", "normal"))
+                sub_results.append((NEAR_FIT, f"partial credential match, has [{', '.join(matched)}], missing [{', '.join(unmatched)}]", "normal"))
             else:
                 sub_results.append((FAIL, f"required credentials [{cred_list}] not found", "critical"))
         else:
-            sub_results.append((NEAR_FIT, f"requires [{cred_list}] — applicant credentials not yet verified", "normal"))
+            sub_results.append((NEAR_FIT, f"requires [{cred_list}], applicant credentials not yet verified", "normal"))
 
     # --- C) Experience years check ---
     if job_required_experience_years is not None and job_required_experience_years > 0:
@@ -199,14 +204,14 @@ def evaluate_credential_gate(
             sub_results.append((PASS, f"experience: applicant has {app_exp}+ yrs, job needs {job_required_experience_years}", "normal"))
         elif job_required_experience_years <= 1:
             # 1 year: trade school training often accepted as equivalent
-            sub_results.append((PASS, f"job prefers {job_required_experience_years} yr experience — trade school training typically qualifies", "normal"))
+            sub_results.append((PASS, f"job prefers {job_required_experience_years} yr experience, trade school training typically qualifies", "normal"))
         elif job_required_experience_years == 2:
-            sub_results.append((NEAR_FIT, f"job needs {job_required_experience_years} yrs experience — new graduate may qualify", "normal"))
+            sub_results.append((NEAR_FIT, f"job needs {job_required_experience_years} yrs experience, new graduate may qualify", "normal"))
         elif job_required_experience_years <= 4:
             # 3-4 years: significant gap for a new grad (journeyman territory)
-            sub_results.append((FAIL, f"job requires {job_required_experience_years}+ years experience — requires substantial field time", "critical"))
+            sub_results.append((FAIL, f"job requires {job_required_experience_years}+ years experience, needs substantial field time", "critical"))
         else:
-            sub_results.append((FAIL, f"job requires {job_required_experience_years}+ years experience — significant gap for new graduate", "critical"))
+            sub_results.append((FAIL, f"job requires {job_required_experience_years}+ years experience, significant gap for new graduate", "critical"))
 
     # --- Aggregate: worst sub-result wins ---
     if not sub_results:
@@ -258,7 +263,7 @@ def evaluate_timing_gate(timing: TimingResult) -> GateDetail:
     if timing.readiness_label == "unknown":
         return GateDetail(
             "readiness_timing_compatibility", PASS,
-            "timing not specified — assumed available",
+            "timing not specified, assumed available",
         )
 
     if timing.readiness_label == "available_now":
@@ -273,7 +278,7 @@ def evaluate_timing_gate(timing: TimingResult) -> GateDetail:
         if months <= 3:
             return GateDetail(
                 "readiness_timing_compatibility", PASS,
-                f"completing program in ~{months} month(s) — within typical hiring window",
+                f"completing program in ~{months} month(s), within typical hiring window",
             )
         return GateDetail(
             "readiness_timing_compatibility", NEAR_FIT,
@@ -304,9 +309,41 @@ def evaluate_geography_gate(
     relocation_preference: str | None = None,
     relocation_states: list[str] | None = None,
     travel_preference: str | None = None,
+    applicant_lat: float | None = None,
+    applicant_lng: float | None = None,
+    job_lat: float | None = None,
+    job_lng: float | None = None,
+    commute_radius_miles: int | float | None = None,
+    applicant_city: str | None = None,
+    job_city: str | None = None,
+    geo_prefs_stated: bool = True,
+    relax_unknown_prefs: bool = False,
 ) -> GateDetail:
     """
     Gate 4: Is the geography feasible?
+
+    Sparse-data rule (config.relax_unknown_geo_prefs): when the applicant has
+    never stated ANY geography preference (``geo_prefs_stated=False`` — no
+    chosen radius, no relocation states, no willingness flags) a beyond-radius
+    job is a NEAR_FIT ("potentially feasible — preference unknown") instead of
+    a hard FAIL. Absence of a stated preference is missing data, not a stated
+    refusal to move. An explicitly configured radius/preference keeps the
+    hard FAIL.
+
+    Distance-first when coordinates are pre-resolved for BOTH sides
+    (radius rule — jobs are posted against a city; the job is in range iff
+    the geodesic distance home → job city is <= the applicant's radius):
+
+      same city (<= 5 mi or matching city+state)     → PASS
+      distance <= radius                             → PASS
+      job state in chosen relocation_states          → PASS
+      willing to relocate (no state list)            → PASS
+      distance <= radius * 1.5                       → NEAR_FIT
+      relocation preference within_region/anywhere   → NEAR_FIT
+      otherwise                                      → FAIL (critical — caps score)
+
+    Missing coordinates on either side → the state/region matrix below
+    (backward compatible; absent data never hard-fails on its own).
 
     Uses granular travel_preference and relocation_preference enums:
       travel_preference:     no_travel | within_state | regional | nationwide
@@ -328,13 +365,13 @@ def evaluate_geography_gate(
     if ws == "remote":
         return GateDetail(
             "geography_feasibility", PASS,
-            "fully remote job — geography not a constraint",
+            "fully remote job, geography not a constraint",
         )
 
     if not job_state:
         return GateDetail(
             "geography_feasibility", PASS,
-            "job location not specified — geography not assessed",
+            "job location not specified, geography not assessed",
         )
 
     app_upper = (applicant_state or "").upper()
@@ -342,6 +379,80 @@ def evaluate_geography_gate(
     app_region_lower = (applicant_region or "").lower()
     job_region_lower = (job_region or "").lower()
 
+    # ------------------------------------------------------------------
+    # Distance-first path — both sides have pre-resolved coordinates.
+    # ------------------------------------------------------------------
+    if (applicant_lat is not None and applicant_lng is not None
+            and job_lat is not None and job_lng is not None):
+        dist = haversine_miles(applicant_lat, applicant_lng, job_lat, job_lng)
+        radius = effective_radius_miles(commute_radius_miles)
+        home = applicant_city or applicant_state or "home"
+        same_city_name = bool(
+            applicant_city and job_city
+            and applicant_city.strip().lower() == job_city.strip().lower()
+            and app_upper and job_upper and app_upper == job_upper
+        )
+
+        if same_city_name or dist <= SAME_CITY_MILES:
+            return GateDetail(
+                "geography_feasibility", PASS,
+                f"in your city ({job_city or applicant_city}), ~{dist:.0f} mi away",
+            )
+
+        if dist <= radius:
+            return GateDetail(
+                "geography_feasibility", PASS,
+                f"~{dist:.0f} mi from {home}, inside your {radius:.0f} mi radius",
+            )
+
+        # Beyond the radius — relocation willingness can still make it feasible.
+        if relocation_states and job_upper and job_upper in {s.upper() for s in relocation_states}:
+            return GateDetail(
+                "geography_feasibility", PASS,
+                f"~{dist:.0f} mi away, beyond your {radius:.0f} mi radius, but "
+                f"{job_state} is one of your chosen relocation states",
+            )
+        if willing_to_relocate and not relocation_states:
+            return GateDetail(
+                "geography_feasibility", PASS,
+                f"~{dist:.0f} mi away, beyond your {radius:.0f} mi radius, but "
+                "you're open to relocating",
+            )
+
+        if dist <= radius * NEAR_RADIUS_FACTOR:
+            return GateDetail(
+                "geography_feasibility", NEAR_FIT,
+                f"~{dist:.0f} mi from {home}, just beyond your {radius:.0f} mi radius",
+            )
+
+        r_pref_coords = relocation_preference or (
+            "anywhere" if willing_to_relocate else "stay_current"
+        )
+        if r_pref_coords in ("anywhere", "within_region", "specific_states"):
+            return GateDetail(
+                "geography_feasibility", NEAR_FIT,
+                f"~{dist:.0f} mi away, beyond your {radius:.0f} mi radius; "
+                "may be reachable given your relocation preferences",
+            )
+
+        if relax_unknown_prefs and not geo_prefs_stated:
+            return GateDetail(
+                "geography_feasibility", NEAR_FIT,
+                f"~{dist:.0f} mi away, beyond the default {radius:.0f} mi radius; "
+                "set your commute radius or relocation preferences to confirm",
+                needs_review=False,
+            )
+
+        return GateDetail(
+            "geography_feasibility", FAIL,
+            f"~{dist:.0f} mi away, beyond your {radius:.0f} mi radius; "
+            "consider widening your radius or updating relocation settings",
+            severity="critical",
+        )
+
+    # ------------------------------------------------------------------
+    # Fallback — no coordinates for one or both sides: state/region logic.
+    # ------------------------------------------------------------------
     # Same state is always fine
     if app_upper and job_upper and app_upper == job_upper:
         return GateDetail(
@@ -382,11 +493,17 @@ def evaluate_geography_gate(
         if t_pref == "within_state" or r_pref == "within_state":
             return GateDetail(
                 "geography_feasibility", NEAR_FIT,
-                f"same region but different state — {loc_desc} (prefers in-state)",
+                f"same region but different state; {loc_desc} (prefers in-state)",
+            )
+        if relax_unknown_prefs and not geo_prefs_stated:
+            return GateDetail(
+                "geography_feasibility", NEAR_FIT,
+                f"same region but different state; {loc_desc} "
+                "(no relocation preference set yet)",
             )
         return GateDetail(
             "geography_feasibility", FAIL,
-            f"same region but different state — {loc_desc} (not willing to relocate/travel out of state)",
+            f"same region but different state; {loc_desc} (not willing to relocate/travel out of state)",
             severity="critical",
         )
 
@@ -394,29 +511,39 @@ def evaluate_geography_gate(
     if r_pref == "anywhere":
         return GateDetail(
             "geography_feasibility", NEAR_FIT,
-            f"different region but open to relocating anywhere — {loc_desc}",
+            f"different region but open to relocating anywhere; {loc_desc}",
         )
     if t_pref in ("nationwide", "anywhere"):
         return GateDetail(
             "geography_feasibility", NEAR_FIT,
-            f"different region but willing to travel nationwide — {loc_desc}",
+            f"different region but willing to travel nationwide; {loc_desc}",
         )
-    if r_pref in ("within_region", "within_state"):
+    if r_pref == "within_region":
         return GateDetail(
             "geography_feasibility", NEAR_FIT,
-            f"different region — {loc_desc} (would require relocation; prefers {r_pref.replace('_', ' ')})",
+            f"different region; {loc_desc} (open to relocating within region, a stretch)",
         )
 
     if not applicant_state:
         return GateDetail(
             "geography_feasibility", NEAR_FIT,
-            "applicant location not set — please update your profile",
+            "applicant location not set; please update your profile",
             needs_review=True,
         )
 
+    if relax_unknown_prefs and not geo_prefs_stated:
+        return GateDetail(
+            "geography_feasibility", NEAR_FIT,
+            f"different region; {loc_desc} (no relocation preference set yet)",
+        )
+
+    # Won't relocate or travel out of region for a job in another region — the
+    # geography is infeasible (matches the decision matrix above). A failed
+    # critical gate caps the final score.
     return GateDetail(
-        "geography_feasibility", NEAR_FIT,
-        f"different location — {loc_desc} (would require relocation)",
+        "geography_feasibility", FAIL,
+        f"different region and not willing to relocate/travel out of region; {loc_desc}",
+        severity="critical",
     )
 
 
@@ -469,7 +596,7 @@ def evaluate_min_req_gate(
         if ratio >= 0.5:
             return GateDetail(
                 "explicit_minimum_requirement_compatibility", NEAR_FIT,
-                f"partial skill match ({len(matched)}/{len(matched)+len(unmatched)}) — "
+                f"partial skill match ({len(matched)}/{len(matched)+len(unmatched)}), "
                 f"missing: {', '.join(unmatched[:3])}",
             )
         return GateDetail(
@@ -484,7 +611,7 @@ def evaluate_min_req_gate(
     # Mark needs_review so admin can prioritize running extraction.
     return GateDetail(
         "explicit_minimum_requirement_compatibility", PASS,
-        "minimum requirements not yet extracted — defaulting to pass (no evidence of mismatch)",
+        "minimum requirements not yet extracted; defaulting to pass (no evidence of mismatch)",
         needs_review=True,
     )
 
@@ -508,13 +635,26 @@ def evaluate_seniority_gate(
     mid job         → NEAR_FIT if trade school, PASS if experienced
     senior job      → FAIL if trade school with < 3 years
     management job  → FAIL for trade school applicants
+
+    Raw ATS values are normalised first ("Experienced" → mid,
+    "Fresh Graduate" → entry) so scraped jobs don't silently bypass the gate.
     """
-    level = (job_experience_level or "entry").lower()
+    _LEVEL_ALIASES = {
+        "experienced": "mid",
+        "fresh graduate": "entry",
+        "fresh_graduate": "entry",
+        "graduate": "entry",
+        "junior": "entry",
+        "internship": "entry",
+        "intern": "entry",
+    }
+    level = (job_experience_level or "entry").strip().lower()
+    level = _LEVEL_ALIASES.get(level, level)
 
     if level == "entry":
         return GateDetail(
             "seniority_compatibility", PASS,
-            "entry-level position — appropriate for trade school graduates",
+            "entry-level position, appropriate for trade school graduates",
         )
 
     exp_years = applicant_experience_years or 0
@@ -528,11 +668,11 @@ def evaluate_seniority_gate(
         if is_trade_school:
             return GateDetail(
                 "seniority_compatibility", NEAR_FIT,
-                "mid-level position — may require more experience than a recent graduate has",
+                "mid-level position, may require more experience than a recent graduate has",
             )
         return GateDetail(
             "seniority_compatibility", NEAR_FIT,
-            "mid-level position — experience level uncertain",
+            "mid-level position, experience level uncertain",
         )
 
     if level == "senior":
@@ -544,11 +684,11 @@ def evaluate_seniority_gate(
         if exp_years >= 3:
             return GateDetail(
                 "seniority_compatibility", NEAR_FIT,
-                f"senior position — applicant has {exp_years} years (may be stretch)",
+                f"senior position, applicant has {exp_years} years (may be stretch)",
             )
         return GateDetail(
             "seniority_compatibility", FAIL,
-            "senior-level position requires significant experience — not suitable for recent graduates",
+            "senior-level position requires significant experience, not suitable for recent graduates",
             severity="critical",
         )
 
@@ -556,17 +696,17 @@ def evaluate_seniority_gate(
         if exp_years >= 5:
             return GateDetail(
                 "seniority_compatibility", NEAR_FIT,
-                f"management position — applicant has {exp_years} years but management experience unclear",
+                f"management position, applicant has {exp_years} years but management experience unclear",
             )
         return GateDetail(
             "seniority_compatibility", FAIL,
-            "management position requires leadership experience — not suitable for recent graduates",
+            "management position requires leadership experience, not suitable for recent graduates",
             severity="critical",
         )
 
     return GateDetail(
         "seniority_compatibility", PASS,
-        f"unknown experience level '{level}' — defaulting to pass",
+        f"unknown experience level '{level}', defaulting to pass",
     )
 
 

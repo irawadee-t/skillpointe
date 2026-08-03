@@ -1,17 +1,14 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import {
   Search,
   ChevronDown,
   MapPin,
-  Briefcase,
   CheckCircle2,
   AlertTriangle,
   ExternalLink,
   ChevronUp,
-  User,
-  GraduationCap,
   Calendar,
   Navigation,
   Target,
@@ -27,7 +24,11 @@ import type {
   TestMatchSummary,
 } from "@/lib/api/admin";
 import { fetchTestApplicantMatches } from "@/lib/api/admin";
-import { PageHeader, MonoLabel, Reveal, Stagger, StaggerItem } from "@/components/ui";
+import { PageHeader, Reveal, Stagger, StaggerItem } from "@/components/ui";
+import { MatchLabel } from "@/components/matches/MatchLabel";
+import {
+  RELOCATION_LABELS, TRAVEL_LABELS, WORK_SETTING_LABELS, humanizeEnum,
+} from "@/lib/humanize";
 
 interface Props {
   applicants: TestApplicantListItem[];
@@ -35,14 +36,22 @@ interface Props {
   accessToken: string;
 }
 
+/** "City, ST" with honest fallbacks — never "—, —". */
+function place(city?: string | null, state?: string | null): string {
+  const s = [city, state].filter(Boolean).join(", ");
+  return s || "Location not set";
+}
+
 export function TestMatchesClient({ applicants, fetchError, accessToken }: Props) {
   const [search, setSearch] = useState("");
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [activeIdx, setActiveIdx] = useState(0);
   const [matchData, setMatchData] = useState<TestApplicantMatches | null>(null);
   const [loading, setLoading] = useState(false);
   const [matchError, setMatchError] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
 
   const filtered = applicants.filter((a) => {
     if (!search) return true;
@@ -55,6 +64,8 @@ export function TestMatchesClient({ applicants, fetchError, accessToken }: Props
       (a.family_code ?? "").toLowerCase().includes(q)
     );
   });
+
+  useEffect(() => { setActiveIdx(0); }, [search, dropdownOpen]);
 
   const selected = applicants.find((a) => a.id === selectedId);
 
@@ -92,6 +103,31 @@ export function TestMatchesClient({ applicants, fetchError, accessToken }: Props
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Listbox keyboard contract: arrows move the active option, Enter selects,
+  // Escape closes and returns focus to the trigger.
+  function onListKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIdx((i) => Math.min(filtered.length - 1, i + 1));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIdx((i) => Math.max(0, i - 1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const hit = filtered[activeIdx];
+      if (hit) selectApplicant(hit.id);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setDropdownOpen(false);
+    }
+  }
+
+  useEffect(() => {
+    // Keep the active option in view while arrowing.
+    const el = listRef.current?.querySelector<HTMLElement>(`[data-idx="${activeIdx}"]`);
+    el?.scrollIntoView({ block: "nearest" });
+  }, [activeIdx]);
+
   if (fetchError) {
     return (
       <main className="py-8">
@@ -107,61 +143,79 @@ export function TestMatchesClient({ applicants, fetchError, accessToken }: Props
     <div className="page-shell space-y-6">
       <PageHeader
         eyebrow="Diagnostics"
-        title="Test Applicant Matches"
+        title="Test matches"
         lead={`Select any applicant to preview their match results. ${applicants.length} applicants available.`}
       />
 
-      {/* Applicant Switcher */}
+      {/* Applicant switcher — combobox with listbox semantics */}
       <div className="relative" ref={dropdownRef}>
         <button
           onClick={() => setDropdownOpen(!dropdownOpen)}
+          aria-haspopup="listbox"
+          aria-expanded={dropdownOpen}
           className="w-full flex items-center justify-between bg-white border border-border-light rounded-md px-4 py-3 text-left hover:border-cohere-ink/25 transition-colors"
         >
           {selected ? (
             <div className="flex items-center gap-3 min-w-0">
-              <div className="w-8 h-8 rounded-full bg-wash-blue flex items-center justify-center flex-shrink-0">
-                <User className="w-4 h-4 text-cohere-blue" />
-              </div>
               <div className="min-w-0">
                 <div className="text-body font-semibold text-cohere-ink truncate">
                   {selected.first_name} {selected.last_name}
                 </div>
                 <div className="text-caption text-slate truncate">
-                  {selected.state ?? "—"}, {selected.family_code ?? "—"}, {selected.eligible_count} eligible, {selected.near_fit_count} near-fit
+                  {[selected.state, selected.family_code].filter(Boolean).join(", ") || "No state or trade set"}
+                  {" · "}{selected.eligible_count} eligible · {selected.near_fit_count} near fit
                 </div>
               </div>
             </div>
           ) : (
-            <span className="text-body text-slate">Select an applicant...</span>
+            <span className="text-body text-slate">Select an applicant…</span>
           )}
-          <ChevronDown className={`w-4 h-4 text-slate-muted transition-transform ${dropdownOpen ? "rotate-180" : ""}`} />
+          <ChevronDown className={`w-4 h-4 text-slate-muted transition-transform ${dropdownOpen ? "rotate-180" : ""}`} aria-hidden />
         </button>
 
         {dropdownOpen && (
-          <div className="absolute z-50 mt-1 w-full bg-white border border-border-light rounded-md shadow-lg max-h-[420px] overflow-hidden">
+          <div className="absolute z-50 mt-1 w-full bg-white border border-border-light rounded-md shadow-float max-h-[420px] overflow-hidden">
             <div className="p-2 border-b border-hairline">
               <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-muted" />
+                <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-muted" aria-hidden />
                 <input
                   type="text"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search by name, state, program..."
+                  onKeyDown={onListKeyDown}
+                  placeholder="Search by name, state, program…"
+                  role="combobox"
+                  aria-expanded={dropdownOpen}
+                  aria-controls="applicant-listbox"
+                  aria-activedescendant={filtered[activeIdx] ? `applicant-opt-${filtered[activeIdx].id}` : undefined}
                   className="input-cohere pl-8 pr-3 py-2 text-body"
                   autoFocus
                 />
               </div>
             </div>
-            <div className="overflow-y-auto max-h-[340px] divide-y divide-hairline">
+            <div
+              id="applicant-listbox"
+              role="listbox"
+              aria-label="Applicants"
+              ref={listRef}
+              className="overflow-y-auto max-h-[340px] divide-y divide-hairline"
+            >
               {filtered.length === 0 ? (
-                <p className="text-body text-slate py-4 text-center">No applicants found</p>
+                <p className="text-body text-slate py-4 text-center">
+                  {search ? <>No results for &ldquo;{search}&rdquo;</> : "No applicants found"}
+                </p>
               ) : (
-                filtered.map((a) => (
+                filtered.map((a, idx) => (
                   <button
                     key={a.id}
+                    id={`applicant-opt-${a.id}`}
+                    role="option"
+                    aria-selected={a.id === selectedId}
+                    data-idx={idx}
                     onClick={() => selectApplicant(a.id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-stone/50 transition-colors ${
-                      a.id === selectedId ? "bg-wash-blue" : ""
+                    onMouseEnter={() => setActiveIdx(idx)}
+                    className={`w-full flex items-center gap-3 px-3 py-2.5 text-left transition-colors ${
+                      idx === activeIdx ? "bg-stone/60" : a.id === selectedId ? "bg-wash-blue" : "hover:bg-stone/50"
                     }`}
                   >
                     <div className="w-7 h-7 rounded-full bg-stone flex items-center justify-center flex-shrink-0 text-micro font-medium text-slate">
@@ -172,17 +226,18 @@ export function TestMatchesClient({ applicants, fetchError, accessToken }: Props
                         {a.first_name} {a.last_name}
                       </div>
                       <div className="text-micro text-slate truncate">
-                        {a.state ?? "—"}, {(a.program ?? "").slice(0, 35)}
+                        {[a.state, (a.program ?? "").slice(0, 35)].filter(Boolean).join(", ") || "No profile details"}
                       </div>
                     </div>
+                    {/* Labeled count pills — no bare mystery numbers. */}
                     <div className="flex items-center gap-1.5 flex-shrink-0">
                       {a.eligible_count > 0 && (
-                        <span className="text-micro px-1.5 py-0.5 rounded-sm bg-wash-green text-cohere-green font-medium tabular-nums">
-                          {a.eligible_count}
+                        <span className="text-micro px-1.5 py-0.5 rounded-sm bg-cohere-green text-white font-medium tabular-nums">
+                          {a.eligible_count} eligible
                         </span>
                       )}
-                      <span className="text-micro px-1.5 py-0.5 rounded-sm bg-studio-maroon/10 text-studio-maroon font-medium tabular-nums">
-                        {a.near_fit_count}
+                      <span className="text-micro px-1.5 py-0.5 rounded-sm bg-studio-maroon text-white font-medium tabular-nums">
+                        {a.near_fit_count} near fit
                       </span>
                     </div>
                   </button>
@@ -214,53 +269,40 @@ export function TestMatchesClient({ applicants, fetchError, accessToken }: Props
 
       {matchData && !loading && (
         <div>
-          {/* Profile Card — deep-green panel */}
-          <Reveal className="card-green p-6 mb-6">
+          {/* Profile Card — white sheet */}
+          <Reveal className="rounded-[14px] border border-hairline bg-white p-6 mb-6">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
-                <h2 className="text-feature font-display text-white">
+                <h2 className="font-display text-[1.25rem] text-ink">
                   {matchData.profile.first_name} {matchData.profile.last_name}
                 </h2>
-                <p className="text-body text-white/70 mt-0.5">{matchData.profile.program}</p>
+                <p className="text-body text-slate mt-0.5">{matchData.profile.program}</p>
               </div>
-              <div className="flex items-center gap-4 flex-wrap text-caption text-white/70">
-                <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-white/60" />{matchData.profile.city}, {matchData.profile.state}</span>
-                <span className="flex items-center gap-1"><Wrench className="w-3.5 h-3.5 text-white/60" />{matchData.profile.family_code ?? "—"}</span>
-                <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-white/60" />{matchData.profile.expected_completion_date ?? "—"}</span>
-                <span className="flex items-center gap-1"><Navigation className="w-3.5 h-3.5 text-white/60" />Travel: {matchData.profile.travel_preference ?? "—"}</span>
-                <span className="flex items-center gap-1">Reloc: {matchData.profile.relocation_preference ?? "—"}</span>
-              </div>
-            </div>
-            <div className="flex gap-3 mt-5 flex-wrap">
-              <div className="px-4 py-2.5 bg-white/10 rounded-sm">
-                <div className="text-body-lg font-display text-white tabular-nums">{matchData.total_eligible}</div>
-                <MonoLabel className="text-white/60">Eligible</MonoLabel>
-              </div>
-              <div className="px-4 py-2.5 bg-white/10 rounded-sm">
-                <div className="text-body-lg font-display text-white tabular-nums">{matchData.total_near_fit}</div>
-                <MonoLabel className="text-white/60">Near-fit</MonoLabel>
-              </div>
-              <div className="px-4 py-2.5 bg-white/10 rounded-sm">
-                <div className="text-body-lg font-display text-white tabular-nums">{matchData.total_eligible + matchData.total_near_fit}</div>
-                <MonoLabel className="text-white/60">Total actionable</MonoLabel>
+              <div className="flex items-center gap-4 flex-wrap text-caption text-slate">
+                <span className="flex items-center gap-1"><MapPin className="w-3.5 h-3.5 text-slate-muted" aria-hidden />{place(matchData.profile.city, matchData.profile.state)}</span>
+                <span className="flex items-center gap-1"><Wrench className="w-3.5 h-3.5 text-slate-muted" aria-hidden />{matchData.profile.family_code ?? "No trade set"}</span>
+                <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5 text-slate-muted" aria-hidden />{matchData.profile.expected_completion_date ?? "No completion date"}</span>
+                <span className="flex items-center gap-1"><Navigation className="w-3.5 h-3.5 text-slate-muted" aria-hidden />{humanizeEnum(matchData.profile.travel_preference ?? "unknown", TRAVEL_LABELS)}</span>
+                <span className="flex items-center gap-1">{humanizeEnum(matchData.profile.relocation_preference ?? "unknown", RELOCATION_LABELS)}</span>
               </div>
             </div>
+            <p className="mt-5 text-body text-slate">
+              <span className="font-medium text-ink tabular-nums">{matchData.total_eligible}</span> eligible
+              <span className="mx-1.5 text-slate-muted">·</span>
+              <span className="font-medium text-ink tabular-nums">{matchData.total_near_fit}</span> near fit
+              <span className="mx-1.5 text-slate-muted">·</span>
+              <span className="font-medium text-ink tabular-nums">{matchData.total_eligible + matchData.total_near_fit}</span> actionable in total
+            </p>
           </Reveal>
 
           {/* Eligible */}
           {matchData.eligible_matches.length > 0 && (
             <div className="mb-6">
               <h3 className="text-feature font-display text-cohere-ink mb-3 flex items-center gap-2">
-                <CheckCircle2 className="w-4 h-4 text-cohere-green" />
+                <CheckCircle2 className="w-4 h-4 text-cohere-green" aria-hidden />
                 Eligible matches ({matchData.total_eligible})
               </h3>
-              <Stagger className="space-y-2">
-                {matchData.eligible_matches.map((m) => (
-                  <StaggerItem key={m.match_id}>
-                    <MatchCard match={m} />
-                  </StaggerItem>
-                ))}
-              </Stagger>
+              <MatchList matches={matchData.eligible_matches} />
             </div>
           )}
 
@@ -268,16 +310,10 @@ export function TestMatchesClient({ applicants, fetchError, accessToken }: Props
           {matchData.near_fit_matches.length > 0 && (
             <div>
               <h3 className="text-feature font-display text-cohere-ink mb-3 flex items-center gap-2">
-                <AlertTriangle className="w-4 h-4 text-studio-maroon" />
+                <AlertTriangle className="w-4 h-4 text-studio-maroon" aria-hidden />
                 Near-fit matches ({matchData.total_near_fit})
               </h3>
-              <Stagger className="space-y-2">
-                {matchData.near_fit_matches.map((m) => (
-                  <StaggerItem key={m.match_id}>
-                    <MatchCard match={m} />
-                  </StaggerItem>
-                ))}
-              </Stagger>
+              <MatchList matches={matchData.near_fit_matches} />
             </div>
           )}
 
@@ -294,53 +330,68 @@ export function TestMatchesClient({ applicants, fetchError, accessToken }: Props
   );
 }
 
+/**
+ * Dedupe visually-identical rows (same title + employer + location): the
+ * highest-scoring copy renders once with an "×N postings" affix instead of
+ * N indistinguishable cards.
+ */
+function MatchList({ matches }: { matches: TestMatchSummary[] }) {
+  const deduped = useMemo(() => {
+    const seen = new Map<string, { match: TestMatchSummary; copies: number }>();
+    for (const m of matches) {
+      const key = [m.job_title, m.employer_name, m.job_city, m.job_state].join("|");
+      const hit = seen.get(key);
+      if (hit) hit.copies += 1;
+      else seen.set(key, { match: m, copies: 1 });
+    }
+    return Array.from(seen.values());
+  }, [matches]);
 
-function MatchCard({ match: m }: { match: TestMatchSummary }) {
+  return (
+    <Stagger className="space-y-2">
+      {deduped.map(({ match, copies }) => (
+        <StaggerItem key={match.match_id}>
+          <MatchCard match={match} copies={copies} />
+        </StaggerItem>
+      ))}
+    </Stagger>
+  );
+}
+
+function MatchCard({ match: m, copies = 1 }: { match: TestMatchSummary; copies?: number }) {
   const [expanded, setExpanded] = useState(false);
-
-  const labelColor: Record<string, string> = {
-    strong_fit: "bg-wash-green text-cohere-green border-cohere-green/20",
-    good_fit: "bg-wash-blue text-cohere-blue border-cohere-blue/20",
-    moderate_fit: "bg-studio-maroon/10 text-studio-maroon border-studio-maroon-soft",
-    low_fit: "bg-stone text-slate border-hairline",
-  };
-
-  const labelText: Record<string, string> = {
-    strong_fit: "Strong fit",
-    good_fit: "Good fit",
-    moderate_fit: "Moderate fit",
-    low_fit: "Low fit",
-  };
 
   return (
     <div className="bg-white border border-border-light rounded-md overflow-hidden transition-colors hover:border-cohere-ink/25">
       <button
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
         className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-stone/40 transition-colors"
       >
         <div className="flex items-center gap-3 min-w-0 flex-1">
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="text-body font-semibold text-cohere-ink truncate">{m.job_title}</span>
-              {m.match_label && (
-                <span className={`text-micro px-2 py-0.5 rounded-sm border font-medium ${labelColor[m.match_label] ?? "bg-stone text-slate border-hairline"}`}>
-                  {labelText[m.match_label] ?? m.match_label}
+              {m.match_label && <MatchLabel label={m.match_label} />}
+              {copies > 1 && (
+                <span className="text-micro text-slate-muted" title="Identical postings collapsed">
+                  ×{copies} postings
                 </span>
               )}
             </div>
             <div className="flex items-center gap-3 text-caption text-slate mt-1">
-              <span className="flex items-center gap-1"><Building2 className="w-3 h-3" />{m.employer_name}</span>
-              <span className="flex items-center gap-1"><MapPin className="w-3 h-3" />{m.job_city ?? "—"}, {m.job_state ?? "—"}</span>
-              {m.work_setting && <span className="capitalize">{m.work_setting.replace("_", " ")}</span>}
-              {m.experience_level && <span className="px-1.5 py-0.5 bg-stone rounded-sm text-slate">{m.experience_level}</span>}
+              <span className="flex items-center gap-1"><Building2 className="w-3 h-3" aria-hidden />{m.employer_name}</span>
+              <span className="flex items-center gap-1"><MapPin className="w-3 h-3" aria-hidden />{place(m.job_city, m.job_state)}</span>
+              {m.work_setting && <span>{humanizeEnum(m.work_setting, WORK_SETTING_LABELS)}</span>}
+              {m.experience_level && <span className="px-1.5 py-0.5 bg-stone rounded-sm text-slate">{humanizeEnum(m.experience_level)}</span>}
             </div>
           </div>
         </div>
         <div className="flex items-center gap-3 flex-shrink-0 ml-3">
-          <span className="inline-flex items-center justify-center min-w-[3rem] rounded-sm bg-cohere-green px-2.5 py-1.5 text-body font-display text-white tabular-nums">
+          <span className="inline-flex items-center justify-center min-w-[3rem] rounded-sm bg-cohere-green px-2.5 py-1.5 text-body font-display text-white tabular-nums" title="Policy-adjusted score">
             {m.policy_adjusted_score?.toFixed(1) ?? "—"}
           </span>
-          {expanded ? <ChevronUp className="w-4 h-4 text-slate" /> : <ChevronDown className="w-4 h-4 text-slate" />}
+          {expanded ? <ChevronUp className="w-4 h-4 text-slate" aria-hidden /> : <ChevronDown className="w-4 h-4 text-slate" aria-hidden />}
         </div>
       </button>
 
@@ -351,7 +402,7 @@ function MatchCard({ match: m }: { match: TestMatchSummary }) {
             {m.top_strengths.length > 0 && (
               <div>
                 <h4 className="font-medium text-cohere-green mb-1 flex items-center gap-1">
-                  <Star className="w-3 h-3" /> Strengths
+                  <Star className="w-3 h-3" aria-hidden /> Strengths
                 </h4>
                 <ul className="space-y-0.5 text-slate">
                   {m.top_strengths.map((s, i) => (
@@ -365,7 +416,7 @@ function MatchCard({ match: m }: { match: TestMatchSummary }) {
             {m.top_gaps.length > 0 && (
               <div>
                 <h4 className="font-medium text-studio-maroon mb-1 flex items-center gap-1">
-                  <AlertTriangle className="w-3 h-3" /> Gaps
+                  <AlertTriangle className="w-3 h-3" aria-hidden /> Gaps
                 </h4>
                 <ul className="space-y-0.5 text-slate">
                   {m.top_gaps.map((g, i) => (
@@ -386,7 +437,7 @@ function MatchCard({ match: m }: { match: TestMatchSummary }) {
           {m.description_raw && (
             <details className="mt-3">
               <summary className="text-micro font-medium text-slate cursor-pointer hover:text-ink flex items-center gap-1">
-                <FileText className="w-3 h-3" /> Job description
+                <FileText className="w-3 h-3" aria-hidden /> Job description
               </summary>
               <div className="mt-2 text-micro text-slate whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto bg-white p-3 rounded-sm border border-hairline">
                 {m.description_raw}
@@ -402,7 +453,7 @@ function MatchCard({ match: m }: { match: TestMatchSummary }) {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-micro text-cohere-blue hover:underline"
               >
-                View original posting <ExternalLink className="w-3 h-3" />
+                View original posting <ExternalLink className="w-3 h-3" aria-hidden />
               </a>
             </div>
           )}

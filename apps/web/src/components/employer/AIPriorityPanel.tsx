@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { Sparkles, Loader2, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
 import { easeCohere } from "@/lib/motion";
 import { CandidateActions } from "./CandidateActions";
+import { EligibilityBadge } from "@/components/matches/MatchLabel";
 
 interface PriorityCandidate {
   match_id: string;
@@ -67,22 +68,22 @@ export function AIPriorityPanel({ jobId, jobTitle, token, isAdmin = false }: Pro
   }
 
   return (
-    <div className="card-green overflow-hidden">
+    <div className="rounded-[10px] border border-hairline bg-white overflow-hidden">
       {/* Toggle header */}
       <button
         onClick={loadPriorities}
         disabled={loading}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-white/5 transition-colors"
+        className="w-full flex items-center justify-between px-5 py-4 hover:bg-stone/40 transition-colors"
       >
-        <span className="flex items-center gap-2 text-body-lg font-semibold text-white">
+        <span className="flex items-center gap-2 text-body-lg font-semibold text-cohere-ink">
           {loading ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
             <Sparkles className="w-4 h-4" />
           )}
-          {loading ? "Analysing candidates…" : "AI Candidate Prioritisation"}
+          {loading ? "Analyzing candidates…" : "AI candidate prioritization"}
         </span>
-        <span className="text-white/70">
+        <span className="text-slate">
           {open ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </span>
       </button>
@@ -97,20 +98,16 @@ export function AIPriorityPanel({ jobId, jobTitle, token, isAdmin = false }: Pro
             transition={{ duration: 0.3, ease: easeCohere }}
             className="overflow-hidden"
           >
-            <div className="border-t border-white/15 px-5 pb-5 pt-4 space-y-3">
+            <div className="border-t border-hairline">
               {!generated && (
-                <div className="mb-2 flex items-start gap-2 rounded-md border border-amber-400/60 bg-amber-50 px-3 py-2.5 text-caption text-amber-900">
+                // No internal config jargon here — the server logs the cause.
+                <div className="mx-5 mt-4 flex items-start gap-2 rounded-md border border-amber-400/60 bg-amber-50 px-3 py-2.5 text-caption text-amber-900">
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                  <div>
-                    <p className="font-medium">AI ranking is offline — showing raw score ranking.</p>
-                    <p className="mt-0.5 text-micro text-amber-800">
-                      Ask admin to configure <code>OPENAI_API_KEY</code>.
-                    </p>
-                  </div>
+                  <p className="font-medium">AI ranking is temporarily unavailable. Showing score order.</p>
                 </div>
               )}
               {priorities.length === 0 ? (
-                <p className="text-body text-white/80">No matched candidates to prioritize.</p>
+                <p className="px-5 py-4 text-body text-slate">No matched candidates to prioritize.</p>
               ) : (
                 priorities.map((c, i) => (
                   <motion.div
@@ -118,37 +115,36 @@ export function AIPriorityPanel({ jobId, jobTitle, token, isAdmin = false }: Pro
                     initial={{ opacity: 0, y: 8 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, ease: easeCohere, delay: i * 0.04 }}
-                    className="bg-white rounded-md px-4 py-4 border border-border-light"
+                    className={`px-5 py-3.5 ${i > 0 ? "border-t border-hairline" : ""}`}
                   >
                     {/* Rank + name row */}
                     <div className="flex items-start gap-3">
-                      <div className="shrink-0 w-6 h-6 rounded-full bg-cohere-green text-white text-micro font-bold flex items-center justify-center mt-0.5 tabular-nums">
-                        {i + 1}
-                      </div>
+                      <span className="shrink-0 mt-0.5 text-body text-slate-muted tabular-nums">
+                        {i + 1}.
+                      </span>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-body font-semibold text-cohere-ink">{c.name}</span>
                           {c.score !== null && (
                             <span className="text-caption font-medium text-cohere-green tabular-nums">
-                              {Math.round(c.score)}/100
+                              {/* Floor — same convention as both match-card
+                                  surfaces, so one stored score never shows
+                                  two different numbers. */}
+                              {Math.min(99, Math.floor(c.score))}/100
                             </span>
                           )}
                           {i === 0 && (
-                            <span className="inline-flex items-center gap-0.5 text-micro text-studio-maroon bg-studio-maroon/10 border border-studio-maroon-soft rounded-sm px-1.5 py-0.5">
+                            // Emphasis, not a status — solid ink so it can't be
+                            // confused with the maroon attention slot beside it.
+                            <span className="inline-flex items-center gap-0.5 rounded-full border border-cohere-ink bg-ink px-2 py-0.5 text-[11px] font-medium text-white">
                               Top pick
                             </span>
                           )}
-                          <span
-                            className={`text-micro rounded-sm px-1.5 py-0.5 border ${
-                              c.eligibility_status === "eligible"
-                                ? "text-cohere-green bg-wash-green border-cohere-green/20"
-                                : "text-studio-maroon bg-studio-maroon/10 border-studio-maroon-soft"
-                            }`}
-                          >
-                            {c.eligibility_status === "eligible" ? "Eligible" : "Near fit"}
-                          </span>
+                          <EligibilityBadge status={c.eligibility_status ?? ""} />
                         </div>
-                        <p className="text-body text-slate mt-1 leading-snug">{c.reason}</p>
+                        {/* Empty reason = nothing candidate-specific to say —
+                            show no line rather than repeated boilerplate. */}
+                        {c.reason && <p className="text-body text-slate mt-1 leading-snug">{c.reason}</p>}
                       </div>
                     </div>
 

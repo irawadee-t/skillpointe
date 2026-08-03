@@ -44,8 +44,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "packages"))
 
 from matching.config import load_config
-from matching.engine import compute_match, MatchResult
-from matching.normalizer import normalize_timing
+from matching.engine import MatchResult, compute_match
 
 
 def main() -> int:
@@ -62,6 +61,8 @@ def main() -> int:
                         help="Compute but do not write to DB")
     parser.add_argument("--verbose", action="store_true",
                         help="Print score breakdowns")
+    parser.add_argument("--skip-geocode", action="store_true",
+                        help="Skip the coordinate backfill step (offline runs)")
     args = parser.parse_args()
 
     # ----------------------------------------------------------------
@@ -102,6 +103,13 @@ def main() -> int:
     jobs = _fetch_jobs(conn, job_id=args.job_id, limit=args.limit)
     employers = _fetch_employers(conn)
 
+    # Resolve missing home/job-city coordinates (geocode_cache first, then a
+    # rate-limited Nominatim lookup for unseen cities). The engine itself
+    # stays pure — it just consumes lat/lng off the input dicts. Network
+    # failures degrade gracefully to state/region gating.
+    if not args.skip_geocode:
+        _backfill_coords(conn, applicants, jobs)
+
     employer_map = {str(e["id"]): e for e in employers}
 
     # Phase 7: load extracted signals and embeddings
@@ -110,8 +118,16 @@ def main() -> int:
     app_embedding_map = _fetch_applicant_embeddings(conn)
     job_embedding_map = _fetch_job_embeddings(conn)
 
-    has_signals = bool(app_signals_map or job_signals_map)
-    has_embeddings = bool(app_embedding_map or job_embedding_map)
+    # Credential taxonomy prep (data-side only — the engine stays untouched):
+    # job required-cert strings are swapped for their canonical display names
+    # (from jobs.required_credentials_canonical, written by
+    # scripts/backfill_credential_taxonomy.py), and applicants' structured
+    # credentials rows are merged into certifications_extracted under their
+    # canonical names — so both sides of the credential gate meet on canonical
+    # strings instead of raw-string luck.
+    app_credentials_map = _fetch_applicant_credentials(conn)
+    _canonicalize_credential_inputs(jobs, applicants, app_signals_map, app_credentials_map)
+
     print(f"Extracted signals: {len(app_signals_map)} applicants, {len(job_signals_map)} jobs")
     print(f"Embeddings: {len(app_embedding_map)} applicants, {len(job_embedding_map)} jobs")
 
@@ -199,6 +215,114 @@ def main() -> int:
 
 
 # ---------------------------------------------------------------------------
+# Coordinate backfill — geocode_cache first, Nominatim for unseen cities.
+# Mirrors apps/api/app/skilled_pro/geocode.py (same normalization + provider)
+# but synchronous, since this script runs on psycopg2 outside the API.
+# ---------------------------------------------------------------------------
+
+_NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+_NOMINATIM_UA = "SkillPointe-Match/0.1 (trades-workforce-platform; support@skillpointe.local)"
+
+
+def _geo_normalize(city: str = "", state: str = "", zip_code: str = "") -> str:
+    parts = []
+    if zip_code and zip_code.strip():
+        parts.append(zip_code.strip())
+    if city and city.strip():
+        parts.append(city.strip().lower())
+    if state and state.strip():
+        parts.append(state.strip().upper()[:2])
+    return ", ".join(parts)
+
+
+def _backfill_coords(conn, applicants: list[dict], jobs: list[dict]) -> None:
+    """Fill lat/lng on applicant/job dicts (and persist to their rows).
+
+    1. Collect rows missing coords that have a city or state.
+    2. Resolve each distinct normalized query via geocode_cache.
+    3. For cache misses, hit Nominatim at <= 1 req/sec, memoizing results.
+    4. Write resolved coords back onto public.applicants / public.jobs.
+    """
+    import time
+
+    pending: dict[str, list[tuple[str, dict]]] = {}  # query -> [(table, row_dict)]
+    for table, rows in (("applicants", applicants), ("jobs", jobs)):
+        for r in rows:
+            if r.get("lat") is not None and r.get("lng") is not None:
+                continue
+            q = _geo_normalize(r.get("city") or "", r.get("state") or "")
+            if q:
+                pending.setdefault(q, []).append((table, r))
+    if not pending:
+        return
+
+    # Cache lookups
+    resolved: dict[str, tuple[float, float]] = {}
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT query, lat, lng FROM public.geocode_cache WHERE query = ANY(%s)",
+            (list(pending.keys()),),
+        )
+        for q, lat, lng in cur.fetchall():
+            resolved[q] = (float(lat), float(lng))
+
+    misses = [q for q in pending if q not in resolved]
+    if misses:
+        try:
+            import httpx
+        except ImportError:
+            httpx = None
+        if httpx is not None:
+            print(f"Geocoding {len(misses)} unseen locations via Nominatim (~1/sec)...")
+            for q in misses:
+                try:
+                    resp = httpx.get(
+                        _NOMINATIM_URL,
+                        params={"q": q, "format": "json", "limit": 1,
+                                "countrycodes": "us", "addressdetails": 0},
+                        headers={"User-Agent": _NOMINATIM_UA},
+                        timeout=8.0,
+                    )
+                    if resp.status_code == 200 and resp.json():
+                        hit = resp.json()[0]
+                        lat, lng = float(hit["lat"]), float(hit["lon"])
+                        resolved[q] = (lat, lng)
+                        with conn.cursor() as cur:
+                            cur.execute(
+                                """
+                                INSERT INTO public.geocode_cache
+                                    (query, lat, lng, display_name, provider)
+                                VALUES (%s, %s, %s, %s, 'nominatim')
+                                ON CONFLICT (query) DO NOTHING
+                                """,
+                                (q, lat, lng, hit.get("display_name", "")),
+                            )
+                        conn.commit()
+                except Exception as e:
+                    print(f"  geocode failed for {q!r}: {e}")
+                time.sleep(1.05)  # Nominatim fair-use: 1 req/sec
+
+    # Attach coords to in-memory rows + persist onto entity rows
+    updated = {"applicants": 0, "jobs": 0}
+    with conn.cursor() as cur:
+        for q, targets in pending.items():
+            coords = resolved.get(q)
+            if not coords:
+                continue
+            for table, row in targets:
+                row["lat"], row["lng"] = coords
+                cur.execute(
+                    f"UPDATE public.{table} SET lat = %s, lng = %s WHERE id = %s",
+                    (coords[0], coords[1], str(row["id"])),
+                )
+                updated[table] += 1
+    conn.commit()
+    if updated["applicants"] or updated["jobs"]:
+        print(f"Coordinates backfilled: {updated['applicants']} applicants, "
+              f"{updated['jobs']} jobs ({len(resolved)}/{len(pending)} locations resolved)")
+
+
+# ---------------------------------------------------------------------------
 # DB helpers
 # ---------------------------------------------------------------------------
 
@@ -209,7 +333,6 @@ def _load_active_config(conn):
         )
         row = cur.fetchone()
     if row:
-        import yaml  # type: ignore
         # config is stored as JSONB — convert to YAML-compatible dict
         cfg_dict = row[0] if isinstance(row[0], dict) else json.loads(row[0])
         from matching.config import _from_yaml
@@ -229,6 +352,7 @@ def _fetch_applicants(conn, applicant_id=None, limit=None) -> list[dict]:
             a.id, a.first_name, a.last_name, a.program_name_raw,
             a.state, a.region, a.city,
             a.willing_to_relocate, a.willing_to_travel, a.commute_radius_miles,
+            a.lat, a.lng,
             a.experience_raw, a.bio_raw, a.career_goals_raw,
             a.expected_completion_date, a.available_from_date,
             a.travel_preference::text, a.relocation_preference::text,
@@ -263,9 +387,11 @@ def _fetch_jobs(conn, job_id=None, limit=None) -> list[dict]:
             j.title_raw, j.title_normalized, j.description_raw,
             j.requirements_raw, j.preferred_qualifications_raw,
             j.state, j.region, j.city,
+            j.lat, j.lng,
             j.work_setting, j.travel_requirement,
             j.pay_min, j.pay_max, j.pay_type, j.pay_raw,
             j.required_credentials,
+            j.required_credentials_canonical,
             j.experience_level,
             jf.code AS canonical_job_family_code,
             j.required_experience_years
@@ -287,6 +413,79 @@ def _fetch_employers(conn) -> list[dict]:
         cur.execute(sql)
         cols = [d[0] for d in cur.description]
         return [dict(zip(cols, r)) for r in cur.fetchall()]
+
+
+def _fetch_applicant_credentials(conn) -> dict[str, list[dict]]:
+    """Structured credentials per applicant (manual adds, SIS ingest,
+    OCR/badge-verified). Keyed by applicant_id."""
+    sql = """
+        SELECT applicant_id, raw_name, canonical_code, canonical_name
+        FROM public.credentials
+    """
+    out: dict[str, list[dict]] = {}
+    with conn.cursor() as cur:
+        cur.execute(sql)
+        for applicant_id, raw_name, code, name in cur.fetchall():
+            out.setdefault(str(applicant_id), []).append(
+                {"raw_name": raw_name, "canonical_code": code, "canonical_name": name}
+            )
+    return out
+
+
+def _canonicalize_credential_inputs(
+    jobs: list[dict],
+    applicants: list[dict],
+    app_signals_map: dict[str, dict],
+    app_credentials_map: dict[str, list[dict]],
+) -> None:
+    """Data-prep canonicalization for the credential gate (engine untouched).
+
+    Job side: each required_credentials entry is replaced by its canonical
+    display name when the stored normalizer output was confident. The list
+    length never changes, so gate semantics (count of required creds) are
+    preserved — only the surface strings are normalized. Raw strings in the
+    DB are never modified.
+
+    Applicant side: credentials-table rows are appended to the
+    certifications_extracted signal (canonical name first, raw name kept) so
+    verified/manual credentials participate in gating even for applicants
+    with no LLM extraction. Applicants with neither signals nor credentials
+    keep a None signal — "unknown", not "has none".
+    """
+    for job in jobs:
+        canon = job.get("required_credentials_canonical")
+        reqs = job.get("required_credentials")
+        if not canon or not reqs or not isinstance(canon, list):
+            continue
+        by_raw = {c.get("raw"): c for c in canon if isinstance(c, dict)}
+        job["required_credentials"] = [
+            ((by_raw.get(r) or {}).get("name") or r) if (by_raw.get(r) or {}).get("confident") else r
+            for r in reqs
+        ]
+
+    for app in applicants:
+        app_id = str(app["id"])
+        creds = app_credentials_map.get(app_id)
+        if not creds:
+            continue
+        sig = dict(app_signals_map.get(app_id) or {})
+        items = list(sig.get("certifications_extracted") or [])
+        seen = {
+            str(i.get("name") or i.get("cert_name") or "").strip().lower()
+            for i in items if isinstance(i, dict)
+        }
+        for c in creds:
+            for nm in (c.get("canonical_name"), c.get("raw_name")):
+                if not nm or nm.strip().lower() in seen:
+                    continue
+                seen.add(nm.strip().lower())
+                items.append({
+                    "name": nm,
+                    "canonical_slug": c.get("canonical_code"),
+                    "source": "credentials_table",
+                })
+        sig["certifications_extracted"] = items
+        app_signals_map[app_id] = sig
 
 
 def _fetch_applicant_signals(conn) -> dict[str, dict]:
@@ -409,6 +608,9 @@ def _upsert_match(conn, result: MatchResult):
         "recommended_next_step":  result.recommended_next_step,
         "confidence_level":       result.confidence_level,
         "requires_review":        result.requires_review,
+        "match_tier":             result.match_tier,
+        "tier_reason":            result.tier_reason,
+        "distance_miles":         result.distance_miles,
         "scoring_run_id":         result.scoring_run_id,
         "scoring_run_at":         result.scoring_run_at,
         "policy_version":         result.policy_version,
@@ -425,6 +627,7 @@ def _upsert_match(conn, result: MatchResult):
                 match_label, top_strengths, top_gaps, required_missing_items,
                 recommended_next_step,
                 confidence_level, requires_review,
+                match_tier, tier_reason, distance_miles,
                 scoring_run_id, scoring_run_at, policy_version
             ) VALUES (
                 %(applicant_id)s, %(job_id)s,
@@ -437,6 +640,7 @@ def _upsert_match(conn, result: MatchResult):
                 %(required_missing_items)s::jsonb,
                 %(recommended_next_step)s,
                 %(confidence_level)s, %(requires_review)s,
+                %(match_tier)s, %(tier_reason)s, %(distance_miles)s,
                 %(scoring_run_id)s::uuid, %(scoring_run_at)s::date, %(policy_version)s
             )
             ON CONFLICT (applicant_id, job_id) DO UPDATE SET
@@ -456,6 +660,9 @@ def _upsert_match(conn, result: MatchResult):
                 recommended_next_step  = EXCLUDED.recommended_next_step,
                 confidence_level       = EXCLUDED.confidence_level,
                 requires_review        = EXCLUDED.requires_review,
+                match_tier             = EXCLUDED.match_tier,
+                tier_reason            = EXCLUDED.tier_reason,
+                distance_miles         = EXCLUDED.distance_miles,
                 scoring_run_id         = EXCLUDED.scoring_run_id,
                 scoring_run_at         = EXCLUDED.scoring_run_at,
                 policy_version         = EXCLUDED.policy_version,

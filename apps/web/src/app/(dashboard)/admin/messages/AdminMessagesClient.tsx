@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { EmptyState, ErrorState, SkeletonRow } from "@/components/ui";
+import { EmptyState, ErrorState, SearchInput, SkeletonRow } from "@/components/ui";
 import { useAutoRevalidate } from "@/hooks/useAutoRevalidate";
 import { useRealtimeChannel } from "@/hooks/useRealtimeChannel";
 import { formatRelative } from "@/lib/time";
@@ -28,6 +28,18 @@ export function AdminMessagesClient({
 }) {
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+
+  // Live filter — narrows with every letter typed (in-memory).
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q || !conversations) return conversations ?? [];
+    return conversations.filter(
+      (c) =>
+        c.counterparty_name.toLowerCase().includes(q) ||
+        (c.counterparty_email ?? "").toLowerCase().includes(q),
+    );
+  }, [conversations, search]);
 
   const fetchConversations = async () => {
     try {
@@ -98,15 +110,29 @@ export function AdminMessagesClient({
   }
 
   return (
+    <div className="space-y-3">
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Search name or email…"
+        className="max-w-sm"
+      />
+      {filtered.length === 0 ? (
+        <div className="rounded-xl border border-hairline bg-white p-8 text-center">
+          <p className="text-[14px] font-medium text-cohere-ink">
+            No results for &ldquo;{search.trim()}&rdquo;
+          </p>
+        </div>
+      ) : (
     <ul className="divide-y divide-hairline overflow-hidden rounded-xl border border-hairline bg-white">
-      {conversations.map((c) => (
+      {filtered.map((c) => (
         <li key={c.id}>
           <Link
             href={`/admin/messages/${c.id}`}
             className="flex items-start gap-3 px-5 py-4 transition-colors hover:bg-parchment/50"
           >
             {c.unread_count > 0 && (
-              <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-studio-maroon" aria-label={`${c.unread_count} unread`} />
+              <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-cohere-blue" aria-label={`${c.unread_count} unread`} />
             )}
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-3">
@@ -130,5 +156,7 @@ export function AdminMessagesClient({
         </li>
       ))}
     </ul>
+      )}
+    </div>
   );
 }

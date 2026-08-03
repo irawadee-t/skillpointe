@@ -1,6 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { EB_Garamond, Inter } from "next/font/google";
 import "./globals.css";
+
+import { MotionProvider } from "@/components/MotionProvider";
 
 // ElevenLabs editorial display serif (Waldenburg Light substitute). Light weights
 // only — the editorial signature is never bold.
@@ -22,9 +24,33 @@ const body = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "SKILLED Nation Match",
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"
+  ),
+  title: {
+    default: "SKILLED Nation Match",
+    template: "%s · SKILLED Nation",
+  },
   description:
     "Real jobs, ranked for you. The platform where SKILLED Scholars and skilled workers meet the employers who fund the training.",
+  applicationName: "SKILLED Nation Match",
+  openGraph: {
+    title: "SKILLED Nation Match",
+    description:
+      "Real jobs, ranked for you. Where skilled workers meet the employers who fund the training.",
+    siteName: "SKILLED Nation",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "SKILLED Nation Match",
+    description: "Real jobs, ranked for you.",
+  },
+  robots: { index: true, follow: true },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#17140f",
 };
 
 export default function RootLayout({
@@ -43,7 +69,9 @@ export default function RootLayout({
           <style>{`.reveal,.stagger>*{opacity:1!important;transform:none!important}`}</style>
         </noscript>
       </head>
-      <body className="bg-canvas text-ink antialiased">{children}</body>
+      <body className="bg-canvas text-ink antialiased">
+        <MotionProvider>{children}</MotionProvider>
+      </body>
     </html>
   );
 }

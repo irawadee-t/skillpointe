@@ -18,19 +18,19 @@ Public API:
   from matching.engine import compute_match, MatchResult
 """
 
-from .config import load_config, ScoringConfig
-from .engine import compute_match, MatchResult
+from .config import ScoringConfig, load_config
+from .engine import MatchResult, compute_match
+from .gates import EligibilityResult, compute_eligibility
 from .normalizer import (
-    normalize_program_to_job_family,
-    normalize_job_title_to_family,
-    normalize_pay_range,
-    normalize_location,
-    normalize_timing,
     NormResult,
     TimingResult,
+    normalize_job_title_to_family,
+    normalize_location,
+    normalize_pay_range,
+    normalize_program_to_job_family,
+    normalize_timing,
 )
-from .gates import compute_eligibility, EligibilityResult
-from .scorer import compute_structured_score, DimensionScore
+from .scorer import DimensionScore, compute_structured_score
 
 __all__ = [
     "load_config",

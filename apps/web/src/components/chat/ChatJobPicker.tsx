@@ -28,9 +28,14 @@ import {
 } from "lucide-react";
 
 import { easeCohere } from "@/lib/motion";
+import { useViewAs, VIEW_AS_READONLY_TOOLTIP } from "@/hooks/useViewAs";
 
 interface Props {
   token: string;
+  /** Trigger button label — defaults to "New chat". */
+  triggerLabel?: string;
+  /** Trigger button classes — defaults to the primary pill. */
+  triggerClassName?: string;
 }
 
 interface MatchItem {
@@ -54,7 +59,12 @@ const API_URL =
     ? (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000")
     : "http://localhost:8000";
 
-export function ChatJobPicker({ token }: Props) {
+export function ChatJobPicker({
+  token,
+  triggerLabel = "New chat",
+  triggerClassName = "btn-primary inline-flex items-center gap-1.5 disabled:opacity-50",
+}: Props) {
+  const { isViewAs } = useViewAs();
   const router = useRouter();
 
   const [open, setOpen] = useState(false);
@@ -127,12 +137,18 @@ export function ChatJobPicker({ token }: Props) {
       .finally(() => setMatchesLoading(false));
   }, [open, token]);
 
-  // Debounced browse search
+  // Debounced browse search — aborts in-flight requests so a stale response
+  // can never overwrite a newer keystroke's results.
+  const browseAbortRef = useRef<AbortController | null>(null);
   const runBrowse = useCallback(
     (q: string) => {
+      browseAbortRef.current?.abort();
+      const controller = new AbortController();
+      browseAbortRef.current = controller;
       setBrowseLoading(true);
       fetch(`${API_URL}/jobs/browse?q=${encodeURIComponent(q)}&per_page=12`, {
         headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
       })
         .then((r) => (r.ok ? r.json() : Promise.reject()))
         .then((data) =>
@@ -145,8 +161,12 @@ export function ChatJobPicker({ token }: Props) {
             }))
           )
         )
-        .catch(() => setBrowseResults([]))
-        .finally(() => setBrowseLoading(false));
+        .catch(() => {
+          if (!controller.signal.aborted) setBrowseResults([]);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setBrowseLoading(false);
+        });
     },
     [token]
   );
@@ -203,10 +223,12 @@ export function ChatJobPicker({ token }: Props) {
     <>
       <button
         onClick={handleOpen}
-        className="btn-primary inline-flex items-center gap-1.5"
+        disabled={isViewAs}
+        title={isViewAs ? VIEW_AS_READONLY_TOOLTIP : undefined}
+        className={triggerClassName}
       >
         <Plus className="w-4 h-4" />
-        New chat
+        {triggerLabel}
       </button>
 
       {mounted &&
@@ -214,7 +236,7 @@ export function ChatJobPicker({ token }: Props) {
           <AnimatePresence>
       {open && (
         <motion.div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-studio-dark-cork/30"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-ink/30"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -233,7 +255,7 @@ export function ChatJobPicker({ token }: Props) {
             {/* Header */}
             <div className="flex items-start justify-between px-5 pt-5 pb-4 border-b border-border-light shrink-0">
               <div>
-                <h2 className="font-display text-feature text-cohere-ink">
+                <h2 className="text-[1.0625rem] font-medium text-cohere-ink">
                   Choose a job to discuss
                 </h2>
                 <p className="text-micro text-slate-muted mt-1">

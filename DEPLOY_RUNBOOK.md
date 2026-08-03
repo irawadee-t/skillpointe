@@ -156,3 +156,55 @@ Pushing `main` triggers Vercel to build & deploy production automatically
   institution, admin credentials/foundation/job-imports/skilled-id/sync, account).
 - **Scheduler:** 5 jobs (6h recompute, interview reminders, ATS resync, daily GDPR
   deletion sweep, stuck-recompute recovery).
+
+---
+
+## ADDENDUM — `riya-updates` (security / scale / compliance hardening on top of the above)
+
+This branch adds **4 more migrations** and **new env vars** on top of the 11 above.
+The deploy order is unchanged (**DB → backend → frontend**); the migration
+*mechanism* is the same — `supabase db push` picks these up automatically because
+they follow the same timestamped filenames in `supabase/migrations/`.
+
+### 4 new migrations (all additive — no data loss, safe to `db push`)
+- `20260720000001_account_change_attempt_lockout` — adds `account_change_requests.attempts` (brute-force lockout on confirmation codes).
+- `20260720000002_credential_source_badge_checkr` — widens the `credentials.source` CHECK (superset of old values → validates existing rows) + new `checkr_verifications` table.
+- `20260720000003_scale_search_and_indexes` — pg_trgm / tsvector / composite indexes for search-at-scale. (Built without `CONCURRENTLY`; trivial on current data volume. On a large prod table, build these in a maintenance window or switch to `CREATE INDEX CONCURRENTLY` run outside a migration.)
+- `20260721000001_dob_minor_protection` — adds `applicants.date_of_birth` + partial index; under-18 applicants are excluded from employer discovery by default.
+
+`supabase migration list --linked` should show these 4 as pending before `db push`, applied after.
+
+### New Railway (backend) env vars
+**Required in production — the app now REFUSES TO BOOT without these** (`app/config.py::enforce_production_safety`, gated on `APP_ENV=production`):
+| Var | Generate / value |
+|---|---|
+| `APP_ENV` | must be `production` — this is what arms all the prod safety checks |
+| `SCREENING_ENCRYPTION_KEY` | `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` — PII-at-rest key; **keep it stable** (rotating it strands existing ciphertext) |
+| `SKILLED_SIGNING_PRIVATE_KEY` | `openssl genpkey -algorithm ed25519 -out signing.pem` (paste PEM) — stable Ed25519 key for signed credentials |
+| `SKILLED_SIGNING_KEY_ID` | any stable id that is **not** `dev-ephemeral` |
+
+**Optional** (features degrade gracefully if unset): `CHECKR_API_KEY`, `CHECKR_WEBHOOK_SECRET`, `OCR_PROVIDER`, `SIS_PROVIDER`, `RESEND_API_KEY`, `TWILIO_*`, `GOOGLE_MAPS_API_KEY`/`MAPBOX_ACCESS_TOKEN`. Pool tuning: `DB_POOL_MAX_SIZE` (default 10 per replica — keep `N_replicas × DB_POOL_MAX_SIZE` under the Postgres/Supavisor ceiling; set `DB_USE_PGBOUNCER=true` when `DATABASE_URL` points at Supabase's transaction pooler on :6543).
+
+### Supabase dashboard settings (not code — do these once)
+- **Auth → Rate Limits / Bot protection:** login and password-reset run *client-side* against Supabase Auth, not this backend, so brute-force protection there depends on Supabase project settings. Confirm rate limiting / CAPTCHA is enabled in prod.
+- **Auth → URL Configuration:** already covered in Step 4.
+
+### Post-deploy security smoke
+- `POST /employer/jobs/imports/url` with `http://169.254.169.254/…` or `http://localhost/…` must be rejected (SSRF egress guard), not fetched.
+- As an **admin**, hiring/rejecting an application or proposing interview slots must return 403 (admin cannot act as employer); GET/list on those pages still works.
+
+---
+
+## Addendum (2026-08-01) — taxonomy industries + scholarship import migration
+
+One new migration to push (additive — no data loss, safe to `supabase db push`):
+
+- `20260801062752_taxonomy_industries_and_scholarship_import` —
+  1) `canonical_job_families.industries TEXT[]` (industry grouping: healthcare/construction/transportation/energy/manufacturing);
+  2) `applicants.scholarship_review_status TEXT` (the SPF export's 'Folder - Name' review status — never a person's name);
+  3) 15 new canonical job families (pharmacy, surgical_tech, veterinary, lab_sciences, health_information, dietetics, civil_survey, field_service, rail_transit, marine, power_plant, building_automation, data_center, industrial_maintenance, electronics);
+  4) alias extensions for existing families — aliases are **merged** (array union), never overwritten, so admin/demo-added aliases survive;
+  5) 8 `canonical_career_pathways` umbrella rows (`path_*`) for the CSV 'Career Path' values.
+
+`supabase/seed.sql` mirrors the same upserts so `supabase db reset` ends in the same state.
+After pushing, re-run on the target environment: `python scripts/normalize_data.py --all` then `python scripts/recompute_matches.py`.

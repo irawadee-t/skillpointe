@@ -69,13 +69,15 @@ export function CommuteChip({
   }
 
   const { text, hint } = formatDriveTime(data.minutes, data.provider);
+  const miles = formatMiles(data.distance_miles);
+  const full = miles ? `${text} · ${miles}` : text;
 
   // Inline row mode — matches existing location cluster on the hero.
   if (tone === "on-dark") {
     return (
       <span className="inline-flex items-center gap-1" title={hint}>
         <Car className="h-3.5 w-3.5 text-white/60" strokeWidth={1.75} />
-        <span className="text-body text-white/80">{text}</span>
+        <span className="text-body text-white/80">{full}</span>
       </span>
     );
   }
@@ -87,15 +89,25 @@ export function CommuteChip({
       className="inline-flex items-center gap-1 rounded-full border border-hairline bg-white px-2.5 py-0.5 text-micro text-slate"
     >
       <Car className="h-3 w-3 text-slate-muted" strokeWidth={1.75} />
-      {text}
+      {full}
     </span>
   );
+}
+
+/** "~18 mi" — the same geodesic distance the commute-radius gate uses. */
+function formatMiles(miles: number | null | undefined): string | null {
+  if (miles == null || miles < 0) return null;
+  if (miles < 1) return null; // "In your city" already covers it
+  return `~${Math.round(miles)} mi`;
 }
 
 function formatDriveTime(minutes: number, provider: string): { text: string; hint: string } {
   // Human-natural buckets — no decimals past 90 min.
   let text: string;
-  if (minutes < 60) {
+  if (minutes <= 0) {
+    // A "0 min drive" reads as a bug; this is what it actually means.
+    text = "In your city";
+  } else if (minutes < 60) {
     text = `${minutes} min drive`;
   } else if (minutes < 90) {
     // 1 hr, 1 hr 15 min, 1 hr 30 min
@@ -106,14 +118,14 @@ function formatDriveTime(minutes: number, provider: string): { text: string; hin
     text = `${Math.round(minutes / 60)} hr drive`;
   } else {
     // Very long — signal it's cross-country without giving false precision.
-    text = "Long drive — plan travel";
+    text = "Long drive, plan travel";
   }
 
   const providerNote: Record<string, string> = {
     google:    "Live drive time from Google Maps",
     mapbox:    "Live drive time from Mapbox",
     cached:    "Cached drive time",
-    haversine: "Estimated from distance — add a Google or Mapbox key for real drive times",
+    haversine: "Estimated from distance. Add a Google or Mapbox key for real drive times",
   };
   return { text, hint: providerNote[provider] ?? "Approximate drive time" };
 }

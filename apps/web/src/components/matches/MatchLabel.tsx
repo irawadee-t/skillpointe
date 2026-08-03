@@ -14,7 +14,8 @@ const LABEL_STYLES: Record<string, string> = {
   low_fit:      "border-hairline        text-slate-muted",
 };
 
-const LABEL_TEXT: Record<string, string> = {
+/** Display text for the stored match_label enum — the single source of truth for fit chips. */
+export const LABEL_TEXT: Record<string, string> = {
   strong_fit:   "Strong fit",
   good_fit:     "Good fit",
   moderate_fit: "Moderate fit",
@@ -24,7 +25,7 @@ const LABEL_TEXT: Record<string, string> = {
 export function MatchLabel({ label, size = "sm" }: MatchLabelBadgeProps) {
   const styles = LABEL_STYLES[label ?? ""] ?? "border-hairline text-slate-muted";
   const text = LABEL_TEXT[label ?? ""] ?? label ?? "—";
-  const padding = size === "md" ? "px-3 py-1 text-caption" : "px-2.5 py-0.5 text-micro";
+  const padding = size === "md" ? "px-3 py-1 text-caption" : "px-2 py-0.5 text-[11px]";
   return (
     <span className={`inline-flex items-center rounded-full border bg-white font-medium ${styles} ${padding}`}>
       {text}
@@ -43,7 +44,7 @@ export function EligibilityBadge({ status, size = "sm" }: EligibilityBadgeProps)
     ? "border-cohere-green/50 text-cohere-green"
     : "border-studio-maroon/50 text-studio-maroon";
   const text = isEligible ? "Eligible" : "Near fit";
-  const padding = size === "md" ? "px-3 py-1 text-caption" : "px-2.5 py-0.5 text-micro";
+  const padding = size === "md" ? "px-3 py-1 text-caption" : "px-2 py-0.5 text-[11px]";
   return (
     <span className={`inline-flex items-center rounded-full border bg-white font-medium ${styles} ${padding}`}>
       {text}

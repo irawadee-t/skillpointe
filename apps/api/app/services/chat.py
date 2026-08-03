@@ -14,26 +14,11 @@ import logging
 from typing import Any
 
 from app.config import get_settings
+from app.services import chat_guardrails as guardrails
+from app.services.chat_guardrails import SYSTEM_PROMPT, GuardrailResult
+from app.util.openai_client import interactive_http_timeout
 
 logger = logging.getLogger(__name__)
-
-SYSTEM_PROMPT = """You are a career planning advisor for SkillPointe, a skilled-trades workforce platform.
-You are helping an applicant who is enrolled in or completing a skilled-trades training program.
-
-Your role:
-- Answer questions about their job matches, skill gaps, and next steps
-- Be encouraging but honest about gaps
-- Focus on actionable advice (certifications to earn, experience to seek, etc.)
-- Reference the specific matches, strengths, and gaps provided in the context
-- Do NOT make up job listings or employers not in the context
-- Keep responses concise (3–5 sentences unless a list is more useful)
-- Do not claim to schedule interviews or apply on their behalf
-
-You must NOT:
-- Fabricate match scores or gap descriptions not present in the context
-- Recommend specific external websites unless clearly appropriate
-- Make promises about hiring outcomes
-"""
 
 
 def _build_context_snapshot(
@@ -92,16 +77,18 @@ async def generate_chat_response(
     user_message: str,
     history: list[dict[str, Any]],
     context_snapshot: dict[str, Any],
+    corrective_note: str | None = None,
 ) -> str:
     """
     Call OpenAI to generate a planning chat response.
     Returns the assistant text content.
     Raises RuntimeError if the API call fails.
+    `corrective_note` is injected as an extra system message on guardrail retry.
     """
     api_key = get_settings().openai_api_key
     if not api_key:
         return (
-            "I'm sorry — the AI advisor is not configured on this server. "
+            "The AI advisor is not configured on this server. "
             "Please contact a SkillPointe administrator."
         )
 
@@ -120,11 +107,14 @@ async def generate_chat_response(
         if turn["role"] in ("user", "assistant"):
             messages.append({"role": turn["role"], "content": turn["content"]})
 
+    if corrective_note:
+        messages.append({"role": "system", "content": corrective_note})
+
     messages.append({"role": "user", "content": user_message})
 
     try:
         import httpx
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=interactive_http_timeout()) as client:
             resp = await client.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers={
@@ -148,6 +138,70 @@ async def generate_chat_response(
     except Exception as exc:
         logger.exception("Chat LLM call failed for session %s: %s", session_id, exc)
         raise RuntimeError("Failed to generate response") from exc
+
+
+async def generate_guarded_chat_response(
+    session_id: str,
+    user_message: str,
+    history: list[dict[str, Any]],
+    context_snapshot: dict[str, Any],
+) -> tuple[str, GuardrailResult]:
+    """Full guardrail pipeline around the LLM chat reply.
+
+    input moderation → grounded generation → deterministic output validation
+    (+ output moderation) → one corrective regeneration → deterministic fallback.
+    Never raises; always returns a safe, useful string plus the guardrail record.
+    """
+    # -- 1. Input moderation -------------------------------------------------
+    in_flagged, in_cats = await guardrails.moderate(user_message)
+    if in_flagged:
+        if set(in_cats) & guardrails._SELF_HARM_CATEGORIES:
+            return guardrails.self_harm_response(), GuardrailResult(
+                ok=False, checks_failed=[f"input_moderation:{c}" for c in in_cats], action="refused"
+            )
+        return guardrails.refusal_response(), GuardrailResult(
+            ok=False, checks_failed=[f"input_moderation:{c}" for c in in_cats], action="refused"
+        )
+
+    # -- 2. Grounded generation ---------------------------------------------
+    try:
+        reply = await generate_chat_response(session_id, user_message, history, context_snapshot)
+    except RuntimeError:
+        # LLM down/timeout → useful deterministic answer, not a dead end.
+        return guardrails.deterministic_fallback(context_snapshot), GuardrailResult(
+            ok=False, checks_failed=["llm_unavailable"], action="fallback"
+        )
+
+    # -- 3. Output validation -----------------------------------------------
+    failed = guardrails.validate_reply(reply, context_snapshot)
+    out_flagged, out_cats = await guardrails.moderate(reply)
+    if out_flagged:
+        failed += [f"output_moderation:{c}" for c in out_cats]
+    if not failed:
+        return reply, GuardrailResult(ok=True)
+
+    # -- 4. One corrective regeneration -------------------------------------
+    logger.warning("Chat guardrail tripped (%s) on session %s — regenerating", failed, session_id)
+    try:
+        retry = await generate_chat_response(
+            session_id, user_message, history, context_snapshot,
+            corrective_note=(
+                "Your previous draft violated these rules: "
+                + ", ".join(failed)
+                + ". Rewrite the answer following ALL grounding, tone, and scope rules. "
+                "Do not mention this correction."
+            ),
+        )
+        retry_failed = guardrails.validate_reply(retry, context_snapshot)
+        if not retry_failed:
+            return retry, GuardrailResult(ok=False, checks_failed=failed, action="regenerated")
+    except RuntimeError:
+        pass
+
+    # -- 5. Deterministic fallback -------------------------------------------
+    return guardrails.deterministic_fallback(context_snapshot), GuardrailResult(
+        ok=False, checks_failed=failed, action="fallback"
+    )
 
 
 def _build_job_focused_snapshot(
@@ -186,7 +240,7 @@ def _generate_opening_message(snapshot: dict[str, Any]) -> str:
     """Generate a template opening message for a job-focused chat session."""
     job = snapshot.get("focused_job", {})
     name = snapshot.get("applicant_name", "")
-    greeting = f"Hi {name}!" if name else "Hi!"
+    greeting = f"Hi {name}." if name else "Hi."
 
     title = job.get("job_title") or "this position"
     employer = job.get("employer") or "the employer"
@@ -268,7 +322,7 @@ async def generate_outreach_draft(
 
     try:
         import httpx
-        async with httpx.AsyncClient(timeout=20.0) as client:
+        async with httpx.AsyncClient(timeout=interactive_http_timeout()) as client:
             resp = await client.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers={"Authorization": f"Bearer {api_key}"},
