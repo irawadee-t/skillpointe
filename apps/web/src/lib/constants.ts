@@ -10,63 +10,9 @@ export const US_STATES = [
   "VA","WA","WV","WI","WY",
 ] as const;
 
-export const CAREER_PATHS = [
-  { value: "Building", label: "Building & Construction" },
-  { value: "Energy", label: "Energy" },
-  { value: "Healthcare", label: "Healthcare" },
-  { value: "Industrial", label: "Industrial" },
-  { value: "Manufacturing", label: "Manufacturing" },
-  { value: "Transportation", label: "Transportation" },
-  { value: "Emerging Technologies", label: "Emerging Technologies" },
-  { value: "Other Skilled Trade Career Pathway", label: "Other" },
-] as const;
-
-export const PROGRAM_FIELDS: { value: string; label: string; careerPath: string }[] = [
-  // Building & Construction
-  { value: "Construction - Carpentry", label: "Carpentry", careerPath: "Building" },
-  { value: "Construction  - Electrician", label: "Electrician", careerPath: "Building" },
-  { value: "Construction  - HVAC Technician", label: "HVAC Technician", careerPath: "Building" },
-  { value: "Construction  - Plumbing", label: "Plumbing", careerPath: "Building" },
-  { value: "Construction  - Welder", label: "Welder", careerPath: "Building" },
-  { value: "Construction  - Pipefitter, Steamfitter", label: "Pipefitter / Steamfitter", careerPath: "Building" },
-  { value: "Construction  - Metal Fabricator", label: "Metal Fabricator", careerPath: "Building" },
-  { value: "Construction  - Construction Equipment Operator", label: "Construction Equipment Operator", careerPath: "Building" },
-  { value: "Construction  - Heavy Equipment Technician", label: "Heavy Equipment Technician", careerPath: "Building" },
-  { value: "Construction -  Construction Management", label: "Construction Management", careerPath: "Building" },
-  { value: "Construction - Building & Construction Technology", label: "Building & Construction Technology", careerPath: "Building" },
-  { value: "Construction - Building Automation/Technology", label: "Building Automation / Technology", careerPath: "Building" },
-  { value: "Construction - Architectural Drafter", label: "Architectural Drafter", careerPath: "Building" },
-  { value: "Construction - Electrical Engineering", label: "Electrical Engineering", careerPath: "Building" },
-  // Energy
-  { value: "Energy  - Electrical Lineman", label: "Electrical Lineman", careerPath: "Energy" },
-  { value: "Energy  - Solar Energy Technician", label: "Solar Energy Technician", careerPath: "Energy" },
-  { value: "Energy  - Wind Turbine Technician", label: "Wind Turbine Technician", careerPath: "Energy" },
-  // Healthcare
-  { value: "Healthcare  - Medical Assistant", label: "Medical Assistant", careerPath: "Healthcare" },
-  { value: "Healthcare  - Dental Assistant", label: "Dental Assistant", careerPath: "Healthcare" },
-  { value: "Healthcare  - Dental Hygienist", label: "Dental Hygienist", careerPath: "Healthcare" },
-  { value: "Healthcare  - Medical Sonographer", label: "Medical Sonographer", careerPath: "Healthcare" },
-  { value: "Healthcare  - Nurse LPN or LVN", label: "Nurse (LPN / LVN)", careerPath: "Healthcare" },
-  { value: "Healthcare  - Occupational Therapy Assistant", label: "Occupational Therapy Assistant", careerPath: "Healthcare" },
-  { value: "Healthcare  - Physical Therapy Assistant", label: "Physical Therapy Assistant", careerPath: "Healthcare" },
-  { value: "Healthcare  - Radiology Tech", label: "Radiology Tech", careerPath: "Healthcare" },
-  { value: "Healthcare  - Respiratory Therapist", label: "Respiratory Therapist", careerPath: "Healthcare" },
-  // Manufacturing
-  { value: "Manufacturing  - Machinist", label: "Machinist", careerPath: "Manufacturing" },
-  { value: "Manufacturing  - Industrial Machinery Technician", label: "Industrial Machinery Technician", careerPath: "Manufacturing" },
-  { value: "Manufacturing  - Electrical and Electronics Engineering Technician", label: "Electrical / Electronics Engineering Tech", careerPath: "Manufacturing" },
-  { value: "Manufacturing  - Electro Mechanical Technician", label: "Electro-Mechanical Technician", careerPath: "Manufacturing" },
-  { value: "Manufacturing - Automation Technology", label: "Automation Technology", careerPath: "Manufacturing" },
-  { value: "Manufacturing - Mechatronics", label: "Mechatronics", careerPath: "Manufacturing" },
-  { value: "Manufacturing - Robotics", label: "Robotics", careerPath: "Manufacturing" },
-  // Transportation
-  { value: "Transportation  - Auto Technician", label: "Auto Technician", careerPath: "Transportation" },
-  { value: "Transportation  - Auto Body Technician", label: "Auto Body Technician", careerPath: "Transportation" },
-  { value: "Transportation  - Diesel Technician", label: "Diesel Technician", careerPath: "Transportation" },
-  { value: "Transportation  - Aircraft Technician", label: "Aircraft Technician", careerPath: "Transportation" },
-  // Other
-  { value: "Other", label: "Other (specify below)", careerPath: "Other Skilled Trade Career Pathway" },
-];
+// CAREER_PATHS / PROGRAM_FIELDS (the pre-2026 SPF taxonomy) are retired.
+// Sector and career-field options now come from taxonomy.generated.ts,
+// generated from Tasha's Industry & Career List by scripts/gen_taxonomy.py.
 
 export const ENROLLMENT_STATUSES = [
   { value: "high_school", label: "High School (Senior)" },

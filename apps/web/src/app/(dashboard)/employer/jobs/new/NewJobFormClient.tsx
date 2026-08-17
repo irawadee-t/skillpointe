@@ -46,6 +46,8 @@ export function NewJobFormClient({ token }: { token: string }) {
         description_raw: (formData.get("description_raw") as string) || undefined,
         requirements_raw: (formData.get("requirements_raw") as string) || undefined,
         experience_level: (formData.get("experience_level") as string) || undefined,
+        sector_code: (formData.get("sector_code") as string) || undefined,
+        field_code: (formData.get("field_code") as string) || undefined,
         accepts_internal_applications: formData.get("accepts_internal_applications") === "true",
         required_profile_fields: formData.getAll("required_profile_fields").map(String),
       };

@@ -8,8 +8,9 @@ import {
 } from "lucide-react";
 
 import { createClient } from "@/lib/supabase/client";
+import { SectorFieldSelect } from "@/components/taxonomy/SectorFieldSelect";
 import {
-  US_STATES, CAREER_PATHS, PROGRAM_FIELDS, ENROLLMENT_STATUSES, DEGREE_TYPES,
+  US_STATES, ENROLLMENT_STATUSES, DEGREE_TYPES,
   TRAVEL_OPTIONS, RELOCATION_OPTIONS, COMMUTE_RADIUS_PRESETS,
 } from "@/lib/constants";
 import { SkilledNationLogo } from "@/components/ui/Logo";
@@ -93,6 +94,7 @@ export default function ApplicantSetupPage() {
   const [form, setForm] = useState<Record<string, unknown>>({
     first_name: "", last_name: "", enrollment_status: "", degree_type: "", school_name: "",
     career_path: "", program_field: "", specific_career: "", program_name_raw: "",
+    sector_code: "", field_code: "",
     city: "", state: "", commute_radius_miles: "" as string | number,
     expected_completion_date: "", available_from_date: "",
     travel_preference: "within_state", relocation_preference: "stay_current",
@@ -108,10 +110,6 @@ export default function ApplicantSetupPage() {
     return next;
   });
 
-  const filteredPrograms = useMemo(
-    () => (!form.career_path ? PROGRAM_FIELDS : PROGRAM_FIELDS.filter((p) => p.careerPath === form.career_path)),
-    [form.career_path],
-  );
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -270,7 +268,7 @@ export default function ApplicantSetupPage() {
                   <form
                     onSubmit={(e) => {
                       e.preventDefault();
-                      if (form.career_path) {
+                      if (form.sector_code && form.field_code) {
                         setStep(3);
                       } else {
                         // No selection: focus the grid and explain, instead of
@@ -283,44 +281,38 @@ export default function ApplicantSetupPage() {
                   >
                     <StepHead>What's your trade?</StepHead>
                     <p className="-mt-2 text-body text-slate">Pick the path that fits best. This drives your matches.</p>
-                    {tradeHint && !form.career_path && (
+                    {tradeHint && !(form.sector_code && form.field_code) && (
                       <p role="alert" id="trade-hint" className="-mt-2 text-caption font-medium text-studio-maroon">
-                        Pick a trade to continue.
+                        Pick a sector and a career field to continue.
                       </p>
                     )}
                     <div
                       ref={careerGridRef}
                       tabIndex={-1}
-                      role="group"
-                      aria-label="Career paths"
-                      aria-describedby={tradeHint && !form.career_path ? "trade-hint" : undefined}
-                      className={`grid grid-cols-2 gap-3 rounded-xl outline-none ${
-                        tradeHint && !form.career_path
+                      aria-describedby={tradeHint && !form.sector_code ? "trade-hint" : undefined}
+                      className={`rounded-xl outline-none ${
+                        tradeHint && !form.sector_code
                           ? "ring-1 ring-studio-maroon/40 ring-offset-4 ring-offset-canvas"
                           : ""
                       }`}
                     >
-                      {CAREER_PATHS.map((c) => {
-                        const selected = form.career_path === c.value;
-                        return (
-                          <button key={c.value} type="button"
-                            onClick={() => { set("career_path", c.value); set("program_field", ""); setTradeHint(false); }}
-                            className={`rounded-xl border p-4 text-left transition-colors duration-150 ease-cohere ${
-                              selected ? "border-cohere-green bg-wash-green shadow-[0_1px_2px_rgba(12,10,9,0.04)]"
-                                : "border-hairline bg-white hover:border-cohere-ink"}`}>
-                            <span className={`text-body font-medium ${selected ? "text-cohere-green" : "text-cohere-ink"}`}>{c.label}</span>
-                            {selected && <Check className="float-right h-4 w-4 text-cohere-green" />}
-                          </button>
-                        );
-                      })}
+                      <SectorFieldSelect
+                        layout="cards"
+                        sectorCode={form.sector_code as string}
+                        fieldCode={form.field_code as string}
+                        onChange={(v) => {
+                          set("sector_code", v.sectorCode);
+                          set("field_code", v.fieldCode);
+                          // Keep the display strings in sync so older admin
+                          // views and exports read naturally.
+                          set("career_path", v.sectorName);
+                          set("program_field", v.fieldName);
+                          setTradeHint(false);
+                        }}
+                      />
                     </div>
-                    {Boolean(form.career_path) && (
+                    {Boolean(form.sector_code) && (
                       <div className="space-y-4 border-t border-hairline pt-4">
-                        <div><Label>Program / field</Label>
-                          <select value={form.program_field as string} onChange={(e) => set("program_field", e.target.value)} className="input-cohere">
-                            <option value="">Select…</option>{filteredPrograms.map((p) => <option key={p.value} value={p.value}>{p.label}</option>)}
-                          </select>
-                        </div>
                         <div><Label>Specific program or role</Label>
                           <input value={form.specific_career as string} onChange={(e) => set("specific_career", e.target.value)} className="input-cohere" placeholder="e.g. A.A.S. Building Construction" />
                         </div>

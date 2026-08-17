@@ -5,7 +5,7 @@ import { area as d3area, line as d3line, scaleLinear } from "d3";
 import { useMeasuredWidth } from "./useMeasuredWidth";
 
 const INK = "#17171c";
-const ACCENT = "#9E1B32";
+const ACCENT = "#9D2235";
 const HAIRLINE = "#e7e5e2";
 const SLATE_MUTED = "#5c5a55";
 

@@ -26,13 +26,20 @@ const config: Config = {
         // Dark editorial palette — near-black warm canvas + warm-cream text.
         // Existing token names remapped so the whole codebase inherits the
         // new palette without a search-and-replace across hundreds of files.
+        // ── SKILLED Nation brand palette (Logo Usage Guide) ──────────
+        brand: {
+          crimson: "#9D2235",      // Pantone 201 C
+          black: "#000000",
+          gray: "#53565A",         // Pantone Cool Gray 11 C
+          "gray-light": "#D9D9D6", // Pantone Cool Gray 1 C
+        },
         studio: {
           black:   "#0b0b0c",  // neutral near-black (brown retired)
           cream:   "#ffedd7",  // sole foreground: text, borders, button outlines
           cork:    "#3f3f42",  // neutral structural lines (brown retired)
           "dark-cork": "#17171c", // neutral ink surface (brown retired)
           sienna:  "#9d2235",  // accent — link underlines, warning icons, near-fit
-          maroon:  "#9E1B32",  // logo brand red — prestige/verified/strong-fit
+          maroon:  "#9D2235",  // = brand.crimson (Pantone 201C), single brand red
           "grey-brown": "#5c5a55", // neutral muted (brown retired)
           // Warm olive sampled from the hero video (dominant green tone).
           // Was #445231 Forest Grid — shifted to match the video's palette.

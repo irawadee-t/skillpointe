@@ -52,6 +52,8 @@ export default async function EditJobPage({ params }: PageProps) {
         description_raw: job.description_raw ?? undefined,
         requirements_raw: job.requirements_raw ?? undefined,
         experience_level: job.experience_level ?? undefined,
+        sector_code: job.sector_code ?? undefined,
+        field_code: job.field_code ?? undefined,
         is_active: job.is_active,
         accepts_internal_applications: job.accepts_internal_applications,
         internal_apply_effective: job.internal_apply_effective,

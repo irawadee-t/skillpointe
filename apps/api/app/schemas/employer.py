@@ -180,6 +180,9 @@ class JobCreateRequest(_JobFieldRules):
     description_raw: str | None = Field(default=None, max_length=20000)
     requirements_raw: str | None = Field(default=None, max_length=20000)
     experience_level: str | None = None   # entry | mid | senior
+    # SKILLED Nation taxonomy labels — validated as a pair server-side.
+    sector_code: str | None = Field(default=None, max_length=40)
+    field_code: str | None = Field(default=None, max_length=80)
     # Internal-apply configuration
     accepts_internal_applications: bool | None = None
     required_profile_fields: list[str] | None = Field(default=None, max_length=6)
@@ -198,6 +201,8 @@ class JobUpdateRequest(_JobFieldRules):
     description_raw: str | None = Field(default=None, max_length=20000)
     requirements_raw: str | None = Field(default=None, max_length=20000)
     experience_level: str | None = None
+    sector_code: str | None = Field(default=None, max_length=40)
+    field_code: str | None = Field(default=None, max_length=80)
     is_active: bool | None = None
     accepts_internal_applications: bool | None = None
     required_profile_fields: list[str] | None = Field(default=None, max_length=6)
@@ -218,6 +223,8 @@ class JobDetail(BaseModel):
     state: str | None = None
     work_setting: str | None = None
     travel_requirement: str | None = None
+    sector_code: str | None = None
+    field_code: str | None = None
     pay_min: float | None = None
     pay_max: float | None = None
     pay_type: str | None = None

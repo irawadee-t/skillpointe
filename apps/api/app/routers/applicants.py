@@ -68,6 +68,7 @@ async def get_my_profile(
                 a.enrollment_status::text, a.degree_type::text,
                 a.school_name, a.school_city, a.school_state,
                 a.career_path, a.program_field, a.specific_career,
+                a.sector_code,
                 a.program_start_date::text, a.gpa,
                 a.travel_preference::text, a.relocation_preference::text,
                 a.relocation_states,
@@ -99,6 +100,7 @@ async def get_my_profile(
         phone=row.get("phone"),
         program_name_raw=row["program_name_raw"],
         canonical_job_family_code=row["canonical_job_family_code"],
+        sector_code=row.get("sector_code"),
         city=row["city"],
         state=row["state"],
         region=row["region"],
@@ -170,6 +172,11 @@ class ProfileUpdateRequest(_BaseModel):
     career_path: str | None = _Field(default=None, max_length=200)
     program_field: str | None = _Field(default=None, max_length=200)
     specific_career: str | None = _Field(default=None, max_length=200)
+    # SKILLED Nation taxonomy: sector + career field codes. Validated as a
+    # pair against the generated taxonomy (422 on mismatch) and enforced
+    # again by a DB trigger.
+    sector_code: str | None = _Field(default=None, max_length=40)
+    field_code: str | None = _Field(default=None, max_length=80)
     program_start_date: str | None = None
     gpa: float | None = _Field(default=None, ge=0, le=5)
     travel_preference: str | None = _Field(default=None, max_length=120)
@@ -240,19 +247,40 @@ async def update_my_profile(
             except ValueError:
                 updates.pop(date_field)
 
+    # Taxonomy pair validation happens BEFORE any write: an invalid
+    # sector/field combination is a 422, never a half-applied update.
+    from app.util.taxonomy_api import (
+        default_sector_for_field,
+        resolve_family_uuid,
+        validate_sector_field,
+    )
+    field_code = updates.pop("field_code", None)
+    sector_code = updates.get("sector_code")
+    validate_sector_field(sector_code, field_code)
+    if field_code and not sector_code:
+        implied = default_sector_for_field(field_code)
+        if implied:
+            updates["sector_code"] = implied
+
     async with get_db() as conn:
-        # Auto-normalize program → canonical job family
-        # Try multiple fields in priority order: program_field > specific_career > program_name_raw
         import uuid as _uuid
-        program_name = (
-            updates.get("program_field")
-            or updates.get("specific_career")
-            or updates.get("program_name_raw")
-        )
-        if program_name:
-            family_id = await _resolve_job_family(conn, program_name)
-            if family_id:
-                updates["canonical_job_family_id"] = _uuid.UUID(family_id)
+        if field_code:
+            fam = await resolve_family_uuid(conn, field_code)
+            if fam is None:
+                raise HTTPException(status_code=422, detail=f"Unknown career field '{field_code}'.")
+            updates["canonical_job_family_id"] = fam
+        else:
+            # Legacy path: fuzzy-normalize free text when no explicit field
+            # was chosen. Priority: program_field > specific_career > raw.
+            program_name = (
+                updates.get("program_field")
+                or updates.get("specific_career")
+                or updates.get("program_name_raw")
+            )
+            if program_name:
+                family_id = await _resolve_job_family(conn, program_name)
+                if family_id:
+                    updates["canonical_job_family_id"] = _uuid.UUID(family_id)
 
         # Auto-normalize state → region
         state_val = updates.get("state")

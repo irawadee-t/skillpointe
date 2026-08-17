@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
+import { SectorFieldSelect, sectorFieldFromCodes } from "@/components/taxonomy/SectorFieldSelect";
 import { PreferencesPanel } from "@/components/applicant/PreferencesPanel";
 import { ResumeUploader } from "@/components/applicant/ResumeUploader";
 import { useAutosave } from "@/lib/useAutosave";
@@ -12,8 +13,6 @@ import { SaveIndicator } from "@/components/ui/SaveIndicator";
 import { useViewAs, VIEW_AS_READONLY_TOOLTIP } from "@/hooks/useViewAs";
 import {
   US_STATES,
-  CAREER_PATHS,
-  PROGRAM_FIELDS,
   ENROLLMENT_STATUSES,
   DEGREE_TYPES,
   TRAVEL_OPTIONS,
@@ -120,6 +119,10 @@ export default function EditProfilePage() {
         school_state: data.school_state ?? "",
         career_path: data.career_path ?? "",
         program_field: data.program_field ?? "",
+        ...((): Record<string, unknown> => {
+          const seeded = sectorFieldFromCodes(data.sector_code, data.canonical_job_family_code);
+          return { sector_code: seeded.sectorCode ?? "", field_code: seeded.fieldCode ?? "" };
+        })(),
         specific_career: data.specific_career ?? "",
         program_start_date: data.program_start_date ?? "",
         gpa: data.gpa ?? "",
@@ -144,10 +147,6 @@ export default function EditProfilePage() {
     setSaved(false);
   }
 
-  const filteredPrograms = useMemo(() => {
-    if (!form.career_path) return PROGRAM_FIELDS;
-    return PROGRAM_FIELDS.filter((p) => p.careerPath === form.career_path);
-  }, [form.career_path]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -296,12 +295,18 @@ export default function EditProfilePage() {
 
           {/* ---- Program & Career ---- */}
           <Section title="Program & career path">
-            <Field label="Career path">
-              <Select value={form.career_path as string} onChange={(v) => { set("career_path", v); set("program_field", ""); }} options={CAREER_PATHS.map((c) => ({ value: c.value, label: c.label }))} />
-            </Field>
-            <Field label="Program / field of study">
-              <Select value={form.program_field as string} onChange={(v) => set("program_field", v)} options={filteredPrograms.map((p) => ({ value: p.value, label: p.label }))} />
-            </Field>
+            <div className="md:col-span-2">
+              <SectorFieldSelect
+                sectorCode={form.sector_code as string}
+                fieldCode={form.field_code as string}
+                onChange={(v) => {
+                  set("sector_code", v.sectorCode);
+                  set("field_code", v.fieldCode);
+                  set("career_path", v.sectorName);
+                  set("program_field", v.fieldName);
+                }}
+              />
+            </div>
             <Field label="Specific career or program name">
               <Input value={form.specific_career as string} onChange={(v) => set("specific_career", v)} placeholder="e.g. A.A.S. Building Construction Technologies" />
               <p className="text-micro text-slate-muted mt-1">Free text. Describe exactly what you study or want to do</p>

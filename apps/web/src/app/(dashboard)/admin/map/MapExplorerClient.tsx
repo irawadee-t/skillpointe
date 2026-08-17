@@ -62,7 +62,7 @@ const ACCENT = "#9d2235";
  * Order matches the legend below (most common trades first).
  */
 const FAMILY_COLORS: Record<string, string> = {
-  electrical:    "#9E1B32", // brand maroon
+  electrical:    "#9D2235", // brand maroon
   welding:       "#dc5000", // sienna orange
   hvac:          "#4a4b2f", // olive
   manufacturing: "#17171c", // ink

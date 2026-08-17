@@ -62,6 +62,7 @@ from app.routers import commute as commute_router
 from app.routers import interviews as interviews_router
 from app.routers import job_imports as job_imports_router
 from app.routers import scheduling as scheduling_router
+from app.routers import taxonomy as taxonomy_router
 from app.routers import team as team_router
 from app.routers import viz_analytics as viz_analytics_router
 from app.util.logging_config import (
@@ -147,6 +148,7 @@ def create_app() -> FastAPI:
 
     # Routers
     app.include_router(health.router)
+    app.include_router(taxonomy_router.router)  # /taxonomy (public reference)
     app.include_router(auth.router)         # /auth/me, /auth/complete-signup, /auth/invite-employer
     app.include_router(applicants.router)   # /applicant/me/profile, /applicant/me/matches
     app.include_router(chat.router)         # /applicant/me/chat/sessions

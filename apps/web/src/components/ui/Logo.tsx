@@ -1,32 +1,51 @@
 /**
- * SKILLED NATION wordmark — maroon-boxed "SKILLED" over letter-spaced "NATION".
- * On the dark Studio Black canvas, the mark uses a maroon border with a
- * transparent (dark) interior and Warm Cream text — the maroon reads as a
- * chromatic border rule instead of a light card. The `mono` and `invert`
- * variants stay available for legacy call sites.
+ * SKILLED NATION lockup — boxed "SKILLED" over letter-spaced "NATION",
+ * exactly per the Skilled Nation Logo Usage Guide:
+ *
+ *   primary    Crimson box, black SKILLED on white, cool-gray NATION (light bg)
+ *   black      All-black box and letters (light bg, single color)
+ *   secondary  Crimson-bordered box on dark; white SKILLED, light-gray NATION
+ *   white      All-white (for crimson/maroon surfaces, e.g. the sidebar)
+ *
+ * Brand palette (guide): Pantone 201C #9D2235, Black #000000,
+ * Cool Gray 11C #53565A, Cool Gray 1C #D9D9D6.
+ * Face: TT Commons Pro (Bold / Medium) with sans fallbacks.
+ *
+ * The guide's improper-usage rules (no skew, no recoloring, no strike-through)
+ * are enforced by construction: these four variants are the only renderings.
+ * Legacy props `mono` and `invert` map onto black/secondary for old call sites.
  */
-const MAROON = "#9E1B32";
-const INK    = "#0c0a09";
-const GREY   = "#58595B";
-const CREAM  = "#ffedd7";
+const CRIMSON = "#9D2235";   // Pantone 201 C
+const BLACK = "#000000";
+const COOL_GRAY_11 = "#53565A";
+const COOL_GRAY_1 = "#D9D9D6";
+const FACE = "'TT Commons Pro', 'Helvetica Neue', Arial, sans-serif";
+
+export type LogoVariant = "primary" | "black" | "secondary" | "white";
 
 export function SkilledNationLogo({
   width = 150,
   className,
+  variant,
   mono = false,
   invert = false,
 }: {
   width?: number;
   className?: string;
-  /** Single-color (ink) variant. */
+  variant?: LogoVariant;
+  /** @deprecated legacy alias for variant="black" */
   mono?: boolean;
-  /** Cream-on-transparent variant for dark surfaces (e.g. hero video overlay). */
+  /** @deprecated legacy alias for variant="secondary" */
   invert?: boolean;
 }) {
-  const boxStroke = invert ? CREAM : mono ? INK : MAROON;
-  const boxFill   = invert ? "none" : "#ffffff";
-  const skilled   = invert ? CREAM : INK;
-  const nation    = invert ? "rgba(255,237,215,0.8)" : mono ? INK : GREY;
+  const v: LogoVariant = variant ?? (invert ? "secondary" : mono ? "black" : "primary");
+  const palette = {
+    primary:   { box: CRIMSON, fill: "#ffffff", skilled: BLACK,    nation: COOL_GRAY_11 },
+    black:     { box: BLACK,   fill: "#ffffff", skilled: BLACK,    nation: COOL_GRAY_11 },
+    secondary: { box: CRIMSON, fill: "none",    skilled: "#ffffff", nation: COOL_GRAY_1 },
+    white:     { box: "#ffffff", fill: "none",  skilled: "#ffffff", nation: "#ffffff" },
+  }[v];
+
   return (
     <svg
       width={width}
@@ -38,18 +57,18 @@ export function SkilledNationLogo({
       role="img"
       aria-label="SKILLED NATION"
     >
-      <rect x="3" y="3" width="314" height="68" rx="2" fill={boxFill} stroke={boxStroke} strokeWidth="6" />
+      <rect x="4" y="4" width="312" height="66" fill={palette.fill} stroke={palette.box} strokeWidth="8" />
       <text
-        x="160" y="56" textAnchor="middle"
-        fontFamily="Arial, Helvetica, sans-serif" fontWeight="800" fontSize="50"
-        letterSpacing="-1" fill={skilled}
+        x="160" y="55" textAnchor="middle"
+        fontFamily={FACE} fontWeight="700" fontSize="48"
+        letterSpacing="0.5" fill={palette.skilled}
       >
         SKILLED
       </text>
       <text
         x="160" y="108" textAnchor="middle"
-        fontFamily="Arial, Helvetica, sans-serif" fontWeight="600" fontSize="26"
-        letterSpacing="11" fill={nation}
+        fontFamily={FACE} fontWeight="500" fontSize="25"
+        letterSpacing="12" fill={palette.nation}
       >
         NATION
       </text>

@@ -1,5 +1,7 @@
 <svg width="64" height="64" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-  <rect width="64" height="64" rx="12" fill="#17140f"/>
-  <rect x="8" y="8" width="48" height="48" rx="7" fill="none" stroke="#9d2235" stroke-width="3"/>
-  <text x="32" y="43" font-family="Georgia, 'Times New Roman', serif" font-size="30" font-weight="600" fill="#f7f4ee" text-anchor="middle">S</text>
+  <!-- SKILLED Nation favicon: the lockup's box, reduced to the "S".
+       Pantone 201C fill + white bold sans letter for legibility at 16px. -->
+  <rect width="64" height="64" rx="10" fill="#9D2235"/>
+  <rect x="7" y="7" width="50" height="50" rx="5" fill="none" stroke="#ffffff" stroke-width="4"/>
+  <text x="32" y="44" font-family="'TT Commons Pro', 'Helvetica Neue', Arial, sans-serif" font-size="32" font-weight="700" fill="#ffffff" text-anchor="middle">S</text>
 </svg>

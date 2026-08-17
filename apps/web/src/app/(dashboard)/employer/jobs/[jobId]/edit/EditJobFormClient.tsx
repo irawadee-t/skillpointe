@@ -49,6 +49,8 @@ export function EditJobFormClient({
         ["description_raw", "string"],
         ["requirements_raw", "string"],
         ["experience_level", "string"],
+        ["sector_code", "string"],
+        ["field_code", "string"],
       ];
       for (const [field, type] of fields) {
         const raw = formData.get(field);

@@ -11,11 +11,14 @@
 
 import { useEffect, useState } from "react";
 import { Field } from "@/components/ui";
+import { SectorFieldSelect, sectorFieldFromCodes } from "@/components/taxonomy/SectorFieldSelect";
 
 const inputClass = "input-cohere";
 
 export interface JobFormDefaults {
   title_raw?: string;
+  sector_code?: string;
+  field_code?: string;
   city?: string;
   state?: string;
   work_setting?: string;
@@ -52,6 +55,9 @@ export function JobFormFields({
   onValidChange?: (valid: boolean) => void;
 }) {
   const [title, setTitle] = useState<string>(defaults?.title_raw ?? "");
+  const seededTaxonomy = sectorFieldFromCodes(defaults?.sector_code, defaults?.field_code);
+  const [sectorCode, setSectorCode] = useState<string>(seededTaxonomy.sectorCode ?? "");
+  const [fieldCode, setFieldCode] = useState<string>(seededTaxonomy.fieldCode ?? "");
   // Internal-apply config. New jobs default to accepting applications on the
   // platform; edit pre-fills the stored/effective value.
   const [acceptsInternal, setAcceptsInternal] = useState<boolean>(
@@ -108,6 +114,16 @@ export function JobFormFields({
           <input type="text" name="state" maxLength={2} defaultValue={defaults?.state} className={inputClass} placeholder="e.g. TX" />
         </Field>
       </div>
+
+      <Field label="Sector and career field" hint="Drives matching and applicant filters. Pick the field that best describes the work.">
+        <SectorFieldSelect
+          sectorCode={sectorCode}
+          fieldCode={fieldCode}
+          onChange={(v) => { setSectorCode(v.sectorCode); setFieldCode(v.fieldCode); }}
+        />
+        <input type="hidden" name="sector_code" value={sectorCode} />
+        <input type="hidden" name="field_code" value={fieldCode} />
+      </Field>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Field label="Work setting">

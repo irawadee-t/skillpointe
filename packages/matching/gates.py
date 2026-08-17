@@ -23,6 +23,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from . import sn_taxonomy
 from .geo import (
     NEAR_RADIUS_FACTOR,
     SAME_CITY_MILES,
@@ -105,19 +106,44 @@ def evaluate_job_family_gate(
             needs_review=True,
         )
 
+    # SKILLED Nation taxonomy: codes resolve through the legacy bridge, then
+    # compare at field level; distinct fields sharing a sector are adjacent.
+    # Reasons carry the ORIGINAL codes in a stable machine format; the
+    # explanation layer (engine._humanize_gate_reason) owns presentation.
+    relation = sn_taxonomy.relate(applicant_family_code, job_family_code)
+    if relation != "unknown":
+        if relation == "same":
+            return GateDetail(
+                "job_family_compatibility", PASS,
+                f"same career field: {applicant_family_code}",
+            )
+        if relation == "adjacent":
+            shared = sn_taxonomy.field_sectors(applicant_family_code) & sn_taxonomy.field_sectors(job_family_code)
+            sector_name = sn_taxonomy.SECTORS[sorted(shared)[0]]["name"]
+            return GateDetail(
+                "job_family_compatibility", NEAR_FIT,
+                f"related fields within {sector_name}: "
+                f"applicant={applicant_family_code}, job={job_family_code}",
+            )
+        return GateDetail(
+            "job_family_compatibility", FAIL,
+            f"unrelated families: applicant={applicant_family_code}, job={job_family_code}",
+            severity="critical",
+        )
+
+    # Codes outside the taxonomy entirely (unmapped legacy or free text):
+    # fall back to the legacy adjacency map rather than failing blind.
     if applicant_family_code == job_family_code:
         return GateDetail(
             "job_family_compatibility", PASS,
             f"direct match: {applicant_family_code}",
         )
-
     adjacent = JOB_FAMILY_ADJACENCY.get(applicant_family_code, set())
     if job_family_code in adjacent:
         return GateDetail(
             "job_family_compatibility", NEAR_FIT,
             f"adjacent families: applicant={applicant_family_code}, job={job_family_code}",
         )
-
     return GateDetail(
         "job_family_compatibility", FAIL,
         f"unrelated families: applicant={applicant_family_code}, job={job_family_code}",

@@ -43,7 +43,9 @@ const ROLE_LABEL: Record<string, string> = {
 // Deep wine-black chrome — the hero's #9d2235 family taken to a near-black
 // ground, replacing the old brown cork. One value, used for sidebar + drawer.
 // Deep brand red — the skilled-nation.org crimson family, darkened for chrome.
-const CHROME_BG = "bg-[#5c101e]";
+// Deep shade of Pantone 201C (#9D2235) — the guide's crimson, darkened
+// for a chrome surface the white logo variant sits on.
+const CHROME_BG = "bg-[#5e141f]";
 
 // Thoughtful nav order: grouped by what the user is DOING, not a flat list.
 // Items are matched by label; anything not listed falls into a trailing group
@@ -323,7 +325,7 @@ export function AppSidebar({
   const Brand = (
     <div className="flex h-16 shrink-0 items-center gap-2 border-b border-white/10 px-5">
       <Link href={homeHref} className="flex items-center">
-        <SkilledNationLogo width={116} invert />
+        <SkilledNationLogo width={116} variant="white" />
       </Link>
     </div>
   );

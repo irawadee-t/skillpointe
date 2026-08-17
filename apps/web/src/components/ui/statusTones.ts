@@ -14,7 +14,7 @@
  * quiet grays. Every solid pairs white text at ≥4.5:1 (AA):
  *   cohere-blue #1863dc 5.4:1 · cohere-navy #071829 17+:1 ·
  *   cohere-green #4a4b2f 9.0:1 · cohere-green-deep #31321f 12+:1 ·
- *   studio-maroon #9E1B32 7.9:1 · error-red #b30000 7.2:1.
+ *   studio-maroon #9D2235 7.9:1 · error-red #b30000 7.2:1.
  *
  * Slots:
  *   neutral         informational metadata, categories, self-reported (quiet outline)

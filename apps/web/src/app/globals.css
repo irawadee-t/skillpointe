@@ -6,7 +6,7 @@
   :root {
     --background: #fcfcfb;    /* clean near-white (ElevenLabs-grade, not beige) */
     --foreground: #17171c;    /* near-black text */
-    --cohere-focus: #9E1B32;  /* Studio Maroon — brand-tied focus ring */
+    --cohere-focus: #9D2235;  /* Studio Maroon — brand-tied focus ring */
   }
 
   html {
@@ -39,7 +39,7 @@
   }
 
   ::selection {
-    background: #9E1B32; /* Studio Maroon — one brand accent everywhere */
+    background: #9D2235; /* Studio Maroon — one brand accent everywhere */
     color: #ffedd7;
   }
 }
@@ -324,7 +324,7 @@
   /* Visible focus ring for keyboard users — one brand-maroon ring everywhere
      (was cohere-ink here and maroon in @layer base; the two rules fought). */
   *:focus-visible {
-    outline: 2px solid var(--cohere-focus, #9E1B32);
+    outline: 2px solid var(--cohere-focus, #9D2235);
     outline-offset: 2px;
     border-radius: 4px;
   }

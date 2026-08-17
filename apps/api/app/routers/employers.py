@@ -508,11 +508,14 @@ async def get_job_detail(
                     j.is_active,
                     j.accepts_internal_applications,
                     j.required_profile_fields,
+                    j.sector_code,
+                    jf.code AS field_code,
                     COALESCE(j.accepts_internal_applications,
                              e.accepts_internal_applications_default,
                              FALSE) AS internal_apply_effective
                 FROM public.jobs j
                 LEFT JOIN public.employers e ON e.id = j.employer_id
+                LEFT JOIN public.canonical_job_families jf ON jf.id = j.canonical_job_family_id
                 WHERE j.id = $1::uuid
                 """,
                 job_id,
@@ -528,11 +531,14 @@ async def get_job_detail(
                     j.is_active,
                     j.accepts_internal_applications,
                     j.required_profile_fields,
+                    j.sector_code,
+                    jf.code AS field_code,
                     COALESCE(j.accepts_internal_applications,
                              e.accepts_internal_applications_default,
                              FALSE) AS internal_apply_effective
                 FROM public.jobs j
                 LEFT JOIN public.employers e ON e.id = j.employer_id
+                LEFT JOIN public.canonical_job_families jf ON jf.id = j.canonical_job_family_id
                 WHERE j.id = $1::uuid AND j.employer_id = $2
                 """,
                 job_id,
@@ -549,6 +555,8 @@ async def get_job_detail(
         state=row["state"],
         work_setting=row["work_setting"],
         travel_requirement=row["travel_requirement"],
+        sector_code=row.get("sector_code"),
+        field_code=row.get("field_code"),
         pay_min=float(row["pay_min"]) if row["pay_min"] is not None else None,
         pay_max=float(row["pay_max"]) if row["pay_max"] is not None else None,
         pay_type=row["pay_type"],
@@ -576,8 +584,25 @@ async def create_job(
     Create a new job posting for this employer.
     New jobs are active by default (is_active = TRUE).
     """
+    from app.util.taxonomy_api import (
+        default_sector_for_field,
+        resolve_family_uuid,
+        validate_sector_field,
+    )
+    validate_sector_field(request.sector_code, request.field_code)
+    sector_code = request.sector_code or default_sector_for_field(request.field_code)
+
     async with get_db() as conn:
         employer_id = await _resolve_employer_id(conn, current_user.user_id)
+
+        family_id = None
+        if request.field_code:
+            family_id = await resolve_family_uuid(conn, request.field_code)
+            if family_id is None:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Unknown career field '{request.field_code}'.",
+                )
 
         row = await conn.fetchrow(
             """
@@ -594,6 +619,8 @@ async def create_job(
                 description_raw,
                 requirements_raw,
                 experience_level,
+                sector_code,
+                canonical_job_family_id,
                 accepts_internal_applications,
                 required_profile_fields,
                 source
@@ -604,8 +631,9 @@ async def create_job(
                      ELSE NULL
                 END,
                 $6, $7, $8, $9, $10, $11, $12,
-                $13,
-                COALESCE($14::text[], '{contact,location,program}'::text[]),
+                $13, $14,
+                $15,
+                COALESCE($16::text[], '{contact,location,program}'::text[]),
                 'employer_created'
             )
             RETURNING id::text, title_raw, is_active, created_at::text
@@ -622,6 +650,8 @@ async def create_job(
             request.description_raw,
             request.requirements_raw,
             request.experience_level,
+            sector_code,
+            family_id,
             request.accepts_internal_applications,
             request.required_profile_fields,
         )
@@ -655,8 +685,25 @@ async def update_job(
     Update an existing job. Only provided (non-None) fields are updated.
     Returns 404 if job doesn't exist or doesn't belong to this employer.
     """
+    from app.util.taxonomy_api import (
+        default_sector_for_field,
+        resolve_family_uuid,
+        validate_sector_field,
+    )
+    validate_sector_field(request.sector_code, request.field_code)
+    effective_sector = request.sector_code or default_sector_for_field(request.field_code)
+
     async with get_db() as conn:
         employer_id = await _resolve_employer_id(conn, current_user.user_id)
+
+        family_id = None
+        if request.field_code:
+            family_id = await resolve_family_uuid(conn, request.field_code)
+            if family_id is None:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Unknown career field '{request.field_code}'.",
+                )
 
         # Build dynamic SET clause — only update provided fields
         updates: list[str] = []
@@ -674,6 +721,8 @@ async def update_job(
             "description_raw": request.description_raw,
             "requirements_raw": request.requirements_raw,
             "experience_level": request.experience_level,
+            "sector_code": effective_sector,
+            "canonical_job_family_id": family_id,
             "is_active": request.is_active,
             "accepts_internal_applications": request.accepts_internal_applications,
             "required_profile_fields": request.required_profile_fields,

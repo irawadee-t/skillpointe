@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
 
+from . import sn_taxonomy
 from .config import ScoringConfig
 from .gates import (
     ELIGIBLE,
@@ -703,10 +704,23 @@ _EDU_FRIENDLY = {
 
 
 def _friendly_family(code: str) -> str:
-    """'hvac_r' → 'HVAC/R', 'welding' → 'welding' — readable trade names."""
+    """'hvac_r' → 'HVAC/R', 'nursing' → 'nursing' — readable trade names.
+
+    New taxonomy codes render their display name with any parenthetical
+    dropped and non-acronym words lowercased, so the sentence "this is a
+    nursing role" reads naturally while "HVAC/R" and "CAD/CAM" keep caps.
+    """
     special = {"hvac_r": "HVAC/R", "hvac": "HVAC", "cdl": "CDL", "it": "IT"}
     if code.lower() in special:
         return special[code.lower()]
+    resolved = sn_taxonomy.resolve_field_code(code)
+    if resolved:
+        name = re.sub(r"\s*\(.*\)$", "", sn_taxonomy.FIELDS[resolved]["name"]).strip()
+        words = [
+            w if (w.isupper() or any(ch.isupper() for ch in w[1:])) else w.lower()
+            for w in name.split()
+        ]
+        return " ".join(words)
     return code.replace("_", " ")
 
 

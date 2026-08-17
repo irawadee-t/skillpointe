@@ -47,6 +47,7 @@ class ApplicantProfileSummary(BaseModel):
     school_state: str | None
     career_path: str | None
     program_field: str | None
+    sector_code: str | None = None
     specific_career: str | None
     program_start_date: str | None
     gpa: float | None

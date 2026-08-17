@@ -28,6 +28,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from . import sn_taxonomy
 from .config import ScoringConfig
 from .geo import SAME_CITY_MILES, effective_radius_miles, haversine_miles
 from .normalizer import JOB_FAMILY_ADJACENCY, TimingResult
@@ -62,8 +63,6 @@ def score_trade_program_alignment(
     Trade/program alignment (weight 25).
     Direct match → 100, adjacent → 60, unrelated → 20, unknown → null default.
     """
-    adjacent = JOB_FAMILY_ADJACENCY.get(applicant_family_code or "", set())
-
     if applicant_family_code is None or job_family_code is None:
         return DimensionScore(
             "trade_program_alignment", weight,
@@ -72,12 +71,19 @@ def score_trade_program_alignment(
             True, null_default,
         )
 
-    if applicant_family_code == job_family_code:
-        s, r = 100.0, f"direct family match: {applicant_family_code}"
-    elif job_family_code in adjacent:
-        s, r = 60.0, f"adjacent families: applicant={applicant_family_code}, job={job_family_code}"
+    relation = sn_taxonomy.relate(applicant_family_code, job_family_code)
+    if relation == "unknown":
+        # Outside the taxonomy: fall back to the legacy adjacency map.
+        adjacent = JOB_FAMILY_ADJACENCY.get(applicant_family_code, set())
+        relation = ("same" if applicant_family_code == job_family_code
+                    else "adjacent" if job_family_code in adjacent else "unrelated")
+
+    if relation == "same":
+        s, r = 100.0, f"direct field match: {applicant_family_code}"
+    elif relation == "adjacent":
+        s, r = 60.0, f"related fields (shared sector): applicant={applicant_family_code}, job={job_family_code}"
     else:
-        s, r = 20.0, f"unrelated families: applicant={applicant_family_code}, job={job_family_code}"
+        s, r = 20.0, f"different sectors: applicant={applicant_family_code}, job={job_family_code}"
 
     return DimensionScore("trade_program_alignment", weight, s, weight * s / 100, r)
 
@@ -373,12 +379,26 @@ def score_industry_alignment(
     Same family → 80, adjacent → 65, unrelated → 30, unknown → null default.
     """
     dim = "industry_alignment"
-    adjacent = JOB_FAMILY_ADJACENCY.get(applicant_family_code or "", set())
 
     if applicant_family_code is None or job_family_code is None:
         return DimensionScore(dim, weight, null_default, weight * null_default / 100,
                               "unknown family (null default)", True, null_default)
 
+    # Sector level IS the industry level in the SKILLED Nation taxonomy: any
+    # shared sector scores as same-industry, so an "Other Healthcare" applicant
+    # is same-industry with every healthcare job even without a named field.
+    a_sectors = sn_taxonomy.field_sectors(applicant_family_code)
+    j_sectors = sn_taxonomy.field_sectors(job_family_code)
+    if a_sectors and j_sectors:
+        if a_sectors & j_sectors:
+            shared = sorted(a_sectors & j_sectors)[0]
+            s, r = 80.0, f"same sector: {sn_taxonomy.SECTORS[shared]['name']}"
+        else:
+            s, r = 30.0, "different sectors"
+        return DimensionScore(dim, weight, s, weight * s / 100, r)
+
+    # Legacy fallback for codes outside the taxonomy.
+    adjacent = JOB_FAMILY_ADJACENCY.get(applicant_family_code, set())
     if applicant_family_code == job_family_code:
         s, r = 80.0, f"same industry: {applicant_family_code}"
     elif job_family_code in adjacent:
