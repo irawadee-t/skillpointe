@@ -264,23 +264,23 @@ async def update_my_profile(
 
     async with get_db() as conn:
         import uuid as _uuid
+        # Referenced by the auto_normalized response flag regardless of path.
+        program_name = (
+            updates.get("program_field")
+            or updates.get("specific_career")
+            or updates.get("program_name_raw")
+        )
         if field_code:
             fam = await resolve_family_uuid(conn, field_code)
             if fam is None:
                 raise HTTPException(status_code=422, detail=f"Unknown career field '{field_code}'.")
             updates["canonical_job_family_id"] = fam
-        else:
+        elif program_name:
             # Legacy path: fuzzy-normalize free text when no explicit field
             # was chosen. Priority: program_field > specific_career > raw.
-            program_name = (
-                updates.get("program_field")
-                or updates.get("specific_career")
-                or updates.get("program_name_raw")
-            )
-            if program_name:
-                family_id = await _resolve_job_family(conn, program_name)
-                if family_id:
-                    updates["canonical_job_family_id"] = _uuid.UUID(family_id)
+            family_id = await _resolve_job_family(conn, program_name)
+            if family_id:
+                updates["canonical_job_family_id"] = _uuid.UUID(family_id)
 
         # Auto-normalize state → region
         state_val = updates.get("state")
