@@ -39,7 +39,7 @@ from psycopg2.extras import execute_values
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "packages"))
-from matching import sn_taxonomy  # noqa: E402
+from matching import sn_taxonomy
 
 DSN = os.environ.get("DATABASE_URL") or "postgresql://postgres:postgres@localhost:54322/postgres"
 XLSX = os.environ.get(
