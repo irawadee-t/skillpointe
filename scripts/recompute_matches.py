@@ -61,6 +61,12 @@ def main() -> int:
                         help="Compute but do not write to DB")
     parser.add_argument("--verbose", action="store_true",
                         help="Print score breakdowns")
+    parser.add_argument("--prefilter", action="store_true",
+                        help="Candidate generation for large pools: score only "
+                             "same-state pairs whose fields share a sector (or "
+                             "either side has no field). Pairs outside the "
+                             "filter would gate out as ineligible anyway and "
+                             "are not stored.")
     parser.add_argument("--skip-geocode", action="store_true",
                         help="Skip the coordinate backfill step (offline runs)")
     args = parser.parse_args()
@@ -131,8 +137,37 @@ def main() -> int:
     print(f"Extracted signals: {len(app_signals_map)} applicants, {len(job_signals_map)} jobs")
     print(f"Embeddings: {len(app_embedding_map)} applicants, {len(job_embedding_map)} jobs")
 
-    total_pairs = len(applicants) * len(jobs)
-    print(f"Applicants: {len(applicants)}, Jobs: {len(jobs)}, Pairs: {total_pairs}")
+    # Candidate generation (--prefilter): same state + sector-plausible.
+    # 43k applicants x 400 jobs = 17M raw pairs; storing gate-fail rows at
+    # that scale is pure ballast. Sector plausibility mirrors the family
+    # gate exactly (sn_taxonomy.relate != "unrelated"), so nothing that
+    # could score above ineligible is ever skipped.
+    from matching import sn_taxonomy as _snt
+
+    def _candidates(app: dict) -> list[dict]:
+        if not args.prefilter:
+            return jobs
+        a_state = (app.get("state") or "").upper()
+        if not a_state:
+            return []          # no geography signal; profile stays match-less for now
+        a_code = app.get("canonical_job_family_code")
+        out = []
+        for j in jobs:
+            if (j.get("state") or "").upper() != a_state and (j.get("work_setting") or "") != "remote":
+                continue
+            j_code = j.get("canonical_job_family_code")
+            if a_code and j_code and _snt.relate(a_code, j_code) == "unrelated":
+                continue
+            out.append(j)
+        return out
+
+    if args.prefilter:
+        total_pairs = sum(len(_candidates(a)) for a in applicants)
+        print(f"Applicants: {len(applicants)}, Jobs: {len(jobs)}, "
+              f"prefiltered pairs: {total_pairs}")
+    else:
+        total_pairs = len(applicants) * len(jobs)
+        print(f"Applicants: {len(applicants)}, Jobs: {len(jobs)}, Pairs: {total_pairs}")
     if args.dry_run:
         print("(DRY RUN — no data will be written)\n")
 
@@ -156,7 +191,7 @@ def main() -> int:
         a_sig = app_signals_map.get(app_id)
         a_emb = app_embedding_map.get(app_id)
 
-        for job in jobs:
+        for job in _candidates(app):
             job_id_str = str(job["id"])
             emp = employer_map.get(str(job.get("employer_id")), {})
             j_sig = job_signals_map.get(job_id_str)
