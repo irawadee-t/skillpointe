@@ -136,7 +136,7 @@ def main() -> int:
             cred_total += len(creds)
 
         if not args.dry_run:
-            names = [c["name"] for c in creds if c["requirement"] != "preferred"] or None
+            names = [c["name"] for c in creds if c["requirement"] != "preferred"]
             cur.execute(
                 """UPDATE public.jobs SET
                        experience_level = %s,

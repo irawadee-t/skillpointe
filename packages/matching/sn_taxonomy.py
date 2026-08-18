@@ -193,6 +193,11 @@ LEGACY_FAMILY_BRIDGE: dict[str, str | None] = {
     "electronics": 'industrial_electrical_technology',
     "it_support": 'it_network_support',
     "administrative": None,
+    "utilities_energy": 'utility_public_works',
+    "logistics_warehouse": 'other_transportation',
+    "automotive_diesel": 'diesel_service_and_technology',
+    "machining_cnc": 'cnc_machining',
+    "construction_skilled": 'building_construction_technology',
 }
 
 

@@ -162,6 +162,12 @@ LEGACY_BRIDGE = {
     "electronics": "industrial_electrical_technology",
     "it_support": "it_network_support",
     "administrative": None,  # no honest home in the trades taxonomy -> review
+    # packages/scraper/trades.py classifier vocabulary (title-based):
+    "utilities_energy": "utility_public_works",
+    "logistics_warehouse": "other_transportation",
+    "automotive_diesel": "diesel_service_and_technology",
+    "machining_cnc": "cnc_machining",
+    "construction_skilled": "building_construction_technology",
 }
 
 
