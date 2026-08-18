@@ -190,13 +190,16 @@ class TestGroundedStrengths:
 class TestNextStepAndGaps:
     def test_next_step_preserves_acronym_case(self):
         # Bad sentence reproduced: "Look into: required credentials [osha 10]…"
-        # (old code lowercased the whole string).
+        # (old code lowercased the whole string). Since the attainability rule
+        # (2026-08), a missing certification is a bridgeable near_fit, not an
+        # ineligible — and the next step states the path with case intact.
         signals = {"certifications_extracted": []}
         r = _run(job=_job(required_credentials=["OSHA 10"]),
                  applicant_signals=signals)
-        assert r.eligibility_status == "ineligible"
+        assert r.eligibility_status == "near_fit"
         assert "OSHA 10" in r.recommended_next_step
         assert "osha" not in r.recommended_next_step
+        assert "earn" in r.recommended_next_step.lower()
 
     def test_geography_fail_next_step_is_actionable(self):
         # Bad sentence reproduced: "Look into: ~620 mi away — beyond your…"

@@ -141,3 +141,34 @@ class TestGateOntologyWiring:
     def test_unknown_years_with_ask_stays_uncertain_not_fail(self):
         g = self._gate(level="senior", years=None, ask=5)
         assert g.result == "near_fit"
+
+
+class TestBridgeableGaps:
+    """Attainable gaps keep doors open with a stated path."""
+
+    def _creds(self, required, certs):
+        from matching.gates import evaluate_credential_gate
+        return evaluate_credential_gate(required, {}, applicant_certs=certs)
+
+    def test_missing_certification_is_near_fit_not_fail(self):
+        g = self._creds(["EPA 608 Certification"], ["OSHA 10"])
+        assert g.result == "near_fit"
+        assert "attainable" in g.reason
+
+    def test_missing_cdl_is_near_fit(self):
+        g = self._creds(["CDL Class A"], [])
+        assert g.result == "near_fit"
+
+    def test_missing_degree_still_fails(self):
+        g = self._creds(["Bachelor's degree in Engineering"], ["OSHA 10"])
+        assert g.result == "fail"
+
+    def test_missing_rn_license_still_fails(self):
+        # A nursing license is a program + board exam, not a weekend course.
+        g = self._creds(["RN license"], [])
+        assert g.result == "fail"
+
+    def test_no_disclosed_certs_stays_near_fit(self):
+        g = self._creds(["OSHA 10"], None)
+        assert g.result == "near_fit"
+        assert "not yet verified" in g.reason

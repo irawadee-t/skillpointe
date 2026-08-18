@@ -872,7 +872,8 @@ def _build_explanation(
             if g.severity == "critical":
                 missing.append(friendly)
         elif g.result == "near_fit" and g.gate_name == "required_credential_compatibility":
-            if "education" in g.reason or "credential" in g.reason or "experience" in g.reason:
+            if ("education" in g.reason or "credential" in g.reason
+                    or "experience" in g.reason or "certification" in g.reason):
                 friendly = _humanize_gate_reason(g.gate_name, g.reason)
                 gaps.append(f"{label}: {friendly}")
         elif g.result == "near_fit" and g.gate_name == "geography_feasibility":
@@ -905,7 +906,23 @@ def _build_explanation(
     elif elig_status == ELIGIBLE:
         next_step = "Good fit. Review the description and apply."
     elif elig_status == NEAR_FIT_LABEL:
-        if gaps:
+        # Bridgeable gaps get the ACTION, not just the observation: a missing
+        # certification is a course away, and a start-date gap is a message
+        # away. The door stays open and the path is stated.
+        joined_gaps = " | ".join(gaps)
+        if "attainable" in joined_gaps:
+            m = re.search(r"missing attainable[^\[]*\[([^\]]+)\]", joined_gaps)
+            cert = m.group(1).split(",")[0].strip() if m else "the listed certification"
+            next_step = (
+                f"You can still earn {cert}. Check the training options on "
+                "this page, then apply."
+            )
+        elif "apply and message the employer" in joined_gaps:
+            next_step = (
+                "Your finish date is close to their start. Apply, then message "
+                "the employer about timing."
+            )
+        elif gaps:
             first_gap = gaps[0].split(":")[0] if ":" in gaps[0] else gaps[0]
             next_step = f"Worth a look: {first_gap.lower().strip()}"
         else:

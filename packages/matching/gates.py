@@ -40,6 +40,18 @@ PASS = "pass"
 NEAR_FIT = "near_fit"
 FAIL = "fail"
 
+# Requirements that take years of schooling — the only credential class a
+# missing entry may hard-fail on. Everything else (certs, licenses, safety
+# cards) is attainable during a hiring cycle and caps at NEAR_FIT.
+import re as _re
+
+_DEGREE_CLASS = _re.compile(
+    r"(bachelor|master(?!\s*(electrician|plumber|technician|craftsman))|"
+    r"associate'?s?\s+degree|\bB\.?S\.?\b|\bB\.?A\.?\b|\bPhD\b|doctorate|"
+    r"\bdegree\b|\bRN\b|registered nurse|\bLPN\b|\bLVN\b)",
+    _re.IGNORECASE,
+)
+
 ELIGIBLE = "eligible"
 NEAR_FIT_LABEL = "near_fit"
 INELIGIBLE = "ineligible"
@@ -199,6 +211,10 @@ def evaluate_credential_gate(
         sub_results.append((NEAR_FIT, f"job requires {job_min_education}, applicant education unknown", "normal"))
 
     # --- B) Specific credentials check ---
+    # Attainability rule: a missing CERTIFICATION or LICENSE is a bridgeable
+    # gap — CDL, EPA 608, OSHA 10 are weeks of coursework, not a different
+    # life. Those cap at NEAR_FIT so the job stays visible with a path shown.
+    # Only a missing DEGREE-class requirement (years of schooling) hard-fails.
     if required_credentials:
         cred_list = ", ".join(required_credentials[:3])
         cred_count = len(required_credentials)
@@ -214,12 +230,21 @@ def evaluate_credential_gate(
                 else:
                     unmatched.append(req)
 
+            hard_missing = [r for r in unmatched if _DEGREE_CLASS.search(r)]
+            attainable_missing = [r for r in unmatched if not _DEGREE_CLASS.search(r)]
+
             if not unmatched:
                 sub_results.append((PASS, f"all {cred_count} credentials matched", "normal"))
+            elif hard_missing:
+                sub_results.append((FAIL, f"required credentials [{', '.join(hard_missing)}] not found", "critical"))
             elif matched:
-                sub_results.append((NEAR_FIT, f"partial credential match, has [{', '.join(matched)}], missing [{', '.join(unmatched)}]", "normal"))
+                sub_results.append((NEAR_FIT, f"partial credential match, has [{', '.join(matched)}], missing attainable [{', '.join(attainable_missing)}]", "normal"))
             else:
-                sub_results.append((FAIL, f"required credentials [{cred_list}] not found", "critical"))
+                sub_results.append((
+                    NEAR_FIT,
+                    f"missing attainable certification: [{', '.join(attainable_missing[:3])}]",
+                    "normal",
+                ))
         else:
             sub_results.append((NEAR_FIT, f"requires [{cred_list}], applicant credentials not yet verified", "normal"))
 
@@ -305,6 +330,12 @@ def evaluate_timing_gate(timing: TimingResult) -> GateDetail:
             return GateDetail(
                 "readiness_timing_compatibility", PASS,
                 f"completing program in ~{months} month(s), within typical hiring window",
+            )
+        if months <= 12:
+            return GateDetail(
+                "readiness_timing_compatibility", NEAR_FIT,
+                f"completing program in ~{months} months, apply and message the "
+                "employer about timing",
             )
         return GateDetail(
             "readiness_timing_compatibility", NEAR_FIT,
