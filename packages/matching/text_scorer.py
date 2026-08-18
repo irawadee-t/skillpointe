@@ -17,6 +17,8 @@ the engine prefers those signals. This module is the fallback.
 """
 from __future__ import annotations
 
+from functools import lru_cache
+
 import re
 from typing import Any
 
@@ -176,6 +178,7 @@ _STOP_WORDS = frozenset({
 # Job description requirement parser
 # ---------------------------------------------------------------------------
 
+@lru_cache(maxsize=8192)
 def _parse_experience_years(text: str) -> int | None:
     """Extract minimum years of experience from job description text."""
     patterns = [
@@ -194,6 +197,7 @@ def _parse_experience_years(text: str) -> int | None:
     return min_years
 
 
+@lru_cache(maxsize=8192)
 def _parse_education_level(text: str) -> str | None:
     """Extract minimum education level from job description."""
     text_lower = text.lower()
@@ -210,6 +214,7 @@ def _parse_education_level(text: str) -> str | None:
     return None
 
 
+@lru_cache(maxsize=8192)
 def _parse_certifications_required(text: str) -> list[str]:
     """Extract certification/license requirements from job description."""
     found: list[str] = []
@@ -242,6 +247,7 @@ def _parse_certifications_required(text: str) -> list[str]:
     return found
 
 
+@lru_cache(maxsize=8192)
 def _parse_education_required(text: str) -> dict[str, Any] | None:
     """
     Extract structured education requirement from job description.
@@ -423,6 +429,7 @@ def _estimate_applicant_education(applicant: dict[str, Any]) -> str | None:
 # Core skill extraction
 # ---------------------------------------------------------------------------
 
+@lru_cache(maxsize=65536)
 def extract_skills_from_text(text: str, family_hint: str | None = None) -> set[str]:
     """Extract canonical skill tokens from free text."""
     if not text:
@@ -483,7 +490,10 @@ def extract_applicant_skills(applicant: dict[str, Any]) -> set[str]:
             parts.append(val)
     text = " ".join(parts)
     family = applicant.get("canonical_job_family_code")
-    explicit_skills = extract_skills_from_text(text, family)
+    # COPY the cached set before mutating: extract_skills_from_text is
+    # memoized, and .add() below would otherwise corrupt the shared cache
+    # entry (one applicant's inferred family skills leaking into others).
+    explicit_skills = set(extract_skills_from_text(text, family))
 
     # If sparse profile, infer baseline skills from trade family
     # A student in an accredited program is training in the core skills of their trade
@@ -503,6 +513,7 @@ def extract_applicant_skills(applicant: dict[str, Any]) -> set[str]:
 # Smart text comparison using weighted keyword matching
 # ---------------------------------------------------------------------------
 
+@lru_cache(maxsize=65536)
 def _extract_meaningful_words(text: str) -> dict[str, float]:
     """
     Extract words with importance weights using a simple TF heuristic.

@@ -210,7 +210,8 @@ def main() -> int:
     counters = {"total": 0, "eligible": 0, "near_fit": 0, "ineligible": 0,
                 "error": 0, "strong_fit": 0, "good_fit": 0}
 
-    BATCH = 500  # commit every N rows
+    BATCH = 1000  # pairs per batched flush (3 SQL statements per batch)
+    _batch_buffer: list[MatchResult] = []
 
     for app in applicants:
         app_id = str(app["id"])
@@ -241,10 +242,11 @@ def main() -> int:
                     _print_match(result, app, job)
 
                 if not args.dry_run:
-                    _upsert_match(conn, result)
-
-                    if counters["total"] % BATCH == 0:
+                    _batch_buffer.append(result)
+                    if len(_batch_buffer) >= BATCH:
+                        _flush_batch(conn, _batch_buffer)
                         conn.commit()
+                        _batch_buffer.clear()
                         print(f"  ... {counters['total']}/{total_pairs} committed")
 
             except Exception as e:
@@ -253,6 +255,7 @@ def main() -> int:
                     print(f"  ERROR app={app['id']!s:.8} job={job['id']!s:.8}: {e}")
 
     if not args.dry_run:
+        _flush_batch(conn, _batch_buffer)
         conn.commit()
     conn.close()
 
@@ -652,6 +655,97 @@ def _parse_vector(vec_str: str) -> list[float]:
     if not clean:
         return []
     return [float(x) for x in clean.split(",")]
+
+
+
+
+def _flush_batch(conn, results: list[MatchResult]) -> None:
+    """Write a batch of MatchResults in 3 statements instead of 12 per pair.
+
+    Per-pair round trips were ~80 percent of full-recompute wall time
+    (measured: engine 346 pairs/s memoized to 5,870/s, but the pipeline ran
+    at 62/s). One execute_values upsert with RETURNING maps (applicant, job)
+    to match ids, one ANY() delete clears old dimension rows, one
+    execute_values writes the new ones.
+    """
+    if not results:
+        return
+    from psycopg2.extras import execute_values
+
+    rows = [(
+        r.applicant_id, r.job_id, r.eligibility_status, r.hard_gate_cap,
+        json.dumps(r.hard_gate_failures), json.dumps(r.hard_gate_rationale),
+        r.weighted_structured_score, r.semantic_score, r.base_fit_score,
+        json.dumps(r.policy_modifiers), r.policy_adjusted_score, r.match_label,
+        json.dumps(r.top_strengths), json.dumps(r.top_gaps),
+        json.dumps(r.required_missing_items), r.recommended_next_step,
+        r.confidence_level, r.requires_review, r.match_tier, r.tier_reason,
+        r.distance_miles, r.scoring_run_id, r.scoring_run_at, r.policy_version,
+    ) for r in results]
+
+    with conn.cursor() as cur:
+        returned = execute_values(cur, """
+            INSERT INTO public.matches (
+                applicant_id, job_id,
+                eligibility_status, hard_gate_cap, hard_gate_failures, hard_gate_rationale,
+                weighted_structured_score, semantic_score, base_fit_score,
+                policy_modifiers, policy_adjusted_score,
+                match_label, top_strengths, top_gaps, required_missing_items,
+                recommended_next_step, confidence_level, requires_review,
+                match_tier, tier_reason, distance_miles,
+                scoring_run_id, scoring_run_at, policy_version
+            ) VALUES %s
+            ON CONFLICT (applicant_id, job_id) DO UPDATE SET
+                eligibility_status = EXCLUDED.eligibility_status,
+                hard_gate_cap = EXCLUDED.hard_gate_cap,
+                hard_gate_failures = EXCLUDED.hard_gate_failures,
+                hard_gate_rationale = EXCLUDED.hard_gate_rationale,
+                weighted_structured_score = EXCLUDED.weighted_structured_score,
+                semantic_score = EXCLUDED.semantic_score,
+                base_fit_score = EXCLUDED.base_fit_score,
+                policy_modifiers = EXCLUDED.policy_modifiers,
+                policy_adjusted_score = EXCLUDED.policy_adjusted_score,
+                match_label = EXCLUDED.match_label,
+                top_strengths = EXCLUDED.top_strengths,
+                top_gaps = EXCLUDED.top_gaps,
+                required_missing_items = EXCLUDED.required_missing_items,
+                recommended_next_step = EXCLUDED.recommended_next_step,
+                confidence_level = EXCLUDED.confidence_level,
+                requires_review = EXCLUDED.requires_review,
+                match_tier = EXCLUDED.match_tier,
+                tier_reason = EXCLUDED.tier_reason,
+                distance_miles = EXCLUDED.distance_miles,
+                scoring_run_id = EXCLUDED.scoring_run_id,
+                scoring_run_at = EXCLUDED.scoring_run_at,
+                policy_version = EXCLUDED.policy_version,
+                updated_at = NOW()
+            RETURNING id, applicant_id::text, job_id::text
+        """, rows, template="""(
+            %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s, %s, %s::jsonb, %s,
+            %s, %s::jsonb, %s::jsonb, %s::jsonb, %s, %s, %s, %s, %s, %s,
+            %s::uuid, %s::date, %s)""", page_size=len(rows), fetch=True)
+
+        id_by_pair = {(r[1], r[2]): str(r[0]) for r in returned}
+        match_ids = list(id_by_pair.values())
+        cur.execute(
+            "DELETE FROM public.match_dimension_scores WHERE match_id = ANY(%s::uuid[])",
+            (match_ids,),
+        )
+        dim_rows = []
+        for r in results:
+            mid = id_by_pair.get((str(r.applicant_id), str(r.job_id)))
+            if mid is None:
+                continue
+            for d in r.dimension_scores:
+                dim_rows.append((mid, d.dimension, d.weight, d.raw_score,
+                                 d.weighted_score, d.rationale,
+                                 d.null_handling_applied, d.null_handling_default))
+        execute_values(cur, """
+            INSERT INTO public.match_dimension_scores
+                (match_id, dimension, weight, raw_score, weighted_score,
+                 rationale, null_handling_applied, null_handling_default)
+            VALUES %s
+        """, dim_rows, page_size=5000)
 
 
 def _upsert_match(conn, result: MatchResult):
