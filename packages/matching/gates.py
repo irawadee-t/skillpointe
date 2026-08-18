@@ -175,6 +175,7 @@ def evaluate_credential_gate(
     applicant_education: str | None = None,
     job_required_experience_years: int | None = None,
     education_or_equivalent: bool = False,
+    job_entry_friendly: bool | None = None,
 ) -> GateDetail:
     """
     Gate 2: Does the applicant meet the job's required credentials/licenses/education?
@@ -232,6 +233,12 @@ def evaluate_credential_gate(
 
             hard_missing = [r for r in unmatched if _DEGREE_CLASS.search(r)]
             attainable_missing = [r for r in unmatched if not _DEGREE_CLASS.search(r)]
+            # Cross-gate consistency: a posting that says "we will train"
+            # cannot simultaneously hard-require a degree. The employer's own
+            # trainability statement softens the degree ask to a preference.
+            if hard_missing and job_entry_friendly:
+                attainable_missing = attainable_missing + hard_missing
+                hard_missing = []
 
             if not unmatched:
                 sub_results.append((PASS, f"all {cred_count} credentials matched", "normal"))

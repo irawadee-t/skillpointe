@@ -42,16 +42,19 @@ def main() -> int:
     cur.execute("SELECT code, id FROM public.canonical_job_families WHERE is_active")
     fam_ids = dict(cur.fetchall())
 
+    # ALL active family-less jobs: an unclassified job near-fits every
+    # same-state applicant (family unknown = neutral), so stragglers from any
+    # source pollute lists. Employer-authored rows are never deactivated by a
+    # classifier miss -- they go to the review queue instead.
     cur.execute(
-        """SELECT id, title_raw, description_raw FROM public.jobs
-            WHERE is_active AND canonical_job_family_id IS NULL
-              AND source = 'scraper'"""
+        """SELECT id, title_raw, description_raw, source FROM public.jobs
+            WHERE is_active AND canonical_job_family_id IS NULL"""
     )
     rows = cur.fetchall()
     audit: Counter = Counter()
     family_dist: Counter = Counter()
 
-    for jid, title, desc in rows:
+    for jid, title, desc, source in rows:
         m = classify(title or "", desc)
         if m.is_trade and m.family:
             new_code = sn_taxonomy.resolve_field_code(m.family)
@@ -69,6 +72,17 @@ def main() -> int:
                     )
             else:
                 audit["family_unresolvable"] += 1
+        elif source in ("employer_created", "employer_import"):
+            audit["employer_rows_to_review"] += 1
+            if not dry:
+                cur.execute(
+                    """INSERT INTO public.review_queue_items
+                           (item_type, entity_type, entity_id, description, status, priority)
+                       VALUES ('taxonomy_mismatch', 'job', %s::uuid, %s, 'pending', 3)""",
+                    (str(jid),
+                     "Employer-authored job could not be auto-classified into a "
+                     "career field. Assign sector and field by hand."),
+                )
         else:
             audit["deactivated_non_trades"] += 1
             if not dry:

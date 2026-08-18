@@ -172,3 +172,21 @@ class TestBridgeableGaps:
         g = self._creds(["OSHA 10"], None)
         assert g.result == "near_fit"
         assert "not yet verified" in g.reason
+
+
+class TestEntryFriendlyCredentialConsistency:
+    def test_will_train_softens_degree_to_preference(self):
+        from matching.gates import evaluate_credential_gate
+        g = evaluate_credential_gate(
+            ["Associate's degree", "EPA 608 Certification"], {},
+            applicant_certs=["OSHA 10"], job_entry_friendly=True,
+        )
+        assert g.result == "near_fit"
+
+    def test_degree_still_fails_without_trainability(self):
+        from matching.gates import evaluate_credential_gate
+        g = evaluate_credential_gate(
+            ["Associate's degree"], {},
+            applicant_certs=["OSHA 10"], job_entry_friendly=False,
+        )
+        assert g.result == "fail"

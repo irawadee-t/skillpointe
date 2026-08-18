@@ -252,6 +252,7 @@ def compute_match(
             applicant_education=applicant_education,
             job_required_experience_years=job.get("required_experience_years"),
             education_or_equivalent=edu_or_equivalent,
+            job_entry_friendly=job.get("entry_friendly"),
         )),
         _gate(ge.timing, "readiness_timing_compatibility", lambda: evaluate_timing_gate(timing)),
         _gate(ge.geography, "geography_feasibility", lambda: evaluate_geography_gate(

@@ -186,16 +186,17 @@ async def admin_dashboard(user=Depends(require_admin)):
         total_applicants = await conn.fetchval("SELECT COUNT(*) FROM public.applicants")
         total_active_jobs = await conn.fetchval("SELECT COUNT(*) FROM public.jobs WHERE is_active = TRUE")
         total_employers = await conn.fetchval("SELECT COUNT(*) FROM public.employers")
-        total_matches = await conn.fetchval("SELECT COUNT(*) FROM public.matches")
-        elig_ct = await conn.fetchval(
-            "SELECT COUNT(*) FROM public.matches WHERE eligibility_status = 'eligible'"
+        # One GROUP BY scan instead of four separate COUNTs — at 450k+ match
+        # rows the separate counts each re-walk the index (~4x the work), and
+        # this block sits on the dashboard's critical path.
+        status_rows = await conn.fetch(
+            "SELECT eligibility_status, COUNT(*) AS n FROM public.matches GROUP BY eligibility_status"
         )
-        near_ct = await conn.fetchval(
-            "SELECT COUNT(*) FROM public.matches WHERE eligibility_status = 'near_fit'"
-        )
-        inelig_ct = await conn.fetchval(
-            "SELECT COUNT(*) FROM public.matches WHERE eligibility_status = 'ineligible'"
-        )
+        status_counts = {r["eligibility_status"]: r["n"] for r in status_rows}
+        total_matches = sum(status_counts.values())
+        elig_ct = status_counts.get("eligible", 0)
+        near_ct = status_counts.get("near_fit", 0)
+        inelig_ct = status_counts.get("ineligible", 0)
 
         overview = OverviewStats(
             total_applicants=total_applicants,

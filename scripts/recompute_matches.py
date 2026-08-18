@@ -61,6 +61,11 @@ def main() -> int:
                         help="Compute but do not write to DB")
     parser.add_argument("--verbose", action="store_true",
                         help="Print score breakdowns")
+    parser.add_argument("--shard", default=None, metavar="K/N",
+                        help="Process only applicants in shard K of N (0-indexed, "
+                             "uuid-hash partition). Run N processes with K=0..N-1 "
+                             "for a parallel full recompute; shards touch disjoint "
+                             "applicants so writes never conflict.")
     parser.add_argument("--prefilter", action="store_true",
                         help="Candidate generation for large pools: score only "
                              "same-state pairs whose fields share a sector (or "
@@ -105,7 +110,28 @@ def main() -> int:
     # ----------------------------------------------------------------
     # Fetch applicants + jobs + extracted signals
     # ----------------------------------------------------------------
+    # Scoped runs REPLACE the target's matches: a reclassified job (or
+    # edited applicant) may have pairs that are no longer candidates at all,
+    # and an upsert alone would leave their stale rows standing.
+    if args.job_id:
+        with conn.cursor() as _c:
+            _c.execute("DELETE FROM public.matches WHERE job_id = %s", (args.job_id,))
+            print(f"Cleared {_c.rowcount} existing matches for job {args.job_id}")
+        conn.commit()
+    elif args.applicant_id:
+        with conn.cursor() as _c:
+            _c.execute("DELETE FROM public.matches WHERE applicant_id = %s", (args.applicant_id,))
+            print(f"Cleared {_c.rowcount} existing matches for applicant {args.applicant_id}")
+        conn.commit()
+
     applicants = _fetch_applicants(conn, applicant_id=args.applicant_id, limit=args.limit)
+    if args.shard:
+        k, n = (int(x) for x in args.shard.split("/"))
+        assert 0 <= k < n, "--shard K/N requires 0 <= K < N"
+        before = len(applicants)
+        applicants = [a for a in applicants
+                      if int(str(a["id"]).replace("-", "")[:8], 16) % n == k]
+        print(f"Shard {k}/{n}: {len(applicants)} of {before} applicants")
     jobs = _fetch_jobs(conn, job_id=args.job_id, limit=args.limit)
     employers = _fetch_employers(conn)
 
