@@ -38,6 +38,25 @@ from app.schemas.applicant import (
 logger = logging.getLogger(__name__)
 
 
+def _diversify_page(rows: list, cap: int = 3) -> list:
+    """Soft per-employer cap WITHIN a fetched page.
+
+    One employer bulk-posting thirty near-identical roles should not own an
+    applicant's whole first screen. Rows beyond `cap` per employer are moved
+    to the end of the page, order otherwise preserved. Page MEMBERSHIP never
+    changes, so pagination offsets stay stable; this only reorders what the
+    page already contains. The nearby shelf is exempt (distance order is its
+    premise).
+    """
+    seen: dict = {}
+    kept, overflow = [], []
+    for r in rows:
+        key = r.get("employer_name") or r.get("employer_id")
+        seen[key] = seen.get(key, 0) + 1
+        (kept if seen[key] <= cap else overflow).append(r)
+    return kept + overflow
+
+
 def _parse_required_creds(raw: str | None) -> list[dict]:
     """jobs.required_credentials_canonical jsonb -> chip-ready list."""
     if not raw:
@@ -619,8 +638,8 @@ async def get_my_matches(
                 nearby_offset,
             )
 
-    eligible = [_row_to_summary(dict(r)) for r in eligible_rows]
-    near_fit = [_row_to_summary(dict(r)) for r in near_fit_rows]
+    eligible = [_row_to_summary(dict(r)) for r in _diversify_page([dict(r) for r in eligible_rows])]
+    near_fit = [_row_to_summary(dict(r)) for r in _diversify_page([dict(r) for r in near_fit_rows])]
     nearby = [_row_to_summary(dict(r)) for r in nearby_rows]
 
     return RankedMatchesResponse(

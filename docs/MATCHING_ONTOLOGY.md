@@ -1,0 +1,61 @@
+# SKILLED Nation Matching Ontology
+
+The single design rule: **every gap is classified as impossible or bridgeable,
+and every bridgeable gap surfaces with its path stated.** A door only closes
+when crossing it would take years, not weeks or a conversation.
+
+## The axes, and how each one applies the rule
+
+| Axis | Impossible (hard fail) | Bridgeable (near fit + stated path) | Status |
+|---|---|---|---|
+| Career field | Different sector entirely (nursing ↔ manufacturing) | Different field, same sector — "related fields within Healthcare" | live |
+| Credentials | Degree-class requirements: bachelor's, associate's, RN/LPN licensure | Certifications and licenses (CDL, EPA 608, OSHA 10) — "You can still earn X. Check the training options on this page, then apply." Training pathways render on the match page. | live |
+| Timing | Finish date more than 24 months out | Within 12 months — "Apply, then message the employer about timing." DMs are one click away. Under 3 months counts as available (employers hire ahead). | live |
+| Seniority | Supervisory ladder for a trainee (foreman, superintendent) — a different ladder, not a rung | "We will train" passes a trainee whatever the level label; a known-years applicant is graded against the posting's stated ask, close = near fit | live |
+| Geography | Beyond ~1.5× the stated radius with an explicit no-relocate preference | Inside radius passes regardless of state line (border metros: Camden→Philadelphia). Slightly beyond radius = near fit. No stated preference is missing data, never a refusal. | live |
+| Experience years | Ask exceeds applicant's years by 3+ | Within 2 years of the ask — "close" | live |
+
+## Practical signals extracted from posting text
+
+Real applicants decide on these before anything else; all are deterministic
+extractions with the source phrase recorded:
+
+- **Shift** (day / evening / night / weekend / rotating) — a student in class
+  until 3pm needs the 2nd-shift roles; 206 of 664 postings state one.
+- **Apprenticeship** — paid earn-while-you-learn roles are the strongest
+  possible match for this audience; 55 flagged.
+- **Veteran-friendly** — pairs with the PSA military_status field.
+- **Entry-friendly** — "no experience necessary" / "we will train"; passes the
+  seniority gate outright. 164 postings.
+- **Credentials** — required vs preferred vs mentioned, graded per sentence.
+
+## Ranking-layer rules
+
+- **Per-employer diversity cap**: one employer bulk-posting thirty near-identical
+  roles cannot own an applicant's first screen — max 3 per employer per page,
+  overflow moved to page end, page membership (and pagination) unchanged.
+- **Nearby shelf stays distance-ordered** — its premise is "because you're
+  close", never blended into score order.
+- **Unknown is neutral, never zero** — missing data on either side scores
+  null-default and is flagged, not punished.
+
+## Designed, not yet implemented (needs product input)
+
+- **Shift preference on the applicant profile** — the job side is extracted;
+  the applicant side needs a profile field before it can gate or score.
+- **Pay-floor honesty** — when a job pays below the applicant's stated current
+  wage, say so on the card rather than hiding or penalizing it.
+- **Veteran boost in employer soft-pref dimension** — flag exists on both
+  sides; wiring it into scoring is a policy decision (SCORING_CONFIG).
+- **Engagement-informed ranking** — interest/apply/hire events exist in
+  engagement_events; a learning-to-rank pass is future work and belongs in
+  the policy layer, never in base fit.
+
+## Provenance
+
+Seniority levels follow O*NET Job Zones (preparation = education + related
+experience + on-the-job training), collapsed to entry (zones 1-2), mid (3),
+senior (4), management (supervisory ladder). Career fields and sectors are
+Tasha's "Industry & Career List Revisions v2", generated into code, SQL, and
+TS by scripts/gen_taxonomy.py. Credential canon is the 127-definition registry
+in apps/api/app/skilled_pro/taxonomy.py.

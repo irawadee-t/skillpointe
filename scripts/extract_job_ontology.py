@@ -37,8 +37,9 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "packages"))
 sys.path.insert(0, str(REPO / "apps" / "api"))
 
-from app.skilled_pro.taxonomy import all_definitions
 from matching.seniority import classify_seniority
+
+from app.skilled_pro.taxonomy import all_definitions
 
 DSN = os.environ.get("DATABASE_URL") or "postgresql://postgres:postgres@localhost:54322/postgres"
 
@@ -46,6 +47,42 @@ _PREFERRED_CTX = re.compile(
     r"(preferred|a plus|nice to have|bonus|is desirable|would be an asset|"
     r"not required|helpful but)", re.IGNORECASE,
 )
+# Shift: "2nd shift", "night shift", "weekends required", "rotating schedule"
+_SHIFT_PATTERNS = [
+    ("night",    re.compile(r"\b(3rd|third|night|overnight|graveyard)[\s-]*shift\b|\bnights?\b.{0,12}\bshift", re.IGNORECASE)),
+    ("evening",  re.compile(r"\b(2nd|second|evening|swing)[\s-]*shift\b", re.IGNORECASE)),
+    ("rotating", re.compile(r"\brotat(ing|ional)[\s-]*(shift|schedule)\b|\bshift rotation\b", re.IGNORECASE)),
+    ("weekend",  re.compile(r"\bweekends?[\s-]*(required|shift|work)\b", re.IGNORECASE)),
+    ("day",      re.compile(r"\b(1st|first|day)[\s-]*shift\b", re.IGNORECASE)),
+]
+_APPRENTICESHIP = re.compile(
+    r"\bapprentice(ship)?\b|\bearn while you learn\b|\bregistered apprenticeship\b",
+    re.IGNORECASE,
+)
+_VETERAN = re.compile(
+    r"\bveterans?\b.{0,40}\b(welcome|encouraged|preferred|hiring)\b|"
+    r"\bmilitary\b.{0,30}\b(welcome|encouraged|friendly|experience a plus)\b|"
+    r"\btransitioning service members?\b",
+    re.IGNORECASE,
+)
+
+
+def extract_practical_signals(title: str | None, *texts: str | None) -> dict:
+    """Shift / apprenticeship / veteran-friendly flags from the posting text."""
+    joined = " ".join(t for t in (title, *texts) if t)
+    shift = None
+    for label, pat in _SHIFT_PATTERNS:
+        if pat.search(joined):
+            shift = label
+            break
+    return {
+        "shift": shift,
+        "is_apprenticeship": bool(_APPRENTICESHIP.search(title or "")
+                                  or _APPRENTICESHIP.search(joined)),
+        "veteran_friendly": bool(_VETERAN.search(joined)),
+    }
+
+
 _REQUIRED_CTX = re.compile(
     r"(required|must (have|hold|possess)|need to (have|hold)|valid|current|"
     r"active|requirement)", re.IGNORECASE,
@@ -128,6 +165,7 @@ def main() -> int:
     for jid, title, desc, reqs, old_level in rows:
         sen = classify_seniority(title, desc, reqs)
         creds = extract_credentials(alias_index, title, desc, reqs)
+        practical = extract_practical_signals(title, desc, reqs)
         level_counts[sen.level] += 1
         if sen.entry_friendly:
             entry_friendly_ct += 1
@@ -145,6 +183,9 @@ def main() -> int:
                        seniority_evidence = %s::jsonb,
                        required_credentials = %s,
                        required_credentials_canonical = %s::jsonb,
+                       shift = %s,
+                       is_apprenticeship = %s,
+                       veteran_friendly = %s,
                        updated_at = NOW()
                      WHERE id = %s""",
                 (
@@ -155,6 +196,9 @@ def main() -> int:
                                 "previous_label": old_level}),
                     names,
                     json.dumps(creds),
+                    practical["shift"],
+                    practical["is_apprenticeship"],
+                    practical["veteran_friendly"],
                     jid,
                 ),
             )
