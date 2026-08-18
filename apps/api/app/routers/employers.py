@@ -656,6 +656,15 @@ async def create_job(
             request.required_profile_fields,
         )
 
+    # Ontology enrichment (credentials, seniority evidence, shift) before
+    # matching, preserving the employer's explicitly chosen level and field.
+    async with get_db() as conn:
+        from app.skilled_pro.job_enrichment import enrich_jobs
+        try:
+            await enrich_jobs(conn, [row["id"]], preserve_level=True)
+        except Exception:
+            logger.exception("Enrichment failed for new job %s", row["id"])
+
     # Fire-and-forget: recompute matches for the new job
     import asyncio as _asyncio
 
@@ -767,6 +776,15 @@ async def update_job(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Job not found or does not belong to your account.",
         )
+
+    # Re-enrich on edit — the text may have changed, and the gates read
+    # the enriched fields. Employer's explicit level choice is preserved.
+    async with get_db() as conn:
+        from app.skilled_pro.job_enrichment import enrich_jobs
+        try:
+            await enrich_jobs(conn, [row["id"]], preserve_level=True)
+        except Exception:
+            logger.exception("Enrichment failed for edited job %s", row["id"])
 
     # Fire-and-forget recompute — a title/description/req/pay/location edit
     # can change ranking, so keep matches in sync without blocking the response.

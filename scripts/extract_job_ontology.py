@@ -23,199 +23,48 @@ Usage: python scripts/extract_job_ontology.py [--dry-run]
 """
 from __future__ import annotations
 
-import argparse
-import json
+import asyncio
 import os
-import re
 import sys
-from collections import Counter
 from pathlib import Path
-
-import psycopg2
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO / "packages"))
 sys.path.insert(0, str(REPO / "apps" / "api"))
 
-from matching.seniority import classify_seniority
-
-from app.skilled_pro.taxonomy import all_definitions
+import asyncpg  # noqa: E402
 
 DSN = os.environ.get("DATABASE_URL") or "postgresql://postgres:postgres@localhost:54322/postgres"
 
-_PREFERRED_CTX = re.compile(
-    r"(preferred|a plus|nice to have|bonus|is desirable|would be an asset|"
-    r"not required|helpful but)", re.IGNORECASE,
-)
-# Shift: "2nd shift", "night shift", "weekends required", "rotating schedule"
-_SHIFT_PATTERNS = [
-    ("night",    re.compile(r"\b(3rd|third|night|overnight|graveyard)[\s-]*shift\b|\bnights?\b.{0,12}\bshift", re.IGNORECASE)),
-    ("evening",  re.compile(r"\b(2nd|second|evening|swing)[\s-]*shift\b", re.IGNORECASE)),
-    ("rotating", re.compile(r"\brotat(ing|ional)[\s-]*(shift|schedule)\b|\bshift rotation\b", re.IGNORECASE)),
-    ("weekend",  re.compile(r"\bweekends?[\s-]*(required|shift|work)\b", re.IGNORECASE)),
-    ("day",      re.compile(r"\b(1st|first|day)[\s-]*shift\b", re.IGNORECASE)),
-]
-_APPRENTICESHIP = re.compile(
-    r"\bapprentice(ship)?\b|\bearn while you learn\b|\bregistered apprenticeship\b",
-    re.IGNORECASE,
-)
-_VETERAN = re.compile(
-    r"\bveterans?\b.{0,40}\b(welcome|encouraged|preferred|hiring)\b|"
-    r"\bmilitary\b.{0,30}\b(welcome|encouraged|friendly|experience a plus)\b|"
-    r"\btransitioning service members?\b",
-    re.IGNORECASE,
-)
 
-
-def extract_practical_signals(title: str | None, *texts: str | None) -> dict:
-    """Shift / apprenticeship / veteran-friendly flags from the posting text."""
-    joined = " ".join(t for t in (title, *texts) if t)
-    shift = None
-    for label, pat in _SHIFT_PATTERNS:
-        if pat.search(joined):
-            shift = label
-            break
-    return {
-        "shift": shift,
-        "is_apprenticeship": bool(_APPRENTICESHIP.search(title or "")
-                                  or _APPRENTICESHIP.search(joined)),
-        "veteran_friendly": bool(_VETERAN.search(joined)),
-    }
-
-
-_REQUIRED_CTX = re.compile(
-    r"(required|must (have|hold|possess)|need to (have|hold)|valid|current|"
-    r"active|requirement)", re.IGNORECASE,
-)
-
-
-def build_alias_index():
-    """[(compiled_pattern, alias, definition)] longest alias first."""
-    entries = []
-    for d in all_definitions():
-        for alias in {d.name, *d.aliases}:
-            a = alias.strip()
-            if len(a) < 3:
-                continue                       # 2-char aliases are noise in prose
-            flags = 0 if (a.isupper() and " " not in a) else re.IGNORECASE
-            pat = re.compile(rf"(?<![\w-]){re.escape(a)}(?![\w-])", flags)
-            entries.append((pat, a, d))
-    entries.sort(key=lambda t: -len(t[1]))     # longest-alias-wins
-    return entries
-
-
-def sentences(text: str) -> list[str]:
-    return re.split(r"(?<=[.!?:;])\s+|\n+", text)
-
-
-def extract_credentials(alias_index, *texts: str | None) -> list[dict]:
-    found: dict[str, dict] = {}
-    for text in texts:
-        if not text:
-            continue
-        for sent in sentences(text):
-            consumed: list[tuple[int, int]] = []
-            for pat, alias, d in alias_index:
-                m = pat.search(sent)
-                if not m:
-                    continue
-                span = (m.start(), m.end())
-                # Skip if inside an already-matched longer alias.
-                if any(s <= span[0] and span[1] <= e for s, e in consumed):
-                    continue
-                consumed.append(span)
-                requirement = (
-                    "preferred" if _PREFERRED_CTX.search(sent)
-                    else "required" if _REQUIRED_CTX.search(sent)
-                    else "mentioned"
-                )
-                prev = found.get(d.code)
-                rank = {"required": 2, "preferred": 1, "mentioned": 0}
-                if prev is None or rank[requirement] > rank[prev["requirement"]]:
-                    found[d.code] = {
-                        "raw": alias,
-                        "slug": d.code.lower(),
-                        "name": d.name,
-                        "confidence": 0.95,
-                        "confident": True,
-                        "requirement": requirement,
-                    }
-    return list(found.values())
-
-
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--dry-run", action="store_true")
-    args = ap.parse_args()
-
-    alias_index = build_alias_index()
-    conn = psycopg2.connect(DSN)
-    cur = conn.cursor()
-    cur.execute(
-        """SELECT id, title_raw, description_raw, requirements_raw, experience_level
-             FROM public.jobs WHERE is_active"""
-    )
-    rows = cur.fetchall()
-
-    level_counts: Counter = Counter()
-    cred_jobs = 0
-    cred_total = 0
-    entry_friendly_ct = 0
-
-    for jid, title, desc, reqs, old_level in rows:
-        sen = classify_seniority(title, desc, reqs)
-        creds = extract_credentials(alias_index, title, desc, reqs)
-        practical = extract_practical_signals(title, desc, reqs)
-        level_counts[sen.level] += 1
-        if sen.entry_friendly:
-            entry_friendly_ct += 1
-        if creds:
-            cred_jobs += 1
-            cred_total += len(creds)
-
-        if not args.dry_run:
-            names = [c["name"] for c in creds if c["requirement"] != "preferred"]
-            cur.execute(
-                """UPDATE public.jobs SET
-                       experience_level = %s,
-                       years_experience_required = %s,
-                       entry_friendly = %s,
-                       seniority_evidence = %s::jsonb,
-                       required_credentials = %s,
-                       required_credentials_canonical = %s::jsonb,
-                       shift = %s,
-                       is_apprenticeship = %s,
-                       veteran_friendly = %s,
-                       updated_at = NOW()
-                     WHERE id = %s""",
-                (
-                    sen.level,
-                    sen.years_required,
-                    sen.entry_friendly,
-                    json.dumps({"job_zone": sen.job_zone, "evidence": sen.evidence,
-                                "previous_label": old_level}),
-                    names,
-                    json.dumps(creds),
-                    practical["shift"],
-                    practical["is_apprenticeship"],
-                    practical["veteran_friendly"],
-                    jid,
-                ),
-            )
-
-    if not args.dry_run:
-        conn.commit()
-
-    total = len(rows)
-    print(f"Classified {total} active jobs{' (dry run)' if args.dry_run else ''}:")
-    for lvl in ("entry", "mid", "senior", "management"):
-        n = level_counts.get(lvl, 0)
-        print(f"  {lvl:11} {n:4}  ({n * 100 // max(total, 1)}%)")
-    print(f"  entry_friendly flag on {entry_friendly_ct} jobs")
-    print(f"Credentials: {cred_jobs} jobs carry >=1 canonical credential "
-          f"({cred_total} total mentions)")
+async def _run(dry: bool) -> int:
+    # Delegates to the live pipeline stage so batch and pipeline can't drift.
+    from app.skilled_pro.job_enrichment import enrich_jobs
+    conn = await asyncpg.connect(DSN)
+    # Match the app pool's jsonb codec so enrich_jobs can pass Python objects.
+    import json as _json
+    await conn.set_type_codec("jsonb", encoder=_json.dumps, decoder=_json.loads, schema="pg_catalog")
+    ids = [str(r["id"]) for r in await conn.fetch(
+        "SELECT id FROM public.jobs WHERE is_active")]
+    if dry:
+        print(f"(dry run) would enrich {len(ids)} active jobs")
+        await conn.close()
+        return 0
+    audit = await enrich_jobs(conn, ids)
+    rows = await conn.fetch(
+        """SELECT experience_level AS lvl, count(*) AS n FROM public.jobs
+            WHERE is_active GROUP BY lvl ORDER BY n DESC""")
+    cred = await conn.fetchval(
+        """SELECT count(*) FROM public.jobs WHERE is_active
+            AND jsonb_array_length(COALESCE(required_credentials_canonical,'[]'::jsonb)) > 0""")
+    await conn.close()
+    print(f"Enriched {audit['enriched']} active jobs "
+          f"(family stamped: {audit['family_stamped']}, no trade match: {audit['no_trade_match']})")
+    for r in rows:
+        print(f"  {r['lvl'] or '-':11} {r['n']}")
+    print(f"Jobs with canonical credentials: {cred}")
     return 0
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    raise SystemExit(asyncio.run(_run("--dry-run" in sys.argv)))

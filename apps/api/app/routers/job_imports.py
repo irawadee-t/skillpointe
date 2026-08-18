@@ -842,6 +842,7 @@ async def approve_batch(batch_id: str, body: ApproveIn,
             raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Batch is {rec['status']}")
 
         published = 0
+        published_job_ids: list[str] = []
         rejected = 0
         held = 0
 
@@ -916,7 +917,24 @@ async def approve_batch(batch_id: str, body: ApproveIn,
                 "updated_at = now() WHERE id = $1::uuid",
                 str(r["id"]), job_id,
             )
+            published_job_ids.append(str(job_id))
             published += 1
+
+        # Ontology enrichment BEFORE recompute so the gates see the
+        # enriched fields (entry_friendly, credentials, years, shift). This
+        # is the stage that makes any new partner's postings arrive fully
+        # classified with zero manual steps.
+        if published_job_ids:
+            from app.skilled_pro.job_enrichment import enrich_jobs
+            try:
+                await enrich_jobs(conn, published_job_ids)
+            except Exception:
+                logger.exception("Job enrichment failed for batch %s", batch_id)
+            import asyncio as _asyncio
+
+            from app.worker.scheduler import trigger_recompute_for_job
+            for _jid in published_job_ids:
+                _asyncio.create_task(trigger_recompute_for_job(_jid))
 
         # Careers-page rolling batches stay 'draft' — they keep receiving rows
         # on every sync, and the queue drops them automatically once no staged

@@ -579,7 +579,11 @@ async def _run_recompute_subprocess(
     """
     script = _REPO_ROOT / "scripts" / "recompute_matches.py"
 
-    cmd = [sys.executable, str(script)]
+    # --prefilter: candidate generation (same-state + sector-plausible) —
+    # a scoped run must never brute-force the whole cross product.
+    # --skip-geocode: coordinate backfill hits Nominatim at 1 req/sec and is
+    # a scheduled maintenance concern, never part of a hot recompute.
+    cmd = [sys.executable, str(script), "--prefilter", "--skip-geocode"]
     if job_id:
         cmd += ["--job-id", job_id]
     if applicant_id:
