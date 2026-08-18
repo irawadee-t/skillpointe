@@ -31,9 +31,12 @@ extractions with the source phrase recorded:
 
 ## Ranking-layer rules
 
-- **Per-employer diversity cap**: one employer bulk-posting thirty near-identical
-  roles cannot own an applicant's first screen — max 3 per employer per page,
-  overflow moved to page end, page membership (and pagination) unchanged.
+- **Score order rules — no per-employer diversity cap.** A cap was tried and
+  removed (2026-08): it is a mega-marketplace anti-spam pattern, and on a
+  six-partner catalog it demotes genuinely better-fit jobs below worse ones
+  purely for employer variety, fighting the honest ranking. If one partner has
+  the five best jobs for you, you see all five, in order. Revisit only if the
+  employer count grows past the point where one source can flood a page.
 - **Nearby shelf stays distance-ordered** — its premise is "because you're
   close", never blended into score order.
 - **Unknown is neutral, never zero** — missing data on either side scores
