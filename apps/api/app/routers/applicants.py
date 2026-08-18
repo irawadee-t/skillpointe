@@ -576,8 +576,12 @@ async def get_my_matches(
             WHERE a.id = $1
               AND m.is_visible_to_applicant = TRUE
         """
+        # Gap count outranks score: a one-gap near-fit is a better lead than
+        # a three-gap one whatever their (tightly clustered) scores say.
+        # Eligible rows all have n_gaps=0, so their order is unchanged.
         _score_order = """
-            ORDER BY m.policy_adjusted_score DESC NULLS LAST,
+            ORDER BY m.n_gaps ASC NULLS LAST,
+                     m.policy_adjusted_score DESC NULLS LAST,
                      m.distance_miles ASC NULLS LAST,
                      m.job_id
             LIMIT $4 OFFSET $5

@@ -1221,7 +1221,7 @@ async def get_job_applicants(
             LEFT JOIN public.saved_jobs sj
                 ON sj.applicant_id = a.id AND sj.job_id = j.id
             WHERE {where_clause}
-            ORDER BY m.policy_adjusted_score DESC NULLS LAST
+            ORDER BY m.n_gaps ASC NULLS LAST, m.policy_adjusted_score DESC NULLS LAST
             LIMIT ${ idx } OFFSET ${ idx + 1 }
             """,
             *params,
@@ -2240,7 +2240,7 @@ async def ai_prioritize_candidates(
             WHERE m.job_id = $1::uuid
               AND m.is_visible_to_employer = TRUE
               AND m.eligibility_status IN ('eligible', 'near_fit')
-            ORDER BY m.policy_adjusted_score DESC NULLS LAST
+            ORDER BY m.n_gaps ASC NULLS LAST, m.policy_adjusted_score DESC NULLS LAST
             LIMIT 10
             """,
             job_id,

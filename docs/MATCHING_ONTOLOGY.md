@@ -31,6 +31,14 @@ extractions with the source phrase recorded:
 
 ## Ranking-layer rules
 
+- **Gap count outranks score.** The empirical audit (2026-08) found near-fit
+  score spread within one applicant's list was 3.2 points -- ordering noise --
+  while 47k of 400k near-fits were exactly ONE gate from eligible, buried
+  among three-gap marginals. Every ranked read now orders by
+  (n_gaps ASC, score DESC): a one-cert-away at 55 beats a three-gap at 58.
+  primary_gap names the most structural gate for the card's one-sentence
+  story. Applies to applicant matches AND employer candidate lists.
+
 - **Score order rules — no per-employer diversity cap.** A cap was tried and
   removed (2026-08): it is a mega-marketplace anti-spam pattern, and on a
   six-partner catalog it demotes genuinely better-fit jobs below worse ones

@@ -680,7 +680,8 @@ def _flush_batch(conn, results: list[MatchResult]) -> None:
         json.dumps(r.top_strengths), json.dumps(r.top_gaps),
         json.dumps(r.required_missing_items), r.recommended_next_step,
         r.confidence_level, r.requires_review, r.match_tier, r.tier_reason,
-        r.distance_miles, r.scoring_run_id, r.scoring_run_at, r.policy_version,
+        r.distance_miles, r.n_gaps, r.primary_gap,
+        r.scoring_run_id, r.scoring_run_at, r.policy_version,
     ) for r in results]
 
     with conn.cursor() as cur:
@@ -693,6 +694,7 @@ def _flush_batch(conn, results: list[MatchResult]) -> None:
                 match_label, top_strengths, top_gaps, required_missing_items,
                 recommended_next_step, confidence_level, requires_review,
                 match_tier, tier_reason, distance_miles,
+                n_gaps, primary_gap,
                 scoring_run_id, scoring_run_at, policy_version
             ) VALUES %s
             ON CONFLICT (applicant_id, job_id) DO UPDATE SET
@@ -715,6 +717,8 @@ def _flush_batch(conn, results: list[MatchResult]) -> None:
                 match_tier = EXCLUDED.match_tier,
                 tier_reason = EXCLUDED.tier_reason,
                 distance_miles = EXCLUDED.distance_miles,
+                n_gaps = EXCLUDED.n_gaps,
+                primary_gap = EXCLUDED.primary_gap,
                 scoring_run_id = EXCLUDED.scoring_run_id,
                 scoring_run_at = EXCLUDED.scoring_run_at,
                 policy_version = EXCLUDED.policy_version,
@@ -723,6 +727,7 @@ def _flush_batch(conn, results: list[MatchResult]) -> None:
         """, rows, template="""(
             %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s, %s, %s::jsonb, %s,
             %s, %s::jsonb, %s::jsonb, %s::jsonb, %s, %s, %s, %s, %s, %s,
+            %s, %s,
             %s::uuid, %s::date, %s)""", page_size=len(rows), fetch=True)
 
         id_by_pair = {(r[1], r[2]): str(r[0]) for r in returned}

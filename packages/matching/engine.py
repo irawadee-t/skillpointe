@@ -126,6 +126,12 @@ class MatchResult:
     match_tier: str | None = None
     tier_reason: str | None = None
 
+    # Gap segmentation: how many gates are near-fit, and which one is the
+    # most structural — a one-gap match is a better lead than a three-gap
+    # match whatever their scores say, and ranked reads order by this first.
+    n_gaps: int = 0
+    primary_gap: str | None = None
+
     # Geodesic home → job-city miles (None when either side lacks coords).
     # Stored for honest display and deterministic tie-breaking.
     distance_miles: float | None = None
@@ -135,6 +141,15 @@ class MatchResult:
     scoring_run_at: str = field(default_factory=lambda: date.today().isoformat())
     policy_version: str = "v1"
 
+
+
+_GAP_PRIORITY = {
+    "job_family_compatibility": 0,       # structural first
+    "seniority_compatibility": 1,
+    "geography_feasibility": 2,
+    "readiness_timing_compatibility": 3,
+    "required_credential_compatibility": 4,   # paperwork last
+}
 
 # ---------------------------------------------------------------------------
 # Main entry point
@@ -293,6 +308,10 @@ def compute_match(
     ]
 
     elig_result = compute_eligibility(gate_details, config.eligibility_caps)
+    _near_gates = [g.gate_name for g in gate_details if g.result == NEAR_FIT]
+    n_gaps = len(_near_gates)
+    primary_gap = (min(_near_gates, key=lambda g: _GAP_PRIORITY.get(g, 9))
+                   if _near_gates else None)
     elig_status = elig_result.eligibility_status
     gate_cap = elig_result.hard_gate_cap
 
@@ -389,6 +408,8 @@ def compute_match(
         requires_review=requires_review,
         match_tier=match_tier,
         tier_reason=tier_reason,
+        n_gaps=n_gaps,
+        primary_gap=primary_gap,
         distance_miles=distance_miles,
         scoring_run_id=run_id,
         scoring_run_at=today.isoformat(),
