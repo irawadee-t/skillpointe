@@ -432,6 +432,8 @@ def _fetch_jobs(conn, job_id=None, limit=None) -> list[dict]:
             j.required_credentials,
             j.required_credentials_canonical,
             j.experience_level,
+            j.entry_friendly,
+            j.years_experience_required,
             jf.code AS canonical_job_family_code,
             j.required_experience_years
         FROM public.jobs j

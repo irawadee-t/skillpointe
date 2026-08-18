@@ -284,6 +284,10 @@ def compute_match(
             job.get("experience_level"),
             applicant.get("years_experience"),
             is_trade_school=bool(applicant.get("program_name_raw")),
+            job_entry_friendly=job.get("entry_friendly"),
+            job_years_required=job.get("years_experience_required")
+                if job.get("years_experience_required") is not None
+                else job.get("required_experience_years"),
         )),
     ]
 

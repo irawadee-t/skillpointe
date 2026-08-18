@@ -650,6 +650,8 @@ def evaluate_seniority_gate(
     job_experience_level: str | None,
     applicant_experience_years: int | None,
     is_trade_school: bool = True,
+    job_entry_friendly: bool | None = None,
+    job_years_required: int | None = None,
 ) -> GateDetail:
     """
     Gate 6: Is the job's seniority level appropriate for this applicant?
@@ -661,6 +663,16 @@ def evaluate_seniority_gate(
     mid job         → NEAR_FIT if trade school, PASS if experienced
     senior job      → FAIL if trade school with < 3 years
     management job  → FAIL for trade school applicants
+
+    Ontology inputs (packages/matching/seniority.py, when classified):
+      job_entry_friendly — the posting explicitly welcomes untrained
+        applicants ("no experience necessary", "we will train"). The
+        employer's own words outrank the level label, EXCEPT for the
+        supervisory ladder: a trainable supervisor posting is still
+        supervisory work.
+      job_years_required — the posting's stated years ask; used to grade
+        experienced applicants against the actual bar instead of the
+        level bucket alone.
 
     Raw ATS values are normalised first ("Experienced" → mid,
     "Fresh Graduate" → entry) so scraped jobs don't silently bypass the gate.
@@ -677,6 +689,12 @@ def evaluate_seniority_gate(
     level = (job_experience_level or "entry").strip().lower()
     level = _LEVEL_ALIASES.get(level, level)
 
+    if job_entry_friendly and level != "management":
+        return GateDetail(
+            "seniority_compatibility", PASS,
+            "the employer says they will train, no experience needed",
+        )
+
     if level == "entry":
         return GateDetail(
             "seniority_compatibility", PASS,
@@ -690,6 +708,25 @@ def evaluate_seniority_gate(
     # backward-compatible-extraction guardrail.
     exp_known = applicant_experience_years is not None
     exp_years = applicant_experience_years or 0
+
+    # When the posting states its actual years ask, grade a known applicant
+    # against that bar instead of the level bucket (the ask is the truth the
+    # bucket approximates). Supervisory roles keep their own branch below.
+    if (
+        job_years_required is not None
+        and exp_known
+        and level in ("mid", "senior")
+    ):
+        if exp_years >= job_years_required:
+            return GateDetail(
+                "seniority_compatibility", PASS,
+                f"asks for {job_years_required}+ years, applicant has {exp_years}",
+            )
+        if exp_years >= job_years_required - 2:
+            return GateDetail(
+                "seniority_compatibility", NEAR_FIT,
+                f"asks for {job_years_required}+ years, applicant has {exp_years} (close)",
+            )
 
     if level == "mid":
         if exp_years >= 2:

@@ -104,3 +104,40 @@ class TestClassify:
     def test_every_result_carries_evidence(self):
         for title in ("Apprentice Lineworker", "Senior Welder", "Shop Foreman", "Nurse"):
             assert classify_seniority(title).evidence
+
+
+class TestGateOntologyWiring:
+    """evaluate_seniority_gate consuming the ontology outputs."""
+
+    def _gate(self, **kw):
+        from matching.gates import evaluate_seniority_gate
+        return evaluate_seniority_gate(
+            kw.get("level"), kw.get("years"), is_trade_school=True,
+            job_entry_friendly=kw.get("friendly"), job_years_required=kw.get("ask"),
+        )
+
+    def test_entry_friendly_passes_trainee_even_on_senior_label(self):
+        g = self._gate(level="senior", years=None, friendly=True)
+        assert g.result == "pass"
+        assert "will train" in g.reason
+
+    def test_entry_friendly_never_overrides_management(self):
+        g = self._gate(level="management", years=None, friendly=True)
+        assert g.result != "pass"
+
+    def test_stated_ask_met_passes(self):
+        g = self._gate(level="senior", years=6, ask=5)
+        assert g.result == "pass"
+        assert "asks for 5+" in g.reason
+
+    def test_stated_ask_close_is_near_fit(self):
+        g = self._gate(level="senior", years=4, ask=5)
+        assert g.result == "near_fit"
+
+    def test_stated_ask_far_falls_through_to_level_rules(self):
+        g = self._gate(level="senior", years=1, ask=7)
+        assert g.result == "fail"
+
+    def test_unknown_years_with_ask_stays_uncertain_not_fail(self):
+        g = self._gate(level="senior", years=None, ask=5)
+        assert g.result == "near_fit"
