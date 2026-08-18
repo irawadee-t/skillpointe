@@ -37,6 +37,22 @@ from app.schemas.applicant import (
 
 logger = logging.getLogger(__name__)
 
+
+def _parse_required_creds(raw: str | None) -> list[dict]:
+    """jobs.required_credentials_canonical jsonb -> chip-ready list."""
+    if not raw:
+        return []
+    import json as _json
+    try:
+        items = _json.loads(raw)
+    except (ValueError, TypeError):
+        return []
+    return [
+        {"name": i.get("name"), "requirement": i.get("requirement", "mentioned")}
+        for i in items
+        if isinstance(i, dict) and i.get("name")
+    ]
+
 router = APIRouter(prefix="/applicant", tags=["applicant"])
 
 # Maximum matches to return per section (configurable in Phase 9 policy editor)
@@ -547,6 +563,7 @@ async def get_my_matches(
                 j.requirements_raw,
                 j.preferred_qualifications_raw,
                 j.experience_level,
+                j.required_credentials_canonical::text AS req_creds_json,
                 $2::text       AS app_state,
                 $3::text       AS app_region,
                 sj.interest_level AS applicant_interest
@@ -681,6 +698,7 @@ async def get_match_detail(
                 j.requirements_raw,
                 j.preferred_qualifications_raw,
                 j.experience_level,
+                j.required_credentials_canonical::text AS req_creds_json,
                 a.state        AS app_state,
                 a.region       AS app_region
             FROM public.matches m
@@ -822,6 +840,7 @@ def _row_to_summary(row: dict[str, Any]) -> JobMatchSummary:
         internal_apply=bool(row.get("internal_apply", False)),
         description_raw=row.get("description_raw"),
         requirements_raw=row.get("requirements_raw"),
+        required_credentials=_parse_required_creds(row.get("req_creds_json")),
         preferred_qualifications_raw=row.get("preferred_qualifications_raw"),
         experience_level=row.get("experience_level"),
         confidence_level=row.get("confidence_level"),

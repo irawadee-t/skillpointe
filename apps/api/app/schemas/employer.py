@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 _WORK_SETTINGS = {"remote", "hybrid", "on_site", "flexible"}
 _TRAVEL_REQS = {"none", "light", "moderate", "frequent"}
 _PAY_TYPES = {"hourly", "annual", "contract"}
-_EXPERIENCE_LEVELS = {"entry", "mid", "senior"}
+_EXPERIENCE_LEVELS = {"entry", "mid", "senior", "management"}
 # Profile-sourced groups an employer may require at internal apply time.
 _PROFILE_FIELD_GROUPS = {"contact", "location", "program", "availability", "credentials", "resume"}
 

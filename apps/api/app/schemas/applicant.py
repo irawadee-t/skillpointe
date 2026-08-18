@@ -154,6 +154,9 @@ class PolicyModifierItem(BaseModel):
 
 
 class JobMatchDetail(JobMatchSummary):
+    # Canonical credentials extracted from the posting text:
+    # [{name, requirement: required|preferred|mentioned}]
+    required_credentials: list[dict] = []
     # Additional score layers (detail view only)
     base_fit_score: float | None
     weighted_structured_score: float | None

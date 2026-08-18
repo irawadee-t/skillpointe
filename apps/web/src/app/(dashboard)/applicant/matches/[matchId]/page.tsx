@@ -207,6 +207,29 @@ export default async function MatchDetailPage({
           {match.geography_note && (
             <p className="mt-2 text-caption text-slate-muted">{match.geography_note}</p>
           )}
+
+          {/* Credentials the posting names, extracted from its own text.
+              Solid chip = stated as required; outlined = preferred/mentioned. */}
+          {(match.required_credentials?.length ?? 0) > 0 && (
+            <div className="mt-4">
+              <span className="text-caption font-medium text-slate">Credentials for this job</span>
+              <div className="mt-1.5 flex flex-wrap gap-2">
+                {match.required_credentials.map((c: { name: string; requirement: string }) => (
+                  <span
+                    key={c.name}
+                    className={
+                      c.requirement === "required"
+                        ? "inline-flex items-center rounded-sm bg-cohere-ink px-3 py-1 text-caption font-medium text-white"
+                        : "inline-flex items-center rounded-sm border border-hairline bg-white px-3 py-1 text-caption text-slate"
+                    }
+                  >
+                    {c.name}
+                    {c.requirement === "preferred" && <span className="ml-1 text-slate-muted">· preferred</span>}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </Reveal>
 
         {/* Apply on SKILLED Nation — the in-platform application flow */}

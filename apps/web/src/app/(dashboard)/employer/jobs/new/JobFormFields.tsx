@@ -189,6 +189,7 @@ export function JobFormFields({
           <option value="entry">Entry level</option>
           <option value="mid">Mid level</option>
           <option value="senior">Senior</option>
+          <option value="management">Management / supervisory</option>
         </select>
       </Field>
 

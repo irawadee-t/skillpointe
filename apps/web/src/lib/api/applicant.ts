@@ -90,6 +90,8 @@ export interface PolicyModifierItem {
 }
 
 export interface JobMatchDetail extends JobMatchSummary {
+  /** Canonical credentials named by the posting text. */
+  required_credentials: { name: string; requirement: "required" | "preferred" | "mentioned" }[];
   base_fit_score: number | null;
   weighted_structured_score: number | null;
   semantic_score: number | null;
