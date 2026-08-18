@@ -1,0 +1,23 @@
+id,program_field,career_path,specific_career,program_name_raw,city,state,degree_type,enrollment_status,family
+73b61966-365a-4b55-9729-67c219b3bc85,,Other Skilled Trade Industry,Transportation - Aircraft Mechanic,,Los Angeles,CA,skilled_trades_certificate,community_college,
+0199d2dd-2a09-4083-a6af-1d19500b4901,Electrical (Residential or Commercial),Construction & Building Trades,,Electrical (Residential or Commercial),Augusta,GA,skilled_trades_certificate,,electrical
+a7ce6f0f-ae7b-4ee1-9cfe-072eaff3ebe9,,,,,Mesa,AZ,,,
+cebf3b13-b041-4dc4-8aee-9a71b6fe49bc,,,,,Panama City,FL,,,
+e43fe7af-5822-4540-bb0e-b3464696df52,,,,,Bonita,CA,,,
+67d95923-93ca-4d19-bc61-243fbf7268d0,,Other Skilled Trade Industry,Business,,Orlando,FL,bachelors,bachelors_plus,
+e21b0194-3e4e-442c-a247-46c2ba1e9d86,,Other Skilled Trade Industry,Psychology,,Elk Grove,CA,bachelors,high_school,
+cda6468e-cc90-4bcf-ba72-d76d179bbcd8,Carpentry & Woodworking,Construction & Building Trades,,Carpentry & Woodworking,columbus,GA,skilled_trades_certificate,high_school,carpentry_and_woodworking
+43b309c6-1925-451f-995d-9aba621da247,Electrical (Residential or Commercial),Construction & Building Trades,,Electrical (Residential or Commercial),Loganville,GA,apprenticeship,apprenticeship,electrical
+f4e39dbf-79d3-419a-9339-5a416f403ffc,Carpentry & Woodworking,Construction & Building Trades,,Carpentry & Woodworking,Sylvester,GA,skilled_trades_certificate,not_enrolled,carpentry_and_woodworking
+7151ae97-3948-4b18-abe7-764662006dd5,,Other Skilled Trade Industry,Robotics and Autonomous Systems (System Engineering),,Tempe,AZ,other,bachelors_plus,
+6dd5a2b8-25de-4f3d-b0bc-825c406eee2f,Welding & Fabricating,Construction & Building Trades,,Welding & Fabricating,Phoenix,AZ,skilled_trades_certificate,community_college,welding_fabrication
+85c951dc-3332-4b76-b6ee-14d4d32d7685,,Other Skilled Trade Industry,Automotive Technician GM ASEP,,Phoenix,AZ,associates,community_college,
+7bdd6ca0-029d-4744-aab5-e24bc00dbede,,Other Skilled Trade Industry,Business administrator,,Winter springs,FL,bachelors,not_enrolled,
+f7244f1f-23ab-4b31-8a9d-6032932506b2,,Other Skilled Trade Industry,Manufacturing Engineering,,Mesa,AZ,other,community_college,
+426da132-38a9-4f5b-b25d-eff4fe3c17b3,Automotive and EV Service & Technology,Transportation,,Automotive and EV Service & Technology,Columbus,GA,skilled_trades_certificate,high_school,automotive_ev_service
+17c9a2f2-5af3-4dea-bc6b-72a32dcbda20,,Other Skilled Trade Industry,Elementary Education,,Mesa,AZ,bachelors,high_school,
+90b3e981-3b83-4c02-aa52-1201a52c40c7,,Other Skilled Trade Industry,aviation maintenance technician,,rodeo,CA,skilled_trades_certificate,community_college,
+8b035ff6-3a1d-415e-a2f2-82c8b63e63e9,Welding & Fabricating,Construction & Building Trades,,Welding & Fabricating,Daytona Beach,FL,skilled_trades_certificate,high_school,welding_fabrication
+677aa35a-3fd6-44a4-ae37-f97e5b8b04b4,HVAC/R,Construction & Building Trades,,HVAC/R,powder springs,GA,skilled_trades_certificate,high_school,hvac_r
+f92db386-4184-4464-86fb-65acb89630b1,,Other Skilled Trade Industry,High Performance Motorsports Technology,,Merritt Island,FL,associates,high_school,
+de00db31-95d4-4f59-b838-83ed787df553,,Other Skilled Trade Industry,Occupational Therapy,,Coconut Creek,FL,associates,community_college,

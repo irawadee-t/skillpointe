@@ -131,6 +131,10 @@ class MatchResult:
     # match whatever their scores say, and ranked reads order by this first.
     n_gaps: int = 0
     primary_gap: str | None = None
+    # Share (0-100) of structured-score weight backed by real evidence rather
+    # than null-handling defaults. Drives the UI information gate: a score
+    # resting mostly on defaults renders as a label, not a confident number.
+    evidence_pct: float = 100.0
 
     # Geodesic home → job-city miles (None when either side lacks coords).
     # Stored for honest display and deterministic tie-breaking.
@@ -318,7 +322,7 @@ def compute_match(
     # ------------------------------------------------------------------
     # Stage 2A — Structured score
     # ------------------------------------------------------------------
-    w_struct_score, dim_scores = compute_structured_score(
+    w_struct_score, dim_scores, evidence_pct = compute_structured_score(
         applicant, job, timing, config,
         applicant_signals=a_sig if a_sig else None,
         job_signals=j_sig if j_sig else None,
@@ -410,6 +414,7 @@ def compute_match(
         tier_reason=tier_reason,
         n_gaps=n_gaps,
         primary_gap=primary_gap,
+        evidence_pct=evidence_pct,
         distance_miles=distance_miles,
         scoring_run_id=run_id,
         scoring_run_at=today.isoformat(),

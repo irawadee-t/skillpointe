@@ -360,9 +360,11 @@ def score_experience_alignment(
         s, r = 55.0, "personal statement / bio present (limited direct experience signal)"
     else:
         # For trade school students: the program IS their experience
-        # Don't penalize them for not having a bio/experience text
+        # Don't penalize them for not having a bio/experience text.
+        # Still a population-wide constant, not applicant evidence — flag it
+        # as a default so evidence-weighted aggregation can exclude it.
         s, r = 55.0, "trade school training counts as foundational experience"
-        return DimensionScore(dim, weight, s, weight * s / 100, r)
+        return DimensionScore(dim, weight, s, weight * s / 100, r, True, s)
 
     return DimensionScore(dim, weight, s, weight * s / 100, r)
 
@@ -711,10 +713,27 @@ def compute_structured_score(
         ),
     ]
 
-    total = sum(d.weighted_score for d in dimensions)
+    # Evidence-weighted aggregation. The 2026-08 audit found 88% of pairs had
+    # 3+ dimensions resolved to null-handling defaults; summing constants into
+    # the score compressed every list into a ~3-point band (ordering noise)
+    # while displaying a confident number computed mostly from defaults.
+    # The score is therefore the weighted mean over EVIDENCE-BACKED dimensions
+    # only: "of what we actually know, how good is the fit". Defaulted
+    # dimensions still appear in the breakdown (flagged), and evidence_pct
+    # says how much of the total weight the number rests on.
+    known = [d for d in dimensions if not d.null_handling_applied]
+    known_weight = sum(d.weight for d in known)
+    total_weight = sum(d.weight for d in dimensions)
+    evidence_pct = round(100.0 * known_weight / total_weight, 1) if total_weight else 0.0
+
+    _MIN_EVIDENCE_WEIGHT = 15.0  # below this, a renormalized mean would rest
+    if known_weight >= _MIN_EVIDENCE_WEIGHT:  # on 1-2 dims and swing wildly
+        total = sum(d.weight * d.raw_score for d in known) / known_weight
+    else:
+        total = sum(d.weighted_score for d in dimensions)
     weighted_structured_score = round(min(100.0, max(0.0, total)), 2)
 
-    return weighted_structured_score, dimensions
+    return weighted_structured_score, dimensions, evidence_pct
 
 
 # ---------------------------------------------------------------------------

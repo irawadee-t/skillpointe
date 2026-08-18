@@ -1,0 +1,666 @@
+job_id,title_raw,our_family_code,our_sector,soc_code,soc_title,match_tier,matched_onet_title,job_zone
+76ac8870-7eb5-413a-b6b9-b635d9e178e6,2nd Shift Operations Leader- Machining,cnc_machining,manufacturing,,,unmapped,,
+c837decc-1aca-4c36-9049-b6507e7d3f6b,2nd Shift Production Worker - Winder C,manufacturing_production,manufacturing,51-9199.00,"Production Workers, All Other",segment,Production Worker,
+d3647393-480f-4555-8191-fd9df727d997,3rd Shift Production Worker - Winder C-1,manufacturing_production,manufacturing,51-9199.00,"Production Workers, All Other",segment,Production Worker,
+3ab62fc5-d5dd-44be-8fb2-6e39176e0425,Aircraft Maintenance Technician,industrial_maintenance,manufacturing,49-3011.00,Aircraft Mechanics and Service Technicians,exact,Aircraft Maintenance Technician,3
+73d4b5fa-a2f6-4395-a4fe-b1e6f65cc217,Aircraft Maintenance Technician,manufacturing_production,manufacturing,49-3011.00,Aircraft Mechanics and Service Technicians,exact,Aircraft Maintenance Technician,3
+ada298f6-db8e-4b2c-b76e-2c1f7a31b6eb,Aircraft Maintenance Technician,industrial_maintenance,manufacturing,49-3011.00,Aircraft Mechanics and Service Technicians,exact,Aircraft Maintenance Technician,3
+c5440332-9d24-4e36-9913-a2702b097da3,Aircraft Maintenance Technician,manufacturing_production,manufacturing,49-3011.00,Aircraft Mechanics and Service Technicians,exact,Aircraft Maintenance Technician,3
+dfdbfa94-bd0f-4354-8b70-43182e0a7f8d,Aircraft Maintenance Technician,manufacturing_production,manufacturing,49-3011.00,Aircraft Mechanics and Service Technicians,exact,Aircraft Maintenance Technician,3
+51b5fe5a-552b-48f1-8dd9-c51a3c65fbde,Aircraft Maintenance Technician 2,industrial_maintenance,manufacturing,49-3011.00,Aircraft Mechanics and Service Technicians,exact,Aircraft Maintenance Technician,3
+07217a0b-d6bf-4e3f-a895-d81309df4cf2,Aircraft Mtc Surface Coat Technician,industrial_maintenance,manufacturing,,,unmapped,,
+219d497c-2d8d-4ea1-bfd1-da18bc79a201,Aircraft Support Mechanic,diesel_service_and_technology,transportation,49-3011.00,Aircraft Mechanics and Service Technicians,fuzzy,Aircraft Mechanic,3
+70cba4e7-70d5-47a4-9e1b-9bb152d5fbbb,Aircraft Support Mechanic,diesel_service_and_technology,transportation,49-3011.00,Aircraft Mechanics and Service Technicians,fuzzy,Aircraft Mechanic,3
+a91f1bc2-c859-41ef-a4eb-976c854e43ae,Aircraft Support Mechanic,diesel_service_and_technology,transportation,49-3011.00,Aircraft Mechanics and Service Technicians,fuzzy,Aircraft Mechanic,3
+c2caf92c-6f39-4f8f-987a-817169014ab5,Aircraft Support Mechanic,diesel_service_and_technology,transportation,49-3011.00,Aircraft Mechanics and Service Technicians,fuzzy,Aircraft Mechanic,3
+d6e2aff8-a00d-4c8b-b6ba-a1532a1feb53,Aircraft Support Mechanic,diesel_service_and_technology,transportation,49-3011.00,Aircraft Mechanics and Service Technicians,fuzzy,Aircraft Mechanic,3
+e61b931e-8df8-44ac-a3bc-c4054d9eb178,Aircraft Support Mechanic,automotive_ev_service,transportation,49-3011.00,Aircraft Mechanics and Service Technicians,fuzzy,Aircraft Mechanic,3
+2da6c0f2-f5cf-4fab-b307-4eb3c579391d,AMRT Inspection Technical Leader,manufacturing_production,manufacturing,,,unmapped,,
+7589aba9-4d64-4d0f-83dc-238301e9777a,AMT - Avionics - Component Maintenance,industrial_maintenance,manufacturing,49-3011.00,Aircraft Mechanics and Service Technicians,segment,AMT,3
+fc24d480-cb0d-4132-8d44-a897ef495483,AMT 1,industrial_maintenance,manufacturing,49-3011.00,Aircraft Mechanics and Service Technicians,exact,AMT,3
+0336a541-1cd7-4970-b181-33a30857fa4c,Armoring Machine Operator,manufacturing_production,manufacturing,51-9199.00,"Production Workers, All Other",exact,Armoring Machine Operator,
+67b5286c-436e-453c-aefb-acc7d5793715,Armoring Machine Operator,manufacturing_production,manufacturing,51-9199.00,"Production Workers, All Other",exact,Armoring Machine Operator,
+dd3d814c-135d-4c3a-9dfc-fd6607803797,Armoring Machine Operator,manufacturing_production,manufacturing,51-9199.00,"Production Workers, All Other",exact,Armoring Machine Operator,
+2efcbc6c-5c72-4187-81d6-7246c903d286,Assembler Apprentice Program-15,manufacturing_production,manufacturing,,,unmapped,,
+64598e85-2028-40ef-99d2-2b4843155388,Assembler I (02B),manufacturing_production,manufacturing,51-2092.00,Team Assemblers,segment,Assembler,2
+7b88420d-c465-4a87-8b88-35cad25d92b5,Assembler I (02B) 3rd Shift,manufacturing_production,manufacturing,51-2092.00,Team Assemblers,segment,Assembler,2
+d0d3e7e7-458d-4c09-a0b6-a6f4ce4e8030,Assembler II (02A) - 3rd Shift,manufacturing_production,manufacturing,51-2092.00,Team Assemblers,segment,Assembler,2
+0a05db0f-e385-423b-8122-dab16a04bf4c,Assembler Operator,manufacturing_production,manufacturing,,,unmapped,,
+89220a49-5c9a-4918-aa10-d2767415d275,Assembler Spooler Operator,manufacturing_production,manufacturing,53-7063.00,Machine Feeders and Offbearers,fuzzy,Spooler Operator,2
+f82b31d6-c86f-49bd-bce1-f941c80e699d,Assembler Spooler Operator,manufacturing_production,manufacturing,53-7063.00,Machine Feeders and Offbearers,fuzzy,Spooler Operator,2
+2ade1c3c-d1ef-4489-a20b-657159ec1430,Assembly Technician - 1st Shift,manufacturing_production,manufacturing,17-3024.01,Robotics Technicians,exact,Assembly Technician,3
+0288344c-c60c-40a0-93c5-9ec3645ddd0d,Assembly Technician - 2nd Shift,manufacturing_production,manufacturing,17-3024.01,Robotics Technicians,exact,Assembly Technician,3
+1eba3eee-f449-496b-bb3f-2265cce34e0c,Assembly Technician - Second Shift,manufacturing_production,manufacturing,17-3024.01,Robotics Technicians,exact,Assembly Technician,3
+d628aab4-5a8b-4703-8cc6-03da5cedf0a3,Assembly Technician - Second Shift,manufacturing_production,manufacturing,17-3024.01,Robotics Technicians,exact,Assembly Technician,3
+2c466cfc-d495-4422-8d8a-9653e1729180,Assembly Technician First Shift,manufacturing_production,manufacturing,17-3024.01,Robotics Technicians,exact,Assembly Technician,3
+b7b430d5-a4e6-4f0f-a513-6a94c560c230,Assembly Technician First Shift,manufacturing_production,manufacturing,17-3024.01,Robotics Technicians,exact,Assembly Technician,3
+11954c73-3e4b-4c6b-b699-a45813c17709,Assembly Technician I,manufacturing_production,manufacturing,17-3024.01,Robotics Technicians,exact,Assembly Technician,3
+ce04373a-95c6-41be-be7f-974795ee88d0,AT Team Lead - Offshore Wind Services-1- Vineyard Wind,utility_public_works,public_safety,,,unmapped,,
+b8997d15-e2e6-4a2b-8ac4-5a6da7d8bec1,AT Team Lead - Offshore Wind Services-2- Vineyard Wind,utility_public_works,public_safety,,,unmapped,,
+4f4d7e72-1c85-48f0-b147-d778b24f0021,ATS Assembler,manufacturing_production,manufacturing,,,unmapped,,
+90232b64-9386-4bfd-8f4b-4b484ff3def8,BAS Technician II,building_automation_controls,construction,,,unmapped,,
+c27714d6-80d1-410c-a5c4-59dad03d546d,BAS Technician II,building_automation_controls,construction,,,unmapped,,
+fcace57a-06c3-4e68-8e04-6b1157ecad61,BMS Service Account Executive,hvac_r,construction,,,unmapped,,
+cc8a84e6-9fdc-45d1-8ccd-20d6bc952a5b,BMS Service Specialist II,industrial_maintenance,manufacturing,,,unmapped,,
+88063f4b-9a74-4b3a-993c-1406d91b703d,Building Automation Project Management,hvac_r,construction,,,unmapped,,
+5a28dbc6-6d5d-482d-86b5-6054ae003e6e,Building Automation Service Specialist,hvac_r,construction,,,unmapped,,
+a1c98a35-5e0e-436e-8d1f-b91d5afcb60b,Building Automation Service Specialist,hvac_r,construction,,,unmapped,,
+28d43ff7-82dd-4d89-9dfa-79b6467b81f8,Building Automation Service Specialist I,diesel_service_and_technology,transportation,,,unmapped,,
+5463b5c0-b116-4c2a-9ca5-6b9b4905624a,Building Automation Service Specialist II,building_automation_controls,construction,,,unmapped,,
+520f8d81-3511-4051-bbf9-a9c40e6168de,Building Automation System Specialist I,hvac_r,construction,47-4011.01,Energy Auditors,fuzzy,Energy and Building Systems Specialist,3
+75a54389-46d9-4083-8ce3-fe3bfb222333,Building Automation System Specialist I,hvac_r,construction,47-4011.01,Energy Auditors,fuzzy,Energy and Building Systems Specialist,3
+8640529f-2350-480d-82c1-179940966209,Building Automation Systems Specialist I,hvac_r,construction,47-4011.01,Energy Auditors,fuzzy,Energy and Building Systems Specialist,3
+dce73e64-f294-4807-95da-4414ceca1350,Building Automation Systems Specialist II,hvac_r,construction,47-4011.01,Energy Auditors,fuzzy,Energy and Building Systems Specialist,3
+7be0d8c5-61fb-42e0-85e2-e57eaa3c8c92,Building Automation Technician II,building_automation_controls,construction,17-3023.00,Electrical and Electronic Engineering Technologists and Technicians,exact,Building Automation Technician,3
+9089b0d0-9bcc-4423-9a86-9ec534a5f15a,Building Automation Technician II,building_automation_controls,construction,17-3023.00,Electrical and Electronic Engineering Technologists and Technicians,exact,Building Automation Technician,3
+dc933d2c-9513-4497-ba60-29f80aa1d55c,Building Automation Technician II,building_automation_controls,construction,17-3023.00,Electrical and Electronic Engineering Technologists and Technicians,exact,Building Automation Technician,3
+050f299a-3320-4e53-91aa-e93418d2ab99,Buncher Operator II,manufacturing_production,manufacturing,45-4022.00,Logging Equipment Operators,exact,Buncher Operator,2
+eb562309-25bd-43ef-990b-0f2b72ad6f87,Carpenter All Around - Buffalo Stamping Plant (BSP),building_construction_technology,construction,,,unmapped,,
+de94a11f-9805-4da4-8c1b-f25d155ee431,Carpenter-All Around - Buffalo Stamping Plant (BSP),building_construction_technology,construction,,,unmapped,,
+e1997983-070c-45f9-bd07-72884eaca6a8,Chemical Technican,manufacturing_production,manufacturing,,,unmapped,,
+430231ef-ff5b-43ee-ad92-b8bbb2efdf0e,Closing Technician,utility_public_works,public_safety,,,unmapped,,
+0573e45d-f593-4033-bc94-42f92bd74a89,Closing Technician I,utility_public_works,public_safety,,,unmapped,,
+06b15669-fd1b-4d58-832b-5023e4883c29,Closing Technician I,utility_public_works,public_safety,,,unmapped,,
+21a9116b-3f63-46e2-a23f-bc6b0f148a3b,Closing Technician I,utility_public_works,public_safety,,,unmapped,,
+5b34e05c-9529-4167-93fa-37da13520712,Closing Technician I,utility_public_works,public_safety,,,unmapped,,
+6bc3350a-a6dd-42bf-93a6-3276379ee87a,Closing Technician I,manufacturing_production,manufacturing,,,unmapped,,
+b247cf7a-a235-46a1-8e01-e87b440ef834,Closing Technician I,utility_public_works,public_safety,,,unmapped,,
+bb4abbec-fa13-4e52-9309-919a5aaedc1f,Closing Technician I,utility_public_works,public_safety,,,unmapped,,
+d6bd701e-0751-4811-9b0a-5291cbdc5170,Closing Technician I,utility_public_works,public_safety,,,unmapped,,
+89999f2b-0f0a-4fd9-82e8-af4124256812,CNC & Manual Machinist,cnc_machining,manufacturing,51-4032.00,"Drilling and Boring Machine Tool Setters, Operators, and Tenders, Metal and Plastic",fuzzy,CNC Machinist,2
+7a1ae3c5-44c0-4580-9860-6066b81571a6,CNC Industrial Machine Operator,manufacturing_production,manufacturing,51-9111.00,Packaging and Filling Machine Operators and Tenders,fuzzy,CNC Machine Operator,2
+974999f5-bb42-4b84-beaf-cfcc3d1ed010,CNC Machinist - First Shift,cnc_machining,manufacturing,51-4041.00,Machinists,exact,CNC Machinist,3
+c7f77a75-17ff-4f06-bfe5-ce51bbf2cc1a,CNC Programmer/Operator,cnc_machining,manufacturing,51-9162.00,Computer Numerically Controlled Tool Programmers,segment,CNC Programmer,2
+9cff6f13-1fbe-49bf-ad45-6cfe62e3f347,CNC/EDM Machine Operator,manufacturing_production,manufacturing,51-9111.00,Packaging and Filling Machine Operators and Tenders,fuzzy,CNC Machine Operator,2
+5b7de9fd-608f-4751-bf57-ea7f12da966f,Continuous Improvement Leader,electrical,construction,,,unmapped,,
+6577ba72-852e-4599-b32f-b0c3f251d4e2,Controls Specialist,welding_fabrication,construction,49-9012.00,"Control and Valve Installers and Repairers, Except Mechanical Door",exact,Control Specialist,3
+e73281bb-0683-49a6-bc48-ab8200c5a24e,Controls Specialist - 2nd Shift,welding_fabrication,construction,49-9012.00,"Control and Valve Installers and Repairers, Except Mechanical Door",exact,Control Specialist,3
+f5eb48d2-7e4b-4c9c-a8ae-ab5bcf752b57,Crane Operator,building_construction_technology,construction,53-7021.00,Crane and Tower Operators,exact,Crane Operator,3
+7a508f1f-3d81-4229-a40f-2efe2a7717a2,Cut & Trim Technician,utility_public_works,public_safety,49-3023.00,Automotive Service Technicians and Mechanics,fuzzy,Trim Technician,3
+15854c98-614e-49d2-a91d-486547fc8a96,Cut and Trim Technician,utility_public_works,public_safety,49-3023.00,Automotive Service Technicians and Mechanics,fuzzy,Trim Technician,3
+15816950-95b7-4ba9-9248-0f0a88ee268d,Drawing Operator II,manufacturing_production,manufacturing,51-6064.00,"Textile Winding, Twisting, and Drawing Out Machine Setters, Operators, and Tenders",exact,Drawing Operator,2
+e8182e8c-0173-41e3-a046-b8061ff9ee8a,Drawing Operator II,manufacturing_production,manufacturing,51-6064.00,"Textile Winding, Twisting, and Drawing Out Machine Setters, Operators, and Tenders",exact,Drawing Operator,2
+da799e36-dc00-4bd0-83ba-af0c37b2a27e,ECM Machine Operator,manufacturing_production,manufacturing,17-3026.00,Industrial Engineering Technologists and Technicians,fuzzy,Machine Operator,3
+ee7da4c4-6f75-482f-a406-24c03d68ca9a,Electrical Apprentice,electrical,construction,47-3013.00,Helpers--Electricians,exact,Electrical Apprentice,2
+6ed93fa8-e5b5-4607-9d97-86e39f0722ba,Electrical Assembler,manufacturing_production,manufacturing,51-2022.00,Electrical and Electronic Equipment Assemblers,exact,Electrical Assembler,2
+93fa018e-38a7-49d0-9e6c-77bc1870fddc,Electrical Assembler,manufacturing_production,manufacturing,51-2022.00,Electrical and Electronic Equipment Assemblers,exact,Electrical Assembler,2
+d2585c06-4071-4ab4-9e96-2b596c589085,Electrical Assembler,manufacturing_production,manufacturing,51-2022.00,Electrical and Electronic Equipment Assemblers,exact,Electrical Assembler,2
+7dd072c9-909a-4ecf-afea-d2a6f1fa4626,Electrical Assembler - Beginning of the Week,manufacturing_production,manufacturing,51-2022.00,Electrical and Electronic Equipment Assemblers,segment,Electrical Assembler,2
+11e3b03d-57ad-41a4-aa76-6bec05ab207d,Electrical Assembler - BOW,manufacturing_production,manufacturing,51-2022.00,Electrical and Electronic Equipment Assemblers,segment,Electrical Assembler,2
+7e5bc3eb-0f14-422b-9c62-a5b73e1036e0,Electrical Assembler - BOW,manufacturing_production,manufacturing,51-2022.00,Electrical and Electronic Equipment Assemblers,segment,Electrical Assembler,2
+c0da30a3-9886-4064-847f-2e2639936917,Electrical Assembler - End of the week,manufacturing_production,manufacturing,51-2022.00,Electrical and Electronic Equipment Assemblers,segment,Electrical Assembler,2
+2598377b-db2f-4730-8df3-dfebf8ff1686,Electrical Assembler - EOW,manufacturing_production,manufacturing,51-2022.00,Electrical and Electronic Equipment Assemblers,segment,Electrical Assembler,2
+c240e635-1543-461b-9543-ebaea492cf2b,Electrical Controls Specialist,electrical,construction,49-9012.00,"Control and Valve Installers and Repairers, Except Mechanical Door",fuzzy,Control Specialist,3
+a5ff70b4-693e-4453-9519-65d078f541b6,"Electrical Maintenance Team Technician, 1st Shift, BlueOval Battery Park Michigan",manufacturing_production,manufacturing,17-3023.00,Electrical and Electronic Engineering Technologists and Technicians,fuzzy,Electrical Maintenance Technician,3
+b1169d14-4b05-4cac-bdf9-e39eef43d90b,"Electrical Maintenance Team Technician, 2nd Shift, BlueOval Battery Park Michigan",manufacturing_production,manufacturing,17-3023.00,Electrical and Electronic Engineering Technologists and Technicians,fuzzy,Electrical Maintenance Technician,3
+0725c9e3-d523-4b18-ba1f-03ee41d204f3,"Electrical Maintenance Technician, BlueOval Battery Park Michigan- PACK",industrial_maintenance,manufacturing,17-3023.00,Electrical and Electronic Engineering Technologists and Technicians,segment,Electrical Maintenance Technician,3
+bb673a17-ec09-4030-baf5-07cbb08abcae,"Electrical, Controls & Operability Monitoring Technical Leader",utility_public_works,public_safety,11-9041.00,Architectural and Engineering Managers,segment,Electrical PM,5
+54948c7c-b021-4e00-8ef2-78607a240b21,Electrician,electrical,construction,47-2111.00,Electricians,exact,Electricians,3
+ba15d1ca-d836-4150-95d0-4d5829378ff1,Electrician - Sr. Electronic Technician,electrical,construction,47-2111.00,Electricians,segment,Electricians,3
+d56c866c-0eeb-4d7f-b9e3-f2e28ae2eb31,Electrician - Sr. Electronic Technician,electrical,construction,47-2111.00,Electricians,segment,Electricians,3
+904fbc7d-d495-48f0-a82f-e47f7edb8c44,Electrician — Journey Level,electrical,construction,47-2111.00,Electricians,segment,Electricians,3
+82379e34-8d7d-4811-9a35-e86f627993b5,Electro - Mechanical Maintenance Technician 3rd Shift,manufacturing_production,manufacturing,49-9012.00,"Control and Valve Installers and Repairers, Except Mechanical Door",fuzzy,Electro-Mechanical Technician,3
+b64c9ecb-e22e-485c-bfb2-40375f87b738,Electro Mechanical Technician,industrial_electrical_technology,manufacturing,49-9012.00,"Control and Valve Installers and Repairers, Except Mechanical Door",exact,Electro-Mechanical Technician,3
+3acfbf9b-fa19-4eb8-ac7d-27ca1f3c0fa4,Electro-Mechanical Maintenance Technician,industrial_maintenance,manufacturing,49-9012.00,"Control and Valve Installers and Repairers, Except Mechanical Door",fuzzy,Electro-Mechanical Technician,3
+4439e8f7-35e7-4cee-8bfc-e64ef86585aa,Electromechanical Technician,industrial_electrical_technology,manufacturing,51-2023.00,Electromechanical Equipment Assemblers,exact,Electromechanical Technician,2
+1bf0ac7a-e529-4e85-9cdb-5bea8e082fd1,Electronic Technician,electrical,construction,17-3023.00,Electrical and Electronic Engineering Technologists and Technicians,exact,Electronics Technician,3
+e1ff690b-582e-4ee1-a891-c57c931af354,Electronics Assembly Technician - 1st Shift,manufacturing_production,manufacturing,51-2022.00,Electrical and Electronic Equipment Assemblers,exact,Electronics Assembly Technician,2
+ff5f7cf8-6033-476f-922a-0d8c9a31f66d,Electronics Assembly Technician - 2nd Shift,manufacturing_production,manufacturing,51-2022.00,Electrical and Electronic Equipment Assemblers,exact,Electronics Assembly Technician,2
+bca7fb92-2b35-4257-96e6-4b4ba9543c71,Electronics Assembly Technician - Weekend Shift,manufacturing_production,manufacturing,51-2022.00,Electrical and Electronic Equipment Assemblers,exact,Electronics Assembly Technician,2
+3a56d933-b705-4d64-af12-3b0eccf4eee4,Entry Level - Industrial Plumber/Steamfitter,plumbing,construction,47-2152.00,"Plumbers, Pipefitters, and Steamfitters",segment,Steamfitter,3
+34197b18-ddab-491b-8d8c-9bba7418e4c6,Entry Level - Industrial Plumber/Steamfitter (3rd Shift),plumbing,construction,47-2152.00,"Plumbers, Pipefitters, and Steamfitters",segment,Steamfitter,3
+d45c9e30-75d4-4fd4-8c5d-5f74efc05be6,Environmental Health & Safety (EHS) Specialist,other_transportation,transportation,19-5011.00,Occupational Health and Safety Specialists,segment,EHS Specialist,4
+a7e40be5-b16b-402f-9c30-284ce409cdd9,Extruder Operator,manufacturing_production,manufacturing,51-4021.00,"Extruding and Drawing Machine Setters, Operators, and Tenders, Metal and Plastic",exact,Extruder Operator,2
+f196f038-80ac-4e49-bffb-3e62540dbb6d,Extruder Operator I,manufacturing_production,manufacturing,51-4021.00,"Extruding and Drawing Machine Setters, Operators, and Tenders, Metal and Plastic",exact,Extruder Operator,2
+3ecaaebf-ef87-4111-bb8d-13ee3cdabd7b,Extruder Operator II,manufacturing_production,manufacturing,51-4021.00,"Extruding and Drawing Machine Setters, Operators, and Tenders, Metal and Plastic",exact,Extruder Operator,2
+7b12cd8f-f67a-4e7c-8890-2a3b1edbe2b7,Extruder Operator II (2nd Shift),manufacturing_production,manufacturing,51-4021.00,"Extruding and Drawing Machine Setters, Operators, and Tenders, Metal and Plastic",exact,Extruder Operator,2
+ae8ce55e-00e5-4a04-9718-e499f5773915,Fabrication Associate I,manufacturing_production,manufacturing,,,unmapped,,
+12ff899c-eba8-4e35-93f0-6fa10d945159,Fabrication Associate II,manufacturing_production,manufacturing,,,unmapped,,
+9f533c5e-52a1-486a-a2e7-021b7c925997,Fabrication Inspector - Intermediate HRLY,manufacturing_production,manufacturing,51-9061.00,"Inspectors, Testers, Sorters, Samplers, and Weighers",segment,Fabrication Inspector,2
+364bb85e-da99-4316-9ac5-af3a0299a604,Fabrication Operator,manufacturing_production,manufacturing,51-4031.00,"Cutting, Punching, and Press Machine Setters, Operators, and Tenders, Metal and Plastic",exact,Fabrication Operator,2
+42e982e9-d0e3-4414-adb8-f609b65cbe82,Fabrication Operator,manufacturing_production,manufacturing,51-4031.00,"Cutting, Punching, and Press Machine Setters, Operators, and Tenders, Metal and Plastic",exact,Fabrication Operator,2
+9bb4af9d-b953-4bca-b642-f123f9cbcb10,Fabrication Operator,manufacturing_production,manufacturing,51-4031.00,"Cutting, Punching, and Press Machine Setters, Operators, and Tenders, Metal and Plastic",exact,Fabrication Operator,2
+9cf4d0d9-041a-4dd1-b30c-9f711b89ec9d,Fabrication Operator,manufacturing_production,manufacturing,51-4031.00,"Cutting, Punching, and Press Machine Setters, Operators, and Tenders, Metal and Plastic",exact,Fabrication Operator,2
+b58e0905-7d37-4caf-9f89-efa1cdfb48fb,Fabrication Operator,manufacturing_production,manufacturing,51-4031.00,"Cutting, Punching, and Press Machine Setters, Operators, and Tenders, Metal and Plastic",exact,Fabrication Operator,2
+c7d56a96-6de7-400d-8717-e85ec9fe736b,Fabrication Operator,manufacturing_production,manufacturing,51-4031.00,"Cutting, Punching, and Press Machine Setters, Operators, and Tenders, Metal and Plastic",exact,Fabrication Operator,2
+a1db36fa-6d5a-4cda-923a-fa0202fb0e3a,Fabrication Technician - 1st Shift,manufacturing_production,manufacturing,47-2211.00,Sheet Metal Workers,exact,Fabrication Technician,2
+158478c1-b81f-45de-ac6b-e0295ca47bc4,Fabrication Technician - 2nd Shift,manufacturing_production,manufacturing,47-2211.00,Sheet Metal Workers,exact,Fabrication Technician,2
+b2ba592f-058b-43a1-b003-617c6f89a92c,Facilities Maintenance Supervisor,industrial_maintenance,manufacturing,49-1011.00,"First-Line Supervisors of Mechanics, Installers, and Repairers",exact,Facilities Maintenance Supervisor,3
+0935af0f-1a91-41d9-8794-558b850a4cc8,Facilities/Maintenance Leader,electrical,construction,,,unmapped,,
+e5f6f964-1f89-4670-88d5-1e7e9903895c,Facility Maintenance - Mechanical Technician,manufacturing_production,manufacturing,17-3027.00,Mechanical Engineering Technologists and Technicians,segment,Mechanical Technician,3
+23b316c2-58cc-49f5-885f-831ae7668408,Facility Maintenance Mechanical Technician,manufacturing_production,manufacturing,49-9071.00,"Maintenance and Repair Workers, General",fuzzy,Facility Maintenance Technician,3
+7c17153b-e5dd-419b-be33-2f73909238a1,Factory Serviceability Lead,manufacturing_production,manufacturing,,,unmapped,,
+0ac9a9ac-3fa2-4766-9de7-3771f5393e06,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+25bdeb9c-6065-459e-9e6d-884eff87af51,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+268dd605-3bff-4563-ab00-de5ff47358a1,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+2ba0faf5-16d9-40ec-ae62-43b114d277ad,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+35c85091-8485-4aae-87dd-8908d6dd2cfc,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+45535bb3-e439-40fe-8771-d243e56e4784,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+49901a3c-4bf5-43a9-95ff-55190786efcd,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+6621b1b9-3830-4fc2-805b-95751912b6ae,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+71505721-47bd-44df-97bf-739ca4358a73,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+7985b674-f45e-43f3-94e4-9db0e8cd4c99,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+8e85dda2-76e5-4568-9410-6ec01d733680,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+9c6bc557-f74d-4e7b-96b8-8cca68212912,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+9ea50e58-c05a-4f33-bf4e-0ea733c40c91,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+a3d42866-783e-47b3-9ffe-cbdbc60ff692,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+a4890ce1-b6a6-48f4-8544-01bd68649d67,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+aecb330c-3b4f-42e9-8211-fcfe3dd2e838,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+b0677759-9c1d-478f-8e04-71c859b8420f,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+b5eb6630-f8fa-4f4b-8b46-df30db6d53b0,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+c09c6522-c23b-45c1-ac8c-d448f806bcc7,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+c7f25fb7-003e-4117-b5af-7b72e6c15b35,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+c832c77f-2dfb-4aae-8d06-1b044f5f3a6a,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+ccea53d6-cffb-4210-b111-6005ca6ca293,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+d3b72979-f0b4-4079-8a2f-9631833081e3,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+f16035a3-f4fa-4646-acf5-75b0ba0b0f03,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+f39b2b0c-778f-47c5-8f6d-4b9353db57a6,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+f7f1baff-6f2f-455b-8d73-5052f77b4e9c,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+fd62e3ae-e6a1-413c-a62a-257e59ee9ea4,Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+54a85933-ac91-4bb7-a8c3-ad12371a412b,Field Service Representative - Cooling,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+17d665c5-5c98-4557-aeb3-24a0101de23b,Field Service Representative - Cooling/HVAC,hvac_r,construction,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+c18da972-c177-4b98-8562-0e1c36300516,Field Service Representative - Cooling/HVAC,hvac_r,construction,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+dd7b3af9-3615-4d55-ab43-0226b99b8ecf,Field Service Representative - Cooling/HVAC,hvac_r,construction,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+e2ae65a8-1bdb-4589-bb19-41cd8fce7143,Field Service Representative - Cooling/HVAC,hvac_r,construction,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+398da005-863a-485c-a972-f555fcc71f5e,Field Service Representative - Drives/Industry,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+d51b66ae-7f36-49d6-b1d1-88a4d2d5ecef,Field Service Representative - Houston,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+385cfaef-8bd9-48df-be8e-8bb0535f2745,Field Service Representative - HVAC/Cooling,hvac_r,construction,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+392f14b7-7f5d-4e24-a95c-91318ad5e80b,Field Service Representative - HVAC/Cooling,hvac_r,construction,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+c0b71da7-96b9-45a0-8e8f-abbaa203c3ed,Field Service Representative - HVAC/Cooling,hvac_r,construction,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+4d6da311-a83e-4038-a6ad-b6b600fbc4b8,Field Service Representative - Industrial Drives,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+802cf82f-3796-4c28-99aa-b1be6a4d131a,Field Service Representative - Midland TX,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+0b2094f1-d7de-44dc-b78d-d6fe96220ca2,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+16e69638-bce6-4180-bf83-70003c48ceb6,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+2caf03db-f954-417f-bc1e-4ef4b54ba51a,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+434eae20-62ae-4dba-971f-f74762e75f29,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+4e19e54f-bbc8-4fd7-b592-eec1b5dd3bb6,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+55ca320c-2898-40a9-9512-907c637508ab,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+57a1c277-a37a-4091-b877-f6ab99ac01a2,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+647360fb-fa0c-4c27-8cce-7a4731455992,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+7789a644-914e-453c-8e78-836445cb72bd,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+7c726160-4272-4203-be59-364c6cae2fa8,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+7e5a2f8c-09f9-42b5-8cc6-7baf25649377,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+81e04e0e-0e99-4eb7-8b8a-994c2d5cf5a8,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+92e5f1b5-0e06-4215-837a-f75bcd47ddbd,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+c98f5980-0f8d-4ab0-8c1e-0b16113ef018,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+d330455d-bacf-4004-b755-c3666b7aff3d,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+d411181b-585d-4f75-80c2-63a39a2a40ae,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+dd301bdc-0e82-4e98-9e14-57c8247c0260,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+e52072e3-93e2-4e88-8340-eceb970da6d3,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+ec5d5351-3673-4b88-a693-a4e7fec46548,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+ecc18b35-9678-47ef-ae7a-4f64ec22b72f,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+f4475744-1842-4165-8bf2-e17d66211754,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+f8dd21d1-4633-4d20-bace-3a825177e6ef,Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+e3eb9c0f-f1a7-469a-96c7-f150ca210f41,Field Service Representative - Power Services,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+fc8fdee4-91f5-49cf-ba33-cce6873a385d,Field Service Representative - San Antonio,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+22c27a24-d388-440a-8090-3bc82fd570bb,Field Service Representative - Secure Power,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+b1738c22-9ac6-43b0-9bc0-5ac507da52cc,Field Service Representative - Secure Power,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+0e5ce6fa-40ed-4443-a9cc-c6ccb5d359d1,Field Service Representative - Secure Power/Electronic,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+2d4478e8-6572-4cea-9bed-ebb35b0452ad,Field Service Representative - Secure Power/Electronic,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+738888d5-42a6-46d6-a8f2-415f663dda9f,Field Service Representative - Secure Power/Electronic,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+73a16c7c-94fa-49c2-ae21-ab8a7d619248,Field Service Representative - Secure Power/Electronic,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+e8cf49c7-cb87-4f30-bec8-ec0af7562ae6,Field Service Representative - Secure Power/Electronic,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+dfd47537-1c93-4b04-a168-9c6f84c94ab7,Field Service Representative - Travel Team,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+598ea6fb-e180-482f-865e-f6c99f9d94c0,Field Service Representative I,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+751cd10c-91de-4229-ab15-21afaefd9de7,Field Service Representative I,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+8acb0f46-dbf8-4d91-90f9-c144d9b8e190,Field Service Representative I,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+a25b80fb-8867-4bcf-a7f1-659b46569740,Field Service Representative I,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+a73a1c20-1806-418a-93c9-d8d84fa23ae3,Field Service Representative I,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+ba8a282c-7b09-40d1-9b05-f71768d3a5f8,Field Service Representative I,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+dbcdcc74-0ea5-4c37-ad66-1bbc27f2fd34,Field Service Representative I,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+129030bc-0db8-4ed9-b4c0-25583cbef1ba,Field Service Technician,industrial_maintenance,manufacturing,49-9081.00,Wind Turbine Service Technicians,exact,Field Service Technician,3
+b23171fa-a0de-4031-9f33-756d630e3e42,Field Service Technician,automotive_ev_service,transportation,49-9081.00,Wind Turbine Service Technicians,exact,Field Service Technician,3
+f49de743-0a5c-466f-aa6e-85a5e1abb8bf,Field Service Technician,industrial_maintenance,manufacturing,49-9081.00,Wind Turbine Service Technicians,exact,Field Service Technician,3
+f90cc900-a150-4df5-aeca-bd98decd59f9,Field Service Technician - Cooling,automotive_ev_service,transportation,49-9081.00,Wind Turbine Service Technicians,segment,Field Service Technician,3
+499889fc-abe6-4ce3-9b87-b45c86330104,Field Service Technician - Cooling/HVAC,hvac_r,construction,49-9081.00,Wind Turbine Service Technicians,segment,Field Service Technician,3
+60f105d2-ec72-4b80-a510-97bfac1a2adc,Field Service Technician - Cooling/HVAC,hvac_r,construction,49-9081.00,Wind Turbine Service Technicians,segment,Field Service Technician,3
+77c1a73f-3ae8-4683-a995-20db4141913d,Field Service Technician - Cooling/HVAC,hvac_r,construction,49-9081.00,Wind Turbine Service Technicians,segment,Field Service Technician,3
+77cde4a3-8727-463a-afa3-409b41b024a6,Field Service Technician - Cooling/HVAC,hvac_r,construction,49-9081.00,Wind Turbine Service Technicians,segment,Field Service Technician,3
+abf6ab43-6885-4204-bbd9-32afe03d41c3,Field Service Technician - Cooling/HVAC,hvac_r,construction,49-9081.00,Wind Turbine Service Technicians,segment,Field Service Technician,3
+619f163a-21a4-402f-ab9c-510eb8b05894,Field Service Technician - HVAC/Cooling,hvac_r,construction,49-9081.00,Wind Turbine Service Technicians,segment,Field Service Technician,3
+84ee4830-5a83-48d2-8872-a5a40e7f329b,Field Service Technician - HVAC/Cooling,hvac_r,construction,49-9081.00,Wind Turbine Service Technicians,segment,Field Service Technician,3
+c1557174-f263-4b94-acae-541575223397,Field Service Technician - HVAC/Cooling,hvac_r,construction,49-9081.00,Wind Turbine Service Technicians,segment,Field Service Technician,3
+d3af7c8c-9f9c-4ac0-ad88-04765bb449a5,Field Service Technician - HVAC/Cooling,hvac_r,construction,49-9081.00,Wind Turbine Service Technicians,segment,Field Service Technician,3
+7cc7a138-9a3b-4c21-aac3-92cc5bb50efd,Field Service Technician I,automotive_ev_service,transportation,49-9081.00,Wind Turbine Service Technicians,exact,Field Service Technician,3
+b6eedce9-377a-4308-87b9-42bfdd920b97,Field Service Technician I,automotive_ev_service,transportation,49-9081.00,Wind Turbine Service Technicians,exact,Field Service Technician,3
+dde856d5-1a5e-449a-b28c-c621262d2fdb,Field Service Technician I,automotive_ev_service,transportation,49-9081.00,Wind Turbine Service Technicians,exact,Field Service Technician,3
+4f09ba62-f310-4d0e-820d-c4046877a994,Field Service Technician-1,industrial_maintenance,manufacturing,49-9081.00,Wind Turbine Service Technicians,exact,Field Service Technician,3
+30461847-21a9-44c4-a4e8-e702395d0552,Field Service Technician-2,automotive_ev_service,transportation,49-9081.00,Wind Turbine Service Technicians,exact,Field Service Technician,3
+97b88c9e-cc88-44ed-91bc-d427e167938c,Fire Alarm Installer,security_systems_locksmithing,construction,49-2098.00,Security and Fire Alarm Systems Installers,exact,Fire Alarm Installer,3
+aa811a27-0a08-4d88-a8ac-5eb9574db89b,GE Vernova Project Management Specialist,manufacturing_production,manufacturing,13-1082.00,Project Management Specialists,fuzzy,Project Management Specialist,4
+7601876d-e1b8-4451-8dea-e318e8f44f08,GIS / DT Field Service Technician,industrial_maintenance,manufacturing,15-1299.02,Geographic Information Systems Technologists and Technicians,fuzzy,Field GIS Technician,3
+9ad0d344-059a-4723-88ea-4255400e5a76,Ground Maintenance Mechanic (Motorized),manufacturing_production,manufacturing,49-3031.00,Bus and Truck Mechanics and Diesel Engine Specialists,fuzzy,Maintenance Mechanic,3
+88be611e-8df7-464a-91a3-fbaa826c984f,Ground Maintenance Mechanic (Motorized) - ATL,manufacturing_production,manufacturing,49-3031.00,Bus and Truck Mechanics and Diesel Engine Specialists,fuzzy,Maintenance Mechanic,3
+d2127550-deca-4bbc-a56a-f262cf562a7c,Ground Maintenance Mechanic (Motorized) - JFK,manufacturing_production,manufacturing,49-3031.00,Bus and Truck Mechanics and Diesel Engine Specialists,fuzzy,Maintenance Mechanic,3
+90a0770a-17d9-4394-9c19-47446e684849,Ground Maintenance Mechanic (Motorized) - MSP,manufacturing_production,manufacturing,49-3031.00,Bus and Truck Mechanics and Diesel Engine Specialists,fuzzy,Maintenance Mechanic,3
+8c8d3d8d-b864-4e86-949b-67e939222290,Ground Maintenance Mechanic (Motorized) - SLC,industrial_maintenance,manufacturing,49-3031.00,Bus and Truck Mechanics and Diesel Engine Specialists,fuzzy,Maintenance Mechanic,3
+01811a18-2fb7-4c0a-a7e0-15143caaf65e,Ground Maintenance Mechanic (Stationary) - ATL,manufacturing_production,manufacturing,49-3031.00,Bus and Truck Mechanics and Diesel Engine Specialists,fuzzy,Maintenance Mechanic,3
+e87c2ac9-3d95-459e-a814-cbd8da71bc38,Ground Maintenance Mechanic (Stationary) - JFK,manufacturing_production,manufacturing,49-3031.00,Bus and Truck Mechanics and Diesel Engine Specialists,fuzzy,Maintenance Mechanic,3
+e5d36b37-3651-4198-b96b-8f2139fe5bc5,Ground Maintenance Mechanic (Stationary) - LGA,manufacturing_production,manufacturing,49-3031.00,Bus and Truck Mechanics and Diesel Engine Specialists,fuzzy,Maintenance Mechanic,3
+5b7d20ff-350e-47f4-82a5-851d2b147f32,Ground Maintenance Technician (Motorized) - JFK,manufacturing_production,manufacturing,17-3028.00,Calibration Technologists and Technicians,fuzzy,Maintenance Technician,3
+7fbb1d8e-1f63-41eb-922a-85ef0a06febe,Ground Maintenance Technician (Motorized) - LGA,industrial_maintenance,manufacturing,17-3028.00,Calibration Technologists and Technicians,fuzzy,Maintenance Technician,3
+0617713d-cddd-4c6e-82f6-91abbd32270e,Ground Maintenance Technician (Stationary) - JFK,manufacturing_production,manufacturing,17-3028.00,Calibration Technologists and Technicians,fuzzy,Maintenance Technician,3
+ccabf121-751b-4e97-a7c2-6c154f9ed08e,Ground Maintenance Technician (Stationary) - LGA,manufacturing_production,manufacturing,17-3028.00,Calibration Technologists and Technicians,fuzzy,Maintenance Technician,3
+9c8f6713-4475-444d-835e-ac62cd64c8c5,"Handler, Materials",other_transportation,transportation,39-2011.00,Animal Trainers,segment,Handler,2
+e65feb71-979f-42d0-a99f-b811e1e21198,"Handler, Materials 2nd",other_transportation,transportation,39-2011.00,Animal Trainers,segment,Handler,2
+7a4a4644-c115-4bad-8294-7b7166a2918e,Head of Product Operations,diesel_service_and_technology,transportation,,,unmapped,,
+2bac7ff8-6721-4a3e-9d22-2dd069a55622,Heavy Equipment Mechanic (Blader - Rotating Shift),automotive_ev_service,transportation,49-3042.00,"Mobile Heavy Equipment Mechanics, Except Engines",segment,Heavy Equipment Mechanic,3
+348ff3da-7cd8-489b-a8d6-fadaec420ede,"Helper, Stranding",welding_fabrication,construction,47-3012.00,Helpers--Carpenters,segment,Helper,2
+7e4a6c6b-755e-43dc-9ca9-7d5f4d8a7851,"Helper, Stranding",welding_fabrication,construction,47-3012.00,Helpers--Carpenters,segment,Helper,2
+ad9ace0a-35e9-4b3a-945f-ea189fa9909a,High Voltage Technician III,electrical,construction,,,unmapped,,
+0af29423-b760-4773-b627-5fcafeea8294,Hourly Production Team Member - Temp Full Time - Lima Engine Plant (LEP),manufacturing_production,manufacturing,51-3092.00,Food Batchmakers,segment,Production Team Member,2
+261a3edb-0c61-4e40-9158-f20534009c48,"Hourly Production Team Member - Temporary Full Time - Chicago, IL",manufacturing_production,manufacturing,51-3092.00,Food Batchmakers,segment,Production Team Member,2
+1a37fa76-c15f-4aab-8194-a343e9acab6d,Hourly Production Team Member - Temporary Full Time - Cleveland Engine Plant (CEP),manufacturing_production,manufacturing,51-3092.00,Food Batchmakers,segment,Production Team Member,2
+25851f37-5d8c-42dd-bc45-506f871f8340,Hourly Production Team Member - Temporary Full Time - Kansas City Assembly Plant (KCAP),manufacturing_production,manufacturing,51-3092.00,Food Batchmakers,segment,Production Team Member,2
+552bd1c9-6069-48a7-9487-2943b0632269,Hourly Production Team Member - Temporary Full Time - Ohio Assembly Plant (OHAP),manufacturing_production,manufacturing,51-3092.00,Food Batchmakers,segment,Production Team Member,2
+05457533-7853-4a83-8b76-a7b1ff9fa581,Hourly Production Team Member - Temporary Full Time - Sharonville Transmission Plant (STP),manufacturing_production,manufacturing,51-3092.00,Food Batchmakers,segment,Production Team Member,2
+5d8292ad-c4fe-43ce-acca-8e90403d3197,Hourly Production Team Member - Temporary Full Time - Wayne County / SE Michigan,manufacturing_production,manufacturing,51-3092.00,Food Batchmakers,segment,Production Team Member,2
+0197f177-d064-46ef-9ca4-556747776868,"Hourly Production Team Member - Temporary Full-Time - Louisville, KY",manufacturing_production,manufacturing,51-3092.00,Food Batchmakers,segment,Production Team Member,2
+69220a70-b63a-401d-8aa2-5c486243ab31,Hourly Production Team Member - Temporary Full-Time - Macomb County,manufacturing_production,manufacturing,51-3092.00,Food Batchmakers,segment,Production Team Member,2
+68ce547e-68e0-4e82-ab08-34d51129e5b6,Hourly Skilled- Power House Mechanic - Lima Engine Plant (LEP),automotive_ev_service,transportation,,,unmapped,,
+7bbac694-0c27-4d3c-8906-250ed0f875fd,Hourly Warehouse Team Member - Temp Full Time - Washington HVC (PS&L),manufacturing_production,manufacturing,53-7065.00,Stockers and Order Fillers,segment,Warehouse Team Member,2
+65291f04-c319-4e1f-9817-06584342a1f3,Hourly Warehouse Team Member - Temporary Full Time - Greensboro HVC (PS&L),manufacturing_production,manufacturing,53-7065.00,Stockers and Order Fillers,segment,Warehouse Team Member,2
+8e418fc5-96fb-472d-8433-c190800f76ea,Hourly Warehouse Team Member - Temporary Full Time - Hartford HVC (PS&L),manufacturing_production,manufacturing,53-7065.00,Stockers and Order Fillers,segment,Warehouse Team Member,2
+fa021cd4-e856-4514-a58c-130cd187749d,Hourly Warehouse Team Member - Temporary Full Time - Houston HVC (PS&L),manufacturing_production,manufacturing,53-7065.00,Stockers and Order Fillers,segment,Warehouse Team Member,2
+d25a6797-5ba0-4005-ac8f-6776bbc5847e,Hourly Warehouse Team Member - Temporary Full Time - Indianapolis HVC (PS&L),manufacturing_production,manufacturing,53-7065.00,Stockers and Order Fillers,segment,Warehouse Team Member,2
+222059f1-dda9-4bfc-a1af-4d69328293b9,Hourly Warehouse Team Member - Temporary Full Time - Kansas City HVC (PS&L),manufacturing_production,manufacturing,53-7065.00,Stockers and Order Fillers,segment,Warehouse Team Member,2
+01ea9a82-8930-499d-87ae-47c52475bac0,Hourly Warehouse Team Member - Temporary Full Time - Lakeland HVC (PS&L),manufacturing_production,manufacturing,53-7065.00,Stockers and Order Fillers,segment,Warehouse Team Member,2
+a9c94703-75a8-4960-bc00-963aef01bd8a,Hourly Warehouse Team Member - Temporary Full Time - New York HVC (PS&L),manufacturing_production,manufacturing,53-7065.00,Stockers and Order Fillers,segment,Warehouse Team Member,2
+ae135891-49ca-4c43-b73b-d8b3bc214b8c,Hourly Warehouse Team Member - Temporary Full Time - Twin Cities HVC (PS&L),manufacturing_production,manufacturing,53-7065.00,Stockers and Order Fillers,segment,Warehouse Team Member,2
+23cc0d4f-2f56-4972-9c03-5b87c1ff0806,Hourly Warehouse Team Member - Temporary Full-Time - Atlanta HVC (PS&L),manufacturing_production,manufacturing,53-7065.00,Stockers and Order Fillers,segment,Warehouse Team Member,2
+bbb6c9ea-baef-44ff-b084-085be2c89941,Hourly Warehouse Team Member - Temporary Full-Time - Ontario HVC (PS&L),manufacturing_production,manufacturing,53-7065.00,Stockers and Order Fillers,segment,Warehouse Team Member,2
+c7df35de-b5bd-4800-8b0e-18b383c39408,Hourly Warehouse Team Member - Temporary Full-Time - Portland PDC (PS&L),manufacturing_production,manufacturing,53-7065.00,Stockers and Order Fillers,segment,Warehouse Team Member,2
+10139e0b-ac07-47e0-9737-bed788521f2a,HVAC BAS Tech II,hvac_r,construction,49-9021.00,"Heating, Air Conditioning, and Refrigeration Mechanics and Installers",fuzzy,HVAC Tech,3
+cde1c830-a190-4c48-a7f8-5549aeca177f,HVAC BAS Tech II,hvac_r,construction,49-9021.00,"Heating, Air Conditioning, and Refrigeration Mechanics and Installers",fuzzy,HVAC Tech,3
+f3fd9da1-d20a-4e7f-a6b6-37c0aa94c2a6,"HVAC BAS Tech, II",building_automation_controls,construction,49-9021.00,"Heating, Air Conditioning, and Refrigeration Mechanics and Installers",fuzzy,HVAC Tech,3
+48f5a6b5-9118-44f2-8676-270231114686,HVAC Building Automation/Service Specialist II,hvac_r,construction,43-4141.00,New Accounts Clerks,fuzzy,Branch Service Specialist,3
+f598393a-49cf-4330-97e9-3febf3c6614a,HVAC Installer - 2nd Shift (Apprenticeship Program),hvac_r,construction,49-9021.00,"Heating, Air Conditioning, and Refrigeration Mechanics and Installers",segment,HVAC Installer,3
+4afe4760-e67b-432d-a768-f4e87b939d3f,HVAC Technician,hvac_r,construction,49-9099.01,Geothermal Technicians,fuzzy,Geothermal HVAC Technician,2
+95614908-a096-4942-98c5-186ebfeb031f,HVAC-Electrical Technician,electrical,construction,17-3023.00,Electrical and Electronic Engineering Technologists and Technicians,fuzzy,Electrical Technician,3
+d6385f00-ebab-4361-80de-2df840a3fb5c,In Process Quality Technician - 1st Shift,manufacturing_production,manufacturing,17-3026.00,Industrial Engineering Technologists and Technicians,fuzzy,Process Technician,3
+1a521c80-64d4-4926-a175-e9d3ef893850,In Process Quality Technician - 2nd Shift,manufacturing_production,manufacturing,17-3026.00,Industrial Engineering Technologists and Technicians,fuzzy,Process Technician,3
+4fbe67aa-54dc-48f3-8e0c-d20068cc4137,In Process Quality Technician - 2nd Shift,manufacturing_production,manufacturing,17-3026.00,Industrial Engineering Technologists and Technicians,fuzzy,Process Technician,3
+fd5e0d1f-84b6-4d22-a957-63fdf5b36602,Industrial Electrician Technician,electrical,construction,49-2094.00,"Electrical and Electronics Repairers, Commercial and Industrial Equipment",fuzzy,Electrician Technician,3
+fcf3b785-5716-4b2d-ac44-d81864feb32f,"Industrial Hygienist, Ford Energy",other_transportation,transportation,17-2111.00,"Health and Safety Engineers, Except Mining Safety Engineers and Inspectors",segment,Industrial Hygienist,4
+f6c98115-afef-44e5-b75e-68a6baca73d0,Industrial Mechanical Technician,diesel_service_and_technology,transportation,17-3026.00,Industrial Engineering Technologists and Technicians,fuzzy,Industrial Technician,3
+21909d70-7e0f-483c-b062-bfbad5ca8f47,Industrial Plumber/Steamfitter - 2nd Shift,plumbing,construction,47-2152.00,"Plumbers, Pipefitters, and Steamfitters",segment,Steamfitter,3
+90ad4e20-8e5a-4cad-ab46-7e0e38f96405,Industrial Plumbing Steamfitter,plumbing,construction,,,unmapped,,
+1fd8db22-26f3-4763-82e8-a8cd22bb1167,Industrial Truck Mechanic - Kansas City Assembly Plant (KCAP),diesel_service_and_technology,transportation,49-3031.00,Bus and Truck Mechanics and Diesel Engine Specialists,segment,Industrial Truck Mechanic,3
+3ef233b8-8858-4c55-8b50-247c45587b75,Inspector - Tooling & Layout - Kansas City Assembly Plant (KCAP),diesel_service_and_technology,transportation,45-2011.00,Agricultural Inspectors,segment,Inspector,2
+bdb89142-ed7c-4e59-9b03-b6602e1c5546,Instrumentation Technician,diesel_service_and_technology,transportation,17-3028.00,Calibration Technologists and Technicians,exact,Instrumentation Technician,3
+436ec902-cd84-4fa6-8065-b7989b16992a,Lead CNC Programmer - 2nd Shift,manufacturing_production,manufacturing,51-9162.00,Computer Numerically Controlled Tool Programmers,exact,CNC Programmer,2
+4c5c1eba-d6c3-4f79-923c-d13a1f690986,Lead CNC Programmer 2nd Shift,manufacturing_production,manufacturing,51-9162.00,Computer Numerically Controlled Tool Programmers,exact,CNC Programmer,2
+9d8ab404-019b-40bf-b5d0-e3ea05b64363,Lead Field Commissioning Specialist,utility_public_works,public_safety,47-5071.00,"Roustabouts, Oil and Gas",fuzzy,Field Specialist,2
+f58c3491-857d-4ac9-b3b1-e37d32d59f7b,Lead Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+267202c5-965d-402a-b73b-5e28c118dfaf,Lead Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+9f949c6f-59ed-443e-9e86-fde5ec936b56,Lead Inventory Specialist,other_transportation,transportation,43-5071.00,"Shipping, Receiving, and Inventory Clerks",exact,Inventory Specialist,2
+c94f3763-7c07-414c-9f9c-c1b8f9280c7a,"Lead Senior Wind Hub Technician - Fire Island (Anchorage, AK)",transmission_linework,energy,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+398de395-1d15-4f0a-8ae7-44720db39fa4,"Lead Senior Wind Hub Technician - SD2 (Wishek, ND)",utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+74b95029-67cc-4c75-ab95-11b4de210a45,Lead Service Representative - PCS Travel Team,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Service Representative,2
+92c5c760-9d54-4e5c-b978-20ab22e766f2,Line Operator Mechanic,diesel_service_and_technology,transportation,49-3023.00,Automotive Service Technicians and Mechanics,fuzzy,Line Mechanic,3
+2be2848a-305d-423c-be4b-73b72e21624e,Logistics Teardown Technician - 2nd Shift,manufacturing_production,manufacturing,13-1081.00,Logisticians,fuzzy,Logistics Technician,4
+1d392ac2-89e4-4db9-9a05-13d91be12a71,Machine Operator,manufacturing_production,manufacturing,51-6031.00,Sewing Machine Operators,exact,Machine Operator,2
+4ed31b0d-afdc-4dc9-aa49-22947a71acb4,Machine Operator,manufacturing_production,manufacturing,51-6031.00,Sewing Machine Operators,exact,Machine Operator,2
+dfca4bac-073d-4ba0-a101-3f964de1f9b2,Machine Operator,manufacturing_production,manufacturing,51-6031.00,Sewing Machine Operators,exact,Machine Operator,2
+f5171470-79d0-4f47-b56a-247d8fa1be80,Machine Operator,manufacturing_production,manufacturing,51-6031.00,Sewing Machine Operators,exact,Machine Operator,2
+bac9f10d-78eb-4c04-9e5c-9282cc1d5cfa,Machine Operator (EG),manufacturing_production,manufacturing,51-6031.00,Sewing Machine Operators,segment,Machine Operator,2
+946b1c6d-9602-49c2-9e41-76a8da8db0fa,Machine Operator EG,manufacturing_production,manufacturing,17-3026.00,Industrial Engineering Technologists and Technicians,fuzzy,Machine Operator,3
+3a75ea17-6605-4f4e-b509-66aae014e53a,Machine Repair - Sharonville Transmission Plant (STP),diesel_service_and_technology,transportation,49-9043.00,"Maintenance Workers, Machinery",fuzzy,Machine Repair Journeyman,3
+469a3a00-f90b-41f2-88af-6326ffd01c47,Machinist,manufacturing_production,manufacturing,51-4041.00,Machinists,exact,Machinists,3
+5ed09f56-d309-4c8d-9513-b28283aba939,Machinist,cnc_machining,manufacturing,51-4041.00,Machinists,exact,Machinists,3
+85547dfc-20d4-49a4-8852-f7011fd82128,Machinist,manufacturing_production,manufacturing,51-4041.00,Machinists,exact,Machinists,3
+acc8ba1f-b40a-40d5-bff8-d3513f34e44c,Machinist,manufacturing_production,manufacturing,51-4041.00,Machinists,exact,Machinists,3
+cfe7de4b-71d6-480c-899f-eec9bdab2433,Machinist,manufacturing_production,manufacturing,51-4041.00,Machinists,exact,Machinists,3
+8e1eb9a8-1dea-4839-8b5b-98dcc8d257e9,Machinist I,cnc_machining,manufacturing,51-4041.00,Machinists,exact,Machinists,3
+dd71b653-9c6e-45ea-aa39-2d56dbec3e22,Machinist I (01B) 2nd Shift,cnc_machining,manufacturing,51-4041.00,Machinists,segment,Machinists,3
+e63f5db1-a69e-4670-8762-ed320553bd74,Machinist I (01B)3rd Shift,cnc_machining,manufacturing,51-4041.00,Machinists,segment,Machinists,3
+ae1d8f21-e897-4bcf-b23c-9918b12f97e6,Machinist II (01A) - 2nd Shift,cnc_machining,manufacturing,51-4041.00,Machinists,segment,Machinists,3
+1f8c4c40-bcc3-40de-bca3-30b39d1afb00,Machinist II (01A) - 3rd Shift,cnc_machining,manufacturing,51-4041.00,Machinists,segment,Machinists,3
+6b9a3e23-f7c4-4e3b-b4d4-aa5f5d94dca0,Machinist III (01X) - 2nd Shift,cnc_machining,manufacturing,51-4041.00,Machinists,segment,Machinists,3
+89df45e5-c82d-4244-baf4-e5d44f8d835b,Machinist III (01X) - 3rd Shift,cnc_machining,manufacturing,51-4041.00,Machinists,segment,Machinists,3
+9a84407e-f0dc-4064-b9ab-30239642ca85,Machinist Internship,cnc_machining,manufacturing,,,unmapped,,
+3a49304e-d302-4423-a97a-4f65ef8ac44d,Machinist millwright,industrial_maintenance,manufacturing,,,unmapped,,
+6e78ea01-ce66-438f-a6d6-5ab830a73a18,Machinist Technician Technology Program-1,manufacturing_production,manufacturing,,,unmapped,,
+c6ce784e-6396-4494-ae57-c834e399e5aa,Maintenance Apprentice Program,industrial_maintenance,manufacturing,49-9098.00,"Helpers--Installation, Maintenance, and Repair Workers",fuzzy,Maintenance Apprentice,2
+d7490035-d141-4f2e-980c-b52fa59d9e60,Maintenance Controls Technician - 2nd Shift,manufacturing_production,manufacturing,49-9012.00,"Control and Valve Installers and Repairers, Except Mechanical Door",fuzzy,Maintenance Controls Tech (Maintenance Controls Technician),3
+43efe36f-3554-41ce-95ba-97a82b22e228,Maintenance Coordinator (1st shift),industrial_maintenance,manufacturing,49-1011.00,"First-Line Supervisors of Mechanics, Installers, and Repairers",exact,Maintenance Coordinator,3
+707c18e2-5cba-4985-8dd6-26b3a8a60a95,Maintenance Mechanic,industrial_maintenance,manufacturing,49-9041.00,Industrial Machinery Mechanics,exact,Maintenance Mechanic,3
+12d79f0f-ebcc-4b37-a32c-58bcf2b4488e,Maintenance MRP Technician,industrial_maintenance,manufacturing,17-3028.00,Calibration Technologists and Technicians,fuzzy,Maintenance Technician,3
+3543d678-7d84-466c-a795-27d46dd31025,Maintenance Operations Leader- 3rd Shift,industrial_maintenance,manufacturing,,,unmapped,,
+07edc919-495e-438c-ac83-add8e0e2b555,Maintenance Supervisor,manufacturing_production,manufacturing,37-1011.00,First-Line Supervisors of Housekeeping and Janitorial Workers,exact,Maintenance Supervisor,2
+25de125a-4630-49b7-ac19-162f9fa57822,Maintenance Supervisor,industrial_maintenance,manufacturing,37-1011.00,First-Line Supervisors of Housekeeping and Janitorial Workers,exact,Maintenance Supervisor,2
+2d5e7579-3bcc-47b8-9cd5-c557a79a9e36,Maintenance Supervisor,industrial_maintenance,manufacturing,37-1011.00,First-Line Supervisors of Housekeeping and Janitorial Workers,exact,Maintenance Supervisor,2
+d337219b-29ad-4ef9-9f60-e71109547332,Maintenance Supervisor,industrial_maintenance,manufacturing,37-1011.00,First-Line Supervisors of Housekeeping and Janitorial Workers,exact,Maintenance Supervisor,2
+61d4f9b5-38a7-4acf-9110-25207495d0c1,Maintenance Supervisor - Body,industrial_maintenance,manufacturing,37-1011.00,First-Line Supervisors of Housekeeping and Janitorial Workers,segment,Maintenance Supervisor,2
+6b245f2c-7c1e-45f9-a2d4-f61cdd355178,Maintenance Supervisor - Final,industrial_maintenance,manufacturing,37-1011.00,First-Line Supervisors of Housekeeping and Janitorial Workers,segment,Maintenance Supervisor,2
+7dc62689-b85c-4ff1-ae51-210e0fa73130,Maintenance Supervisor (LAP),industrial_maintenance,manufacturing,37-1011.00,First-Line Supervisors of Housekeeping and Janitorial Workers,segment,Maintenance Supervisor,2
+fabc3bd0-ec1e-4ae2-b0fd-b25eb0d4bc18,Maintenance Supervisor (LAP),industrial_maintenance,manufacturing,37-1011.00,First-Line Supervisors of Housekeeping and Janitorial Workers,segment,Maintenance Supervisor,2
+316e694b-2d00-4e11-86ec-9b200cf46722,"Maintenance Supervisor, Ford Energy",industrial_maintenance,manufacturing,37-1011.00,First-Line Supervisors of Housekeeping and Janitorial Workers,segment,Maintenance Supervisor,2
+1d179141-31e6-45b1-a88f-0fd8ced76149,Maintenance Tech,manufacturing_production,manufacturing,49-9043.00,"Maintenance Workers, Machinery",exact,Maintenance Tech,3
+e8b58014-cc65-414d-ab0b-8062410440d3,Maintenance Technician,industrial_maintenance,manufacturing,17-3028.00,Calibration Technologists and Technicians,exact,Maintenance Technician,3
+681a2d8f-6083-4131-8b65-00cc8d091134,Maintenance Technician - 2nd Shift,manufacturing_production,manufacturing,17-3028.00,Calibration Technologists and Technicians,exact,Maintenance Technician,3
+be70df40-a096-4d7d-9bbb-2a10ee77e492,Maintenance Technician - 2nd Shift,manufacturing_production,manufacturing,17-3028.00,Calibration Technologists and Technicians,exact,Maintenance Technician,3
+422979a5-8421-45f7-b673-73c9847f27e1,Maintenance Technician - Electrical,manufacturing_production,manufacturing,17-3028.00,Calibration Technologists and Technicians,segment,Maintenance Technician,3
+f2ec390d-7377-404a-be4c-2e1efe94e0e2,Maintenance Technician 1,industrial_maintenance,manufacturing,17-3028.00,Calibration Technologists and Technicians,exact,Maintenance Technician,3
+29fe63ed-31ca-4f5d-b7af-e26ca7020a40,Maintenance Utility,utility_public_works,public_safety,47-1011.00,First-Line Supervisors of Construction Trades and Extraction Workers,fuzzy,Utilities and Maintenance Supervisor,3
+6de8fc4b-e7c7-435e-be6f-02e221973161,Major Corrective Upgrades - Universal Fleet Solutions,utility_public_works,public_safety,,,unmapped,,
+6ada568d-35ad-46fc-ade6-6419f17c72ec,Manual Machinist,cnc_machining,manufacturing,51-4041.00,Machinists,exact,Manual Machinist,3
+abb0d5f2-47b2-4d88-99e3-319caef8a27c,Manufacturing Cell Lead (2nd Shift),electrical,construction,,,unmapped,,
+99e40dc0-e6ce-4064-b49c-71c31ff0339d,Manufacturing Electrical Quality Inspector,manufacturing_production,manufacturing,,,unmapped,,
+b8e4e2b1-efb4-42dd-aa1e-50ffc53a0530,Manufacturing Floor Trainer - 2nd shift,manufacturing_production,manufacturing,,,unmapped,,
+0530729d-14c9-4119-8c56-fbba93361d08,Manufacturing Industrial Eng.,manufacturing_production,manufacturing,,,unmapped,,
+27d08553-9551-49db-a413-13baa2f8a47e,Manufacturing Operator - Tube Reducer Operator,manufacturing_production,manufacturing,51-4022.00,"Forging Machine Setters, Operators, and Tenders, Metal and Plastic",segment,Manufacturing Operator,2
+948e9a68-c215-48fc-93ed-527b3abcf89a,Manufacturing Operator - Tube Reducer Operator 2nd Shift,manufacturing_production,manufacturing,51-4022.00,"Forging Machine Setters, Operators, and Tenders, Metal and Plastic",segment,Manufacturing Operator,2
+072cc266-217c-40fc-acff-f360b0c187b9,Manufacturing Process Operator (04A) - 2nd Shift,manufacturing_production,manufacturing,51-3091.00,"Food and Tobacco Roasting, Baking, and Drying Machine Operators and Tenders",fuzzy,Manufacturing Operator,2
+cdca01e3-7a37-47eb-8604-ebb02c34cbac,Manufacturing Process Operator (04A)- 3rd Shift,manufacturing_production,manufacturing,51-3091.00,"Food and Tobacco Roasting, Baking, and Drying Machine Operators and Tenders",fuzzy,Manufacturing Operator,2
+448902d4-ecd0-407a-9324-0d25a3278e02,Manufacturing Production Worker,manufacturing_production,manufacturing,47-2031.00,Carpenters,fuzzy,Production Worker,2
+df73ef56-a006-40de-ba19-b61ebe2c0704,Manufacturing Production Worker,manufacturing_production,manufacturing,47-2031.00,Carpenters,fuzzy,Production Worker,2
+ee77e28f-dc40-4a0f-92eb-f49562febe70,Manufacturing Production Worker,manufacturing_production,manufacturing,47-2031.00,Carpenters,fuzzy,Production Worker,2
+8deeeb3d-92fc-47ac-8e29-fe2a75bb6040,Manufacturing Specialist - Material Plan & Execution,manufacturing_production,manufacturing,17-2112.03,Manufacturing Engineers,segment,Manufacturing Specialist,4
+c8ff183e-b7c4-462d-b0bf-9c24531b8be7,Manufacturing Specialist - Material Plan & Execution,manufacturing_production,manufacturing,17-2112.03,Manufacturing Engineers,segment,Manufacturing Specialist,4
+55490dcc-32b4-43d5-b939-a12e5ffabec4,Manufacturing Specialist 2 - Prod Process and Equip,manufacturing_production,manufacturing,17-2112.03,Manufacturing Engineers,segment,Manufacturing Specialist,4
+62f3b0bb-6cd8-4cd3-864f-15b08ca51f21,Material Associate - Forklift,other_transportation,transportation,31-9093.00,Medical Equipment Preparers,fuzzy,Material Reprocessing Associate,2
+a1dbb357-f460-497f-96bf-a8d626c63e03,Material Associate - Forklift,other_transportation,transportation,31-9093.00,Medical Equipment Preparers,fuzzy,Material Reprocessing Associate,2
+c9c9ebb3-c97d-4e9c-9c07-b8310711658f,Material Associate - Forklift,other_transportation,transportation,31-9093.00,Medical Equipment Preparers,fuzzy,Material Reprocessing Associate,2
+d0b0e169-40e4-4c45-8014-929752ae3bac,Material Associate - Forklift,other_transportation,transportation,31-9093.00,Medical Equipment Preparers,fuzzy,Material Reprocessing Associate,2
+f2b4640e-aa67-44b1-ad57-4fe9cd442721,Material Associate - Forklift,other_transportation,transportation,31-9093.00,Medical Equipment Preparers,fuzzy,Material Reprocessing Associate,2
+cca75149-bc2d-4a94-b2f0-ee9c0924cede,Material Associate I,other_transportation,transportation,31-9093.00,Medical Equipment Preparers,fuzzy,Material Reprocessing Associate,2
+016d47a9-76ee-451b-9fc4-3bcff80c0d91,Material Associate II,other_transportation,transportation,31-9093.00,Medical Equipment Preparers,fuzzy,Material Reprocessing Associate,2
+58528afd-ec4d-4edd-aa88-25dfc251c92b,Material Associate II,other_transportation,transportation,31-9093.00,Medical Equipment Preparers,fuzzy,Material Reprocessing Associate,2
+8b51ed84-1844-47ec-92f6-6de91249d136,Material Associate II,other_transportation,transportation,31-9093.00,Medical Equipment Preparers,fuzzy,Material Reprocessing Associate,2
+29bc53b6-50ef-47ed-92ae-01f317816975,"Material Control, Supplier Manufacturing Readiness, BlueOval Battery Park Michigan",other_transportation,transportation,43-5061.00,"Production, Planning, and Expediting Clerks",fuzzy,Material Control Clerk,2
+2424b17c-500d-4e6a-829a-24abcf3a4333,Material Handler,other_transportation,transportation,53-7062.00,"Laborers and Freight, Stock, and Material Movers, Hand",exact,Material Handler,2
+641ea0db-afc2-4ff9-b20d-66f8fdf21644,Material Handler,other_transportation,transportation,53-7062.00,"Laborers and Freight, Stock, and Material Movers, Hand",exact,Material Handler,2
+bc17abfe-738c-446e-b265-c2ab66dc5db5,Material Handler,other_transportation,transportation,53-7062.00,"Laborers and Freight, Stock, and Material Movers, Hand",exact,Material Handler,2
+cac6f4e9-5d6d-4832-bff4-c6cbf622ad73,Material Handler,other_transportation,transportation,53-7062.00,"Laborers and Freight, Stock, and Material Movers, Hand",exact,Material Handler,2
+d1b49e57-04bd-4944-9349-a66e8ea5dde9,Material Handler,other_transportation,transportation,53-7062.00,"Laborers and Freight, Stock, and Material Movers, Hand",exact,Material Handler,2
+e202408a-3a9b-4258-9dbe-f8dca4b0f11e,Material Handler,other_transportation,transportation,53-7062.00,"Laborers and Freight, Stock, and Material Movers, Hand",exact,Material Handler,2
+e59950c8-3322-4281-a0b4-a3cdcef0c8af,Material Handler,other_transportation,transportation,53-7062.00,"Laborers and Freight, Stock, and Material Movers, Hand",exact,Material Handler,2
+fd76b0a3-3004-4330-aab3-d4d2ab1a9b85,Material Handler - EOW,other_transportation,transportation,53-7062.00,"Laborers and Freight, Stock, and Material Movers, Hand",segment,Material Handler,2
+bd04aa5e-2928-4847-9744-1547a1ab34f1,Material Handler - Forklift / Warehouse Operator,other_transportation,transportation,53-7062.00,"Laborers and Freight, Stock, and Material Movers, Hand",segment,Material Handler,2
+33e8967a-0600-4261-b6c1-2a2a15dba147,Material Handler (EG),other_transportation,transportation,53-7062.00,"Laborers and Freight, Stock, and Material Movers, Hand",segment,Material Handler,2
+38383445-4ea0-408a-8ad8-0fc35ffdf3c6,Materials Associate I,other_transportation,transportation,31-9093.00,Medical Equipment Preparers,fuzzy,Material Reprocessing Associate,2
+d44adbb3-366f-4684-9b1c-f3f94c9b7812,Materials Associate I,other_transportation,transportation,31-9093.00,Medical Equipment Preparers,fuzzy,Material Reprocessing Associate,2
+bce1d5a0-693f-4bc2-9443-10f5a43dbbe1,Materials Associate I - Forklift Driver,other_transportation,transportation,53-7051.00,Industrial Truck and Tractor Operators,segment,Forklift Driver,2
+b77f9015-f991-4234-9933-86377a4f8d85,Materials Associate I -Forklift,other_transportation,transportation,31-9093.00,Medical Equipment Preparers,fuzzy,Material Reprocessing Associate,2
+adbf336d-5f2f-40e0-b51f-e1d3d3185609,Materials Associate II,other_transportation,transportation,31-9093.00,Medical Equipment Preparers,fuzzy,Material Reprocessing Associate,2
+88fed694-ea9b-4bfa-a0e3-7edf70bcfc1a,Materials Handler,other_transportation,transportation,53-7062.00,"Laborers and Freight, Stock, and Material Movers, Hand",exact,Material Handler,2
+0cb5ac9c-7343-4003-96a5-b4110d4dd714,Materials Handler (EG),other_transportation,transportation,53-7062.00,"Laborers and Freight, Stock, and Material Movers, Hand",segment,Material Handler,2
+a50ce27e-34e7-4a00-821d-3066412287bf,"Materials Leader (Pensacola, FL)",other_transportation,transportation,,,unmapped,,
+7393e8ff-0685-4dbe-a55b-16c1ba584d7d,MCU Field Specialist,electrical,construction,47-5071.00,"Roustabouts, Oil and Gas",fuzzy,Field Specialist,2
+e4cbacea-7f0b-4c84-bfa0-a8f95cb49b26,Mech Line Associate,manufacturing_production,manufacturing,,,unmapped,,
+81d7ffb0-f58e-4fad-ab0f-ed05dd0bd2ff,Mechanical Assembler II-2,manufacturing_production,manufacturing,51-2092.00,Team Assemblers,exact,Mechanical Assembler,2
+a7c69465-0fee-4a80-888d-54fc50edde35,"Mechanical Maintenance Team Technician, 1st Shift, BlueOval Battery Park Michigan",manufacturing_production,manufacturing,17-3027.00,Mechanical Engineering Technologists and Technicians,fuzzy,Electrical Mechanical Maintenance Technician,3
+50cbb7c0-b5b9-4fc1-937e-225bcd3acd44,"Mechanical Maintenance Team Technician, 2nd Shift, BlueOval Battery Park Michigan",manufacturing_production,manufacturing,17-3027.00,Mechanical Engineering Technologists and Technicians,fuzzy,Electrical Mechanical Maintenance Technician,3
+869ad257-f28b-4b75-9ca8-de81a0aad3e0,"Mechanical Maintenance Technician, BlueOval Battery Park Michigan- PACK",industrial_maintenance,manufacturing,17-3027.00,Mechanical Engineering Technologists and Technicians,fuzzy,Electrical Mechanical Maintenance Technician,3
+23c7f893-47ec-47e0-b0e9-54986a35a8e5,Mechanical Technician - 1st Shift,manufacturing_production,manufacturing,17-3027.00,Mechanical Engineering Technologists and Technicians,exact,Mechanical Technician,3
+547c4b45-9b92-4827-aeb8-0f80621e8fc9,Mechanical Technician - 1st Shift,manufacturing_production,manufacturing,17-3027.00,Mechanical Engineering Technologists and Technicians,exact,Mechanical Technician,3
+7f4ffdf7-4734-4a54-b26f-a3cce7cd6a1c,Mechanical Technician - 1st Shift,manufacturing_production,manufacturing,17-3027.00,Mechanical Engineering Technologists and Technicians,exact,Mechanical Technician,3
+6f479454-0363-4455-b01d-8486d520cf55,Mechanical Technician - 2nd Shift,manufacturing_production,manufacturing,17-3027.00,Mechanical Engineering Technologists and Technicians,exact,Mechanical Technician,3
+f3484692-d5b2-4c40-8bee-d6aa098de505,Metal Fabricator — Mid Level,welding_fabrication,construction,51-2041.00,Structural Metal Fabricators and Fitters,segment,Metal Fabricator,2
+6e8768d1-ab49-46fc-91cd-e8200f918eb4,"Millwright - Louisville, KY",industrial_maintenance,manufacturing,49-9044.00,Millwrights,segment,Millwrights,2
+4b3006f5-66ad-4585-88e7-5ae5901dc5e8,Moulding Technician I,utility_public_works,public_safety,,,unmapped,,
+b11b78fe-6492-4149-89ea-79565cbe561b,NDE Specialist,manufacturing_production,manufacturing,17-3029.01,Non-Destructive Testing Specialists,exact,NDE Specialist,2
+12470f9b-9d98-41ab-8667-451d2c3ce606,NDT Quality Technician,manufacturing_production,manufacturing,17-3029.01,Non-Destructive Testing Specialists,fuzzy,NDT Technician,2
+739f55b8-31f8-48dd-9973-c14d7e7c971f,Non-Destructive Test (NDT) Inspector,manufacturing_production,manufacturing,17-3029.01,Non-Destructive Testing Specialists,segment,NDT Inspector,2
+82b504fe-653b-4d51-b8cc-9a9d1a91535e,Non-Destructive Test Technician - Intermediate,manufacturing_production,manufacturing,17-3029.01,Non-Destructive Testing Specialists,fuzzy,Non-Destructive Technician,2
+7d1b89c6-93e9-49cd-857c-951227ac5526,OM&U North America Operations Leader,utility_public_works,public_safety,,,unmapped,,
+9cfa607c-78d3-42e4-94c5-c5461ed514ee,Operations Strategy & Planning Leader,utility_public_works,public_safety,,,unmapped,,
+3a17856e-d2cb-4dff-96ae-4afc9d8f4838,Operator,manufacturing_production,manufacturing,43-2021.00,Telephone Operators,exact,Operator,2
+c82ee4de-2154-4169-bd0a-f62ac3b0e8dd,Operator - EG,manufacturing_production,manufacturing,43-2021.00,Telephone Operators,segment,Operator,2
+4e50d58a-98e8-4910-958f-fe616666e410,"Operator, Assembler",manufacturing_production,manufacturing,43-2021.00,Telephone Operators,segment,Operator,2
+d88ff72f-ec5c-4672-839a-570be5748cce,"Operator, Assembler 2nd",manufacturing_production,manufacturing,43-2021.00,Telephone Operators,segment,Operator,2
+3fd6587b-d4f9-4b18-817e-183861c82e21,"Operator, Cabler I",manufacturing_production,manufacturing,43-2021.00,Telephone Operators,segment,Operator,2
+6a2fad85-24bd-4ef0-96c2-b87f6416fc5c,"Operator, Drawing I",manufacturing_production,manufacturing,43-2021.00,Telephone Operators,segment,Operator,2
+b8cfb699-55b1-4caf-ae0d-0aba1fdb74b8,"Operator, Drawing Machine",manufacturing_production,manufacturing,43-2021.00,Telephone Operators,segment,Operator,2
+a0f48650-2829-4a98-afa2-32dad686a33c,"Operator, Extruder I",manufacturing_production,manufacturing,43-2021.00,Telephone Operators,segment,Operator,2
+2f35d354-c982-4f31-b4fe-ea388c7854ae,"Operator, Extruder II",manufacturing_production,manufacturing,43-2021.00,Telephone Operators,segment,Operator,2
+609a49ef-4f83-4ef1-a315-0debfc1faa16,"Operator, Take Up I",manufacturing_production,manufacturing,43-2021.00,Telephone Operators,segment,Operator,2
+97e3ae11-f613-41dd-adca-c8d1e4d5cdaa,"Operator, Take Up I",manufacturing_production,manufacturing,43-2021.00,Telephone Operators,segment,Operator,2
+398093d8-ae6f-4f25-9dcc-70d9052d9b05,"Operator, Take Up II",manufacturing_production,manufacturing,43-2021.00,Telephone Operators,segment,Operator,2
+5b6bb378-beb6-4240-967f-1427ac76c964,"Operator, Take Up II",manufacturing_production,manufacturing,43-2021.00,Telephone Operators,segment,Operator,2
+3e43d7c9-7084-4ffc-9cc4-26453e4b724f,"Operator, Take Up III",manufacturing_production,manufacturing,43-2021.00,Telephone Operators,segment,Operator,2
+43bcc0fb-b9b4-4bb0-9930-0bc29dee7a7f,"Operator, Take Up III",manufacturing_production,manufacturing,43-2021.00,Telephone Operators,segment,Operator,2
+9a7f680b-45ef-4a21-ba6d-2e97018d6b8d,"Operator, Take Up III",manufacturing_production,manufacturing,43-2021.00,Telephone Operators,segment,Operator,2
+eb3167c4-8577-459e-a498-aa9657be0d85,"Operator, Take Up III",manufacturing_production,manufacturing,43-2021.00,Telephone Operators,segment,Operator,2
+6b516d60-f9b8-449c-a7f4-b4a140372932,Order Filler,other_transportation,transportation,53-7065.00,Stockers and Order Fillers,exact,Order Filler,2
+0277c885-c241-4da9-af0b-f4caeecf0de4,"Plant Medical Leader, Occupational Safety",health_information,healthcare,,,unmapped,,
+9196c650-61af-4587-a628-9860eee65ea2,Plumber & Steamfitter (3rd shift),plumbing,construction,47-2152.00,"Plumbers, Pipefitters, and Steamfitters",fuzzy,"Plumbers, Pipefitters, and Steamfitters",3
+50419168-208e-49af-96ca-cd66ea575764,Plumber-Pipefitter - Lima Engine Plant (LEP),plumbing,construction,47-2152.00,"Plumbers, Pipefitters, and Steamfitters",fuzzy,"Plumbers, Pipefitters, and Steamfitters",3
+8289f495-863f-4244-af82-0f40d2122358,Powerline Technician - Lineman - Underground,electrical,construction,47-2111.00,Electricians,segment,Lineman,3
+bd268896-52be-4f43-befb-771da31db6f1,"Process Coach, Warehouse",manufacturing_production,manufacturing,,,unmapped,,
+5df6d745-0035-40b2-bfa2-fa8146d6d70f,Production Associate I,manufacturing_production,manufacturing,43-5061.00,"Production, Planning, and Expediting Clerks",exact,Production Associate,2
+7b1d875d-b6c3-4925-95ed-7a670c6fdc86,Production Associate I,manufacturing_production,manufacturing,43-5061.00,"Production, Planning, and Expediting Clerks",exact,Production Associate,2
+9d5ecadd-ba6b-40d6-aec3-0f13b3ac2c5c,Production Associate II,manufacturing_production,manufacturing,43-5061.00,"Production, Planning, and Expediting Clerks",exact,Production Associate,2
+c224681b-3790-4e13-b914-9060d0b4e134,Production Associate II,manufacturing_production,manufacturing,43-5061.00,"Production, Planning, and Expediting Clerks",exact,Production Associate,2
+06d7f762-11f0-4694-9f46-29ef592e33eb,Production Associate II - Tie In,manufacturing_production,manufacturing,43-5061.00,"Production, Planning, and Expediting Clerks",segment,Production Associate,2
+3ea5bd5f-9038-41a0-8dca-a269f086b040,Production Associate II - Tie In,manufacturing_production,manufacturing,43-5061.00,"Production, Planning, and Expediting Clerks",segment,Production Associate,2
+a9a26a87-f5b1-4ae2-a800-34bc186f7ea0,Production Associate II - Tie In,manufacturing_production,manufacturing,43-5061.00,"Production, Planning, and Expediting Clerks",segment,Production Associate,2
+e4b60a93-0536-4203-bb62-e5e71fae5c7e,Production Associate II - Tie In,manufacturing_production,manufacturing,43-5061.00,"Production, Planning, and Expediting Clerks",segment,Production Associate,2
+c6512cad-5fd5-4941-81b7-ed820479ca13,Production Electrical Tester Technician (2nd shift),electrical,construction,,,unmapped,,
+fabbe16d-dbde-49e2-9b5d-01ba81a3c67e,Production Maintenance Technician (2nd shift),industrial_maintenance,manufacturing,17-3028.00,Calibration Technologists and Technicians,fuzzy,Maintenance Technician,3
+8e06db2f-46d1-4c95-9260-54d0d5bf7939,Production Operator,manufacturing_production,manufacturing,51-8091.00,Chemical Plant and System Operators,exact,Production Operator,2
+483b8638-f5a4-403f-a6fb-ac84e743f949,"Production Operator, 1st Shift, BlueOval Battery Park Michigan- PACK",manufacturing_production,manufacturing,51-8091.00,Chemical Plant and System Operators,segment,Production Operator,2
+11489863-7037-41fc-84a5-3468bd5f687a,Production Supervisor,manufacturing_production,manufacturing,51-1011.00,First-Line Supervisors of Production and Operating Workers,exact,Production Shift Supervisor,3
+2a6a4d3c-7f8b-465e-9605-938d6c29b5d7,Production Supervisor,manufacturing_production,manufacturing,51-1011.00,First-Line Supervisors of Production and Operating Workers,exact,Production Shift Supervisor,3
+4492c063-93b4-476e-8be4-293417437541,Production Supervisor,manufacturing_production,manufacturing,51-1011.00,First-Line Supervisors of Production and Operating Workers,exact,Production Shift Supervisor,3
+b5b6b5b4-3921-41fb-986d-88d5fc423361,Production Supervisor,manufacturing_production,manufacturing,51-1011.00,First-Line Supervisors of Production and Operating Workers,exact,Production Shift Supervisor,3
+ced66e0d-fea0-4c45-a6b0-03b0c7d3993c,Production Supervisor,manufacturing_production,manufacturing,51-1011.00,First-Line Supervisors of Production and Operating Workers,exact,Production Shift Supervisor,3
+e2050c84-029f-4b5f-809b-b37b50af9fce,Production Supervisor,manufacturing_production,manufacturing,51-1011.00,First-Line Supervisors of Production and Operating Workers,exact,Production Shift Supervisor,3
+fd6072e7-8de8-4801-885e-851452d82603,Production Supervisor,manufacturing_production,manufacturing,51-1011.00,First-Line Supervisors of Production and Operating Workers,exact,Production Shift Supervisor,3
+0f2e9a03-1ea0-4f1a-a309-509ea7d66039,Production Supervisor - KTP,manufacturing_production,manufacturing,51-1011.00,First-Line Supervisors of Production and Operating Workers,segment,Production Shift Supervisor,3
+a302dbe8-8fd6-454f-8d14-d14b8ca0f3b5,Production Supervisor - Press,manufacturing_production,manufacturing,51-1011.00,First-Line Supervisors of Production and Operating Workers,segment,Production Shift Supervisor,3
+a49d9998-013c-4928-9129-41cbea53864c,Production Supervisor - Stamping,manufacturing_production,manufacturing,51-1011.00,First-Line Supervisors of Production and Operating Workers,segment,Production Shift Supervisor,3
+642c682e-28a2-490c-874d-19c271a0c901,Production Supervisor Tool & Die,cnc_machining,manufacturing,51-1011.00,First-Line Supervisors of Production and Operating Workers,fuzzy,Tool and Die Supervisor,3
+4414b5aa-aabb-493c-a00a-89cc31406055,Production Supervisor-MP&L,manufacturing_production,manufacturing,,,unmapped,,
+9108d496-7335-4a96-81cd-fdb4b3efe375,Production Supervisor-MP&L,manufacturing_production,manufacturing,,,unmapped,,
+963dbd5a-01af-4731-96bc-b726d5ba1a91,Production Supervisor-MP&L,manufacturing_production,manufacturing,,,unmapped,,
+b62d19b7-7898-4107-a36f-635471ad6d5e,Production Supervisor-MP&L,manufacturing_production,manufacturing,,,unmapped,,
+31a240c0-2a46-4f11-9d77-f57c54bb3755,Production Supervisor-Tool & Die,manufacturing_production,manufacturing,51-1011.00,First-Line Supervisors of Production and Operating Workers,fuzzy,Tool and Die Supervisor,3
+997010bc-38dc-46ab-9c20-4a03995aa00a,"Production Supervisor, Battery Pack Assembly, BlueOval Battery Park Michigan",manufacturing_production,manufacturing,51-1011.00,First-Line Supervisors of Production and Operating Workers,segment,Production Shift Supervisor,3
+b96e2a07-90b6-4f1f-a8ea-5960d738990a,"Production Supervisor, Ford Energy",manufacturing_production,manufacturing,51-1011.00,First-Line Supervisors of Production and Operating Workers,segment,Production Shift Supervisor,3
+243c5341-c676-4d8f-bb80-879722a9b33e,Production Technician,manufacturing_production,manufacturing,27-4012.00,Broadcast Technicians,exact,Production Technician,3
+2713d0f9-14c5-40f6-b6d4-8c648816908e,Production Technician,manufacturing_production,manufacturing,27-4012.00,Broadcast Technicians,exact,Production Technician,3
+80d7c5af-e2ff-498a-a3ed-bde0edb19b2b,Production Technician,manufacturing_production,manufacturing,27-4012.00,Broadcast Technicians,exact,Production Technician,3
+a13be123-eb50-4199-a222-ab6c7cee8502,Production Technician,manufacturing_production,manufacturing,27-4012.00,Broadcast Technicians,exact,Production Technician,3
+a2db9942-94b5-4f01-a5a2-61dee26618be,Production Technician,manufacturing_production,manufacturing,27-4012.00,Broadcast Technicians,exact,Production Technician,3
+d4217303-4874-4b65-8c4f-23b62efe1802,Production Technician,manufacturing_production,manufacturing,27-4012.00,Broadcast Technicians,exact,Production Technician,3
+ff130393-5827-4156-ba91-3d44cea084bc,Production Technician,manufacturing_production,manufacturing,27-4012.00,Broadcast Technicians,exact,Production Technician,3
+e912fb03-375c-4f0b-8e45-12c1bd7e1fe3,Production Technician/Maintenance Technician - Daily OT,industrial_maintenance,manufacturing,27-4012.00,Broadcast Technicians,segment,Production Technician,3
+d215a615-70e9-43bc-b4c6-0ce9a7d285c7,Production/Maintenance Technician,industrial_maintenance,manufacturing,17-3028.00,Calibration Technologists and Technicians,segment,Maintenance Technician,3
+36d90352-3495-4596-baab-cac679b8a62e,Project Management - Building Automation,hvac_r,construction,13-1111.00,Management Analysts,fuzzy,Project Management Analyst,4
+fbad6e95-e753-4187-80c6-cd2ba0f982cd,Qaulity Assurance Technician-3rd Shift,diesel_service_and_technology,transportation,,,unmapped,,
+6cb49668-5811-485b-afb7-812cf027447d,Quality Assurance Operator – Liquid Penetrant and Magnetic Particle (08A) - 1st Shift,manufacturing_production,manufacturing,51-9061.00,"Inspectors, Testers, Sorters, Samplers, and Weighers",fuzzy,Magnetic Particle and Penetrant Inspector,2
+a605b0c1-c4a7-4137-b387-80097a27bb01,Quality Assurance Operator – Liquid Penetrant and Magnetic Particle (08A) - 2nd Shift,manufacturing_production,manufacturing,51-9061.00,"Inspectors, Testers, Sorters, Samplers, and Weighers",fuzzy,Magnetic Particle and Penetrant Inspector,2
+07cee1b0-1236-46d1-9990-9811891dfa85,Quality Control Inspector,manufacturing_production,manufacturing,53-6051.01,Aviation Inspectors,exact,Quality Control Inspector,3
+da2bbe3a-6511-49c9-a9e3-f6d92626b38a,Quality Control Technician,manufacturing_production,manufacturing,19-4099.01,Quality Control Analysts,exact,Quality Control Technician,3
+b8dffeb8-c0f8-4705-8105-4ce440b90920,Quality Inspector,manufacturing_production,manufacturing,45-2011.00,Agricultural Inspectors,exact,Quality Inspector,2
+c1d4d2f3-bf84-43c9-9fdf-a63dee938ec1,Quality Inspector,manufacturing_production,manufacturing,45-2011.00,Agricultural Inspectors,exact,Quality Inspector,2
+cc8866c0-fd8c-4ec4-8c76-6d222ef7b305,Quality Inspector,manufacturing_production,manufacturing,45-2011.00,Agricultural Inspectors,exact,Quality Inspector,2
+f11111cd-0177-4bbc-a032-82cde1e21e4c,Quality Inspector,manufacturing_production,manufacturing,45-2011.00,Agricultural Inspectors,exact,Quality Inspector,2
+31d4ed44-8500-44fe-8e98-8926fa2dc95a,Quality Technician - 2nd Shift,manufacturing_production,manufacturing,17-3025.00,Environmental Engineering Technologists and Technicians,exact,Quality Technician,4
+a739d570-4a41-4688-a355-cfa5fc8a8192,Quality Technician - 3rd Shift,manufacturing_production,manufacturing,17-3025.00,Environmental Engineering Technologists and Technicians,exact,Quality Technician,4
+9bab5072-d87d-4541-9507-d697a186eb18,Quality Test Technician - 2nd Shift,manufacturing_production,manufacturing,17-3025.00,Environmental Engineering Technologists and Technicians,fuzzy,Quality Technician,4
+4b18eef4-e1ad-4964-ae31-c6a81b5c5325,"Radiation Protection Monitor, 1st Shift",laboratory_technician,healthcare,19-4051.02,Nuclear Monitoring Technicians,exact,Radiation Protection Monitor,3
+2815b44e-d2c8-4e28-8d97-62127318d2bd,Residential Electrician,electrical,construction,47-2111.00,Electricians,exact,Residential Electrician,3
+0821dd9d-2c37-4ef1-a771-a4678618760c,Security Technician,industrial_maintenance,manufacturing,49-2098.00,Security and Fire Alarm Systems Installers,exact,Security Technician,3
+498800b6-1a4c-458b-8a9a-c1277fe8f90e,Senior Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+b9112c8c-6881-4ed1-8e11-5631d7599fd3,Senior Field Service Representative,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,exact,Field Service Representative,2
+0e060305-3484-4e9b-8534-17faf0240369,Senior Field Service Representative - PCS Traveling Team,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+f17a4e7b-46ee-491f-8824-12fc01486111,Senior Maintenance Supervisor - Final,industrial_maintenance,manufacturing,37-1011.00,First-Line Supervisors of Housekeeping and Janitorial Workers,segment,Maintenance Supervisor,2
+0a6d15de-d4b0-43c3-9dd2-760048df81dc,Senior Product Line Leader – Modularization Deployment Leader,manufacturing_production,manufacturing,51-2099.00,"Assemblers and Fabricators, All Other",fuzzy,Line Leader,
+056def6b-3eb3-4e81-a347-68d1bbd26fe1,Senior Production Supervisor,manufacturing_production,manufacturing,51-1011.00,First-Line Supervisors of Production and Operating Workers,exact,Production Shift Supervisor,3
+43f62f54-0c4b-4f56-bb6a-a191d58f6bd1,Senior Production Supervisor,manufacturing_production,manufacturing,51-1011.00,First-Line Supervisors of Production and Operating Workers,exact,Production Shift Supervisor,3
+54d7f388-3ecd-4e19-b6be-8074ea54088e,Senior Production Supervisor,manufacturing_production,manufacturing,51-1011.00,First-Line Supervisors of Production and Operating Workers,exact,Production Shift Supervisor,3
+91ee053a-8c46-40ec-a446-31562e00f2c8,Senior Production Supervisor - Quality,manufacturing_production,manufacturing,51-1011.00,First-Line Supervisors of Production and Operating Workers,segment,Production Shift Supervisor,3
+93500bb6-2885-4404-b0f7-98281559410b,Senior Service Representative  - Greenville,electrical,construction,43-4051.00,Customer Service Representatives,segment,Service Representative,2
+1b9ed2b2-935b-4206-bfbf-4db434592e5a,Senior Service Representative II,electrical,construction,43-4051.00,Customer Service Representatives,exact,Service Representative,2
+ffffc65a-4f52-4bf5-91ea-21816a3e18b9,"Senior Wind Hub Technician - TX 16 (Hereford, TX Area)",utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+563a8f9d-7f30-4dca-bd55-6a4061bc729f,"Senior Wind Hub Technician - TX 3 (Midland/Odessa, TX Area)",transmission_linework,energy,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+9821b1ad-6a58-4dc4-890f-7477598a2094,"Senior Wind Hub Technician - TX10 (Lubbock, TX)",utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+8b25de78-0435-4804-b5bf-c0cff1fef4a8,"Senior Wind Hub Technician -TX12 (Lubbock, TX)",utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+65409fae-06f0-4f38-9600-1162f2532ecd,Senior Wind Hub Technician-2,utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+0cf3e86d-7b7b-49b5-b0e7-95f732a9356b,Service Representative - ASCO - Miami,electrical,construction,43-4051.00,Customer Service Representatives,segment,Service Representative,2
+d6ce56c8-37c1-4825-9f1c-6a380cc955c6,Service Representative - ASCO - Tallahassee,electrical,construction,43-4051.00,Customer Service Representatives,segment,Service Representative,2
+53f24894-9291-47ae-8284-33c3ab646baa,Service Specialist II,building_automation_controls,construction,43-4141.00,New Accounts Clerks,fuzzy,Branch Service Specialist,3
+1e72dc62-7ddd-4695-957c-6f80b26e85ac,"Service Specialist III, BMS",hvac_r,construction,43-4141.00,New Accounts Clerks,fuzzy,Branch Service Specialist,3
+218a9d58-d339-45f2-af11-32bb02bfa7e8,Shipping and Receiving Specialist 2nd Shift (Forrester Rd),other_transportation,transportation,53-7065.00,Stockers and Order Fillers,fuzzy,Receiving Specialist,2
+e8c1fde2-f52e-42b8-bb84-a9211f353ce2,Shipping/Receiving Associate,other_transportation,transportation,43-5071.00,"Shipping, Receiving, and Inventory Clerks",segment,Receiving Associate,2
+58af2083-f253-4230-831e-628f976d36be,Site Superintendent I,hvac_r,construction,47-1011.00,First-Line Supervisors of Construction Trades and Extraction Workers,exact,Site Superintendent,3
+7458acc1-8158-469c-94df-04b2c65eb8f9,Site Superintendent II,hvac_r,construction,47-1011.00,First-Line Supervisors of Construction Trades and Extraction Workers,exact,Site Superintendent,3
+8ec4f85c-539e-445f-947b-1af33a8ef07a,Site Technical Trainer,diesel_service_and_technology,transportation,13-1151.00,Training and Development Specialists,fuzzy,Technical Trainer,4
+ba6e697f-67ca-4423-b110-63aa28c147fd,Site Technical Trainer,diesel_service_and_technology,transportation,13-1151.00,Training and Development Specialists,fuzzy,Technical Trainer,4
+d3d370e7-d8e9-4585-9799-45ee3cdc25b4,Site Technical Trainer,diesel_service_and_technology,transportation,13-1151.00,Training and Development Specialists,fuzzy,Technical Trainer,4
+cd9cbb69-a3a0-48f1-8f46-34d4709c1c32,Skilled Trade - Electrician - Cleveland Engine Plant,electrical,construction,47-2111.00,Electricians,segment,Electricians,3
+a619a810-49bf-4f05-81dc-45d940de1a7e,"Skilled Trade - Electrician - Oakville, ON",electrical,construction,47-2111.00,Electricians,segment,Electricians,3
+cf60422c-33d2-4515-8f36-b6db1ccce389,Skilled Trade - Industrial Electrician - Buffalo Stamping Plant (BSP),electrical,construction,47-2111.00,Electricians,segment,Industrial Electrician,3
+08be9daf-1408-4629-bbf6-f12da2df6ffe,Skilled Trade - Industrial Electrician - Lima Engine Plant (LEP),electrical,construction,47-2111.00,Electricians,segment,Industrial Electrician,3
+1c5d1e72-e648-441a-aab2-5b0382a2f698,"Skilled Trade - Industrial Electrician - Louisville, KY",electrical,construction,47-2111.00,Electricians,segment,Industrial Electrician,3
+f11054e2-cab3-4cdc-998c-856f1cdf660b,Skilled Trade - Industrial Electrician - Sharonville Transmission Plant (STP),electrical,construction,47-2111.00,Electricians,segment,Industrial Electrician,3
+d2280163-4211-45d8-920a-8b9fee32a3ee,Skilled Trade - Industrial Electrician - Southeast Michigan (SE MI),electrical,construction,47-2111.00,Electricians,segment,Industrial Electrician,3
+cec1ba47-f5c5-4d63-8099-a3cf79f31629,"Skilled Trade - Industrial Truck Mechanic - Louisville, KY",automotive_ev_service,transportation,49-3031.00,Bus and Truck Mechanics and Diesel Engine Specialists,segment,Industrial Truck Mechanic,3
+df381dd7-b1d3-46bd-a037-1153c0206679,Skilled Trade - Industrial Truck Mechanic - Ohio Assembly Plant (OHAP),diesel_service_and_technology,transportation,49-3031.00,Bus and Truck Mechanics and Diesel Engine Specialists,segment,Industrial Truck Mechanic,3
+7b31bcb8-f722-42bd-8e9a-84b5c72053a7,Skilled Trade - Industrial Truck Mechanic - SE MI Locations,automotive_ev_service,transportation,49-3031.00,Bus and Truck Mechanics and Diesel Engine Specialists,segment,Industrial Truck Mechanic,3
+11fb2246-66fb-416e-8e6d-8ee5ab0e60ea,Skilled Trade - Machine Repair - Buffalo Stamping Plant,diesel_service_and_technology,transportation,49-9043.00,"Maintenance Workers, Machinery",fuzzy,Machine Repair Journeyman,3
+ae3198a8-becd-4a18-87e9-4d9c2258b5a4,Skilled Trade - Machine Repair - Cleveland Engine,diesel_service_and_technology,transportation,49-9043.00,"Maintenance Workers, Machinery",fuzzy,Machine Repair Journeyman,3
+ab528f94-679f-45c3-9684-756bba986eff,Skilled Trade - Machine Repair - Lima Engine Plant (LEP),diesel_service_and_technology,transportation,49-9043.00,"Maintenance Workers, Machinery",fuzzy,Machine Repair Journeyman,3
+868185b1-f4c6-43d2-85fb-c1a334c7c150,"Skilled Trade - Machine Repair - SE MI Locations - Dearborn, MI",diesel_service_and_technology,transportation,49-9043.00,"Maintenance Workers, Machinery",fuzzy,Machine Repair Journeyman,3
+4243e0ee-77af-4813-a09d-f2152dfe65cd,"Skilled Trade - Millwright - SE MI Locations - Dearborn, MI",manufacturing_production,manufacturing,49-9044.00,Millwrights,segment,Millwrights,2
+1f6f9611-3250-4c94-968a-df84517d2524,Skilled Trade - Plumber Pipefitter - Cleveland Engine,plumbing,construction,47-2152.00,"Plumbers, Pipefitters, and Steamfitters",fuzzy,"Plumbers, Pipefitters, and Steamfitters",3
+ed5cf9e0-ac7a-4c45-b4f7-166e2654bccc,Skilled Trade - Plumber Pipefitter - Kansas City Assembly Plant,plumbing,construction,47-2152.00,"Plumbers, Pipefitters, and Steamfitters",fuzzy,"Plumbers, Pipefitters, and Steamfitters",3
+2b3eb35d-e87d-4e89-a59d-8a0ec8b2dc83,Skilled Trade - Plumber Pipefitter - SE Michigan Locations,plumbing,construction,47-2152.00,"Plumbers, Pipefitters, and Steamfitters",fuzzy,"Plumbers, Pipefitters, and Steamfitters",3
+84f3c267-5905-4edd-a010-6ce086c45064,Skilled Trade - Plumber Pipefitter - Sharonville Transmission Plant,plumbing,construction,47-2152.00,"Plumbers, Pipefitters, and Steamfitters",fuzzy,"Plumbers, Pipefitters, and Steamfitters",3
+17a1544c-e07d-4710-bf82-82eb184f5801,"Skilled Trade - Plumber-Pipefitter - Louisville, KY",plumbing,construction,47-2152.00,"Plumbers, Pipefitters, and Steamfitters",fuzzy,"Plumbers, Pipefitters, and Steamfitters",3
+e05ff1f1-5c45-48fe-9aa7-342f0a8c086b,Skilled Trade - Refrigeration And Air Conditioning Maint. & Install. - SE MI Locations,hvac_r,construction,,,unmapped,,
+ec70c047-fe92-4d05-9c19-5bea889126ff,"Skilled Trade - Tool and Die Maker - Oakville, ON",manufacturing_production,manufacturing,51-4111.00,Tool and Die Makers,segment,Tool and Die Makers,3
+85ce5f5a-7bbd-4904-b003-208b7cd9f780,Skilled Trade - Toolmaker & Template Maker - Cleveland Engine,manufacturing_production,manufacturing,51-4061.00,"Model Makers, Metal and Plastic",fuzzy,Template Maker,3
+56c4a12c-5f60-4ba4-8101-4a69b6958cba,Skilled Trade - Welder General - SE MI Locations,welding_fabrication,construction,,,unmapped,,
+13d5c9c1-ba3f-4977-9f62-415fc8cf205f,"Skilled Trade – Industrial Mechanic Millwright - Oakville, ON",manufacturing_production,manufacturing,49-9041.00,Industrial Machinery Mechanics,fuzzy,Industrial Mechanic,3
+591b7daf-48c3-43dd-817c-0cc369d9e503,"Skilled Trade – Pipefitter/Steamfitter - Oakville, ON",plumbing,construction,47-2152.00,"Plumbers, Pipefitters, and Steamfitters",segment,Pipefitter,3
+87b33358-f5c0-4a67-8aac-6b99ceafb4e4,Skilled Trade- ELECTRICIAN- Kansas City Assembly (KCAP),electrical,construction,47-2111.00,Electricians,segment,Electricians,3
+f4f00c58-6d7b-4d0d-91a4-2ed0fce0ce07,Skilled Trade- EXPERIMENTAL PARTS & BODY PAINTER-  NMPDC,building_construction_technology,construction,,,unmapped,,
+cf8961c7-4717-474e-8717-358b6f0eaaae,Skilled Trade- MILLWRIGHT- Kansas City Assembly (KCAP),manufacturing_production,manufacturing,49-9044.00,Millwrights,segment,Millwrights,2
+52110555-78fc-45c1-ab84-769716235503,Skilled Trade- Millwright- Lima Engine Plant (LEP),manufacturing_production,manufacturing,49-9044.00,Millwrights,segment,Millwrights,2
+d9042eba-331c-46db-9206-e0216a9a5441,Skilled Trade- PLUMBER PIPEFITTER- Kansas City Assembly (KCAP),plumbing,construction,47-2152.00,"Plumbers, Pipefitters, and Steamfitters",fuzzy,"Plumbers, Pipefitters, and Steamfitters",3
+d5e56e8f-09c4-4f91-b49f-8c7f04c85557,Skilled Trade- TOOLMAKER & TEMPLATE MAKER- Kansas City Assembly (KCAP),manufacturing_production,manufacturing,51-4061.00,"Model Makers, Metal and Plastic",fuzzy,Template Maker,3
+1eb150e8-5167-4b80-a348-8c45734ae887,Skilled Trade- TOOLMAKER & TEMPLATE MAKER- Sharonville Transmission Plant (STP),manufacturing_production,manufacturing,51-4061.00,"Model Makers, Metal and Plastic",fuzzy,Template Maker,3
+523900a7-d0f5-4b5c-a8f7-8fd08297b5ce,Sr. Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+cad47a06-1721-40eb-91f1-ed5432c265f7,Sr. Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,43-4051.00,Customer Service Representatives,segment,Field Service Representative,2
+e2cadb80-86e4-4540-b25f-59d3a227cce1,"Sr. Wind Hub Technician - $7500 Sign-on Bonus- ME1- (Augusta, ME)",utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+21318881-eb6b-47ed-8936-017bedd63f9a,Stranding Helper-EG,manufacturing_production,manufacturing,,,unmapped,,
+003b4048-9b2c-4b2b-8a7c-c7f67f13d140,Supply Attendant,other_transportation,transportation,53-7065.00,Stockers and Order Fillers,fuzzy,Supply Crib Attendant,2
+2eaadf97-a8b5-44d4-87c1-275aedbcda26,Supply Attendant,other_transportation,transportation,53-7065.00,Stockers and Order Fillers,fuzzy,Supply Crib Attendant,2
+f43d6452-c824-479e-bb30-4f66091aa991,Supply Chain Industrial Performance Leader,electrical,construction,,,unmapped,,
+e4180d8c-8fab-4bd8-9db8-b4e8ee692db9,Supply Chain Performance Leader,electrical,construction,,,unmapped,,
+092dfb2b-ff27-4d1b-aa53-8719e5b2f01e,System Specialist I,building_automation_controls,construction,15-1231.00,Computer Network Support Specialists,exact,Systems Specialist,4
+91897402-de57-4dab-9099-843ecbb624b3,System Specialist I,building_automation_controls,construction,15-1231.00,Computer Network Support Specialists,exact,Systems Specialist,4
+6c0c32de-720f-468e-9db4-98fcf35d3476,System Specialist II,building_automation_controls,construction,15-1231.00,Computer Network Support Specialists,exact,Systems Specialist,4
+784960ea-8969-447d-935d-2a0e711996d6,System Specialist II,building_automation_controls,construction,15-1231.00,Computer Network Support Specialists,exact,Systems Specialist,4
+aa9c7ad9-821b-405c-8099-64057cbf133a,System Specialist II,hvac_r,construction,15-1231.00,Computer Network Support Specialists,exact,Systems Specialist,4
+bd562210-99d4-4bde-8780-2e54953bf3dd,System Specialist II,building_automation_controls,construction,15-1231.00,Computer Network Support Specialists,exact,Systems Specialist,4
+d2b5bb83-b02b-43d9-9075-87bcffd426ba,System Specialist III,building_automation_controls,construction,15-1231.00,Computer Network Support Specialists,exact,Systems Specialist,4
+95e93ef0-7f7a-4070-9620-1729495c8045,Systems Field Service Representative,industrial_maintenance,manufacturing,21-1021.00,"Child, Family, and School Social Workers",fuzzy,Field Service Representative,4
+73c15577-8c61-4e8c-9320-8d11d8918722,Systems Field Service Representative - Chicago,industrial_maintenance,manufacturing,21-1021.00,"Child, Family, and School Social Workers",fuzzy,Field Service Representative,4
+3785a516-4437-4181-a606-0de382903796,Systems Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,11-9041.00,Architectural and Engineering Managers,segment,Electrical PM,5
+56ddf8cb-876b-4e2f-987b-7323cd2bdbda,Systems Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,11-9041.00,Architectural and Engineering Managers,segment,Electrical PM,5
+c420b679-6384-40ee-954d-2bfb34207d60,Systems Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,11-9041.00,Architectural and Engineering Managers,segment,Electrical PM,5
+d569bdb9-a3b5-4980-88d1-70874db9b416,Systems Field Service Representative - Power Distribution/Electrical,industrial_maintenance,manufacturing,11-9041.00,Architectural and Engineering Managers,segment,Electrical PM,5
+c66fe826-a3ec-4623-8f14-3b8a244de0d0,"Systems Specialist II, BAS",hvac_r,construction,15-1231.00,Computer Network Support Specialists,segment,Systems Specialist,4
+d2b34f76-7d66-4bee-bcb0-269bbb7d0f75,Take-up Operator I,manufacturing_production,manufacturing,51-6064.00,"Textile Winding, Twisting, and Drawing Out Machine Setters, Operators, and Tenders",exact,Take-Up Operator,2
+94a4ab5c-f9cf-4cce-b4f5-389a4b06484c,Take-up Operator II (2nd Shift),manufacturing_production,manufacturing,51-6064.00,"Textile Winding, Twisting, and Drawing Out Machine Setters, Operators, and Tenders",exact,Take-Up Operator,2
+6b4b0f84-81b6-4cb2-af0e-ec35f5ec231d,Team Lead – Manufacturing Production (2nd shift),electrical,construction,11-3051.00,Industrial Production Managers,fuzzy,Manufacturing Production Manager,4
+b23d97c7-859f-4f29-9095-fe0b0f4d3a8f,Technical Expert - HV Battery Welding,diesel_service_and_technology,transportation,,,unmapped,,
+13929519-050a-4062-9ba6-090f94b38cdf,Technical Leader - Testing,utility_public_works,public_safety,,,unmapped,,
+34db19d2-d22c-420b-9ca4-3a0b96da2fae,"Technician, Electronic",electrical,construction,49-9081.00,Wind Turbine Service Technicians,segment,Onsite Technician,3
+a8c1078d-b1a6-475c-8824-5792622e7f23,"Technician, Electronic",electrical,construction,49-9081.00,Wind Turbine Service Technicians,segment,Onsite Technician,3
+851c107a-770c-4fff-9973-a119ce0341a3,"Technician, Electronic I",electrical,construction,49-9081.00,Wind Turbine Service Technicians,segment,Onsite Technician,3
+2af28403-0840-4df5-b7b8-36e623e72e53,"Technician, I",industrial_maintenance,manufacturing,49-9081.00,Wind Turbine Service Technicians,exact,Onsite Technician,3
+a730420e-e4a8-46e1-8c13-6398c5225a96,"Technician, Maintenance I",industrial_maintenance,manufacturing,49-9081.00,Wind Turbine Service Technicians,segment,Onsite Technician,3
+0924e833-9bce-413a-9d3f-fce2798cacd9,"Technician, Maintenance II",industrial_maintenance,manufacturing,49-9081.00,Wind Turbine Service Technicians,segment,Onsite Technician,3
+13323029-09a8-47a1-8b3b-2bf6e4f6137b,"Technician, Maintenance II",industrial_maintenance,manufacturing,49-9081.00,Wind Turbine Service Technicians,segment,Onsite Technician,3
+ad2ab5e9-7d5b-40ca-9feb-1c4fac6692f6,"Technician, Maintenance II",industrial_maintenance,manufacturing,49-9081.00,Wind Turbine Service Technicians,segment,Onsite Technician,3
+59fa4bc6-2d6d-4f9d-ad0c-111635be3aa9,"Technician, Service",hvac_r,construction,49-9081.00,Wind Turbine Service Technicians,segment,Onsite Technician,3
+9de0e890-5d96-4d2f-a179-6bb5f87f3d4c,"Technician, Service",hvac_r,construction,49-9081.00,Wind Turbine Service Technicians,segment,Onsite Technician,3
+4f42579e-3d64-4583-9ea2-03e5fc359297,Test Technician,manufacturing_production,manufacturing,17-3024.01,Robotics Technicians,exact,Test Technician,3
+548de10e-746e-4d72-b73d-943b5bfd037b,Test Technician,manufacturing_production,manufacturing,17-3024.01,Robotics Technicians,exact,Test Technician,3
+9b320047-93d4-439b-b04c-458b01bf7e88,Test Technician - 1st Shift,manufacturing_production,manufacturing,17-3024.01,Robotics Technicians,exact,Test Technician,3
+48e01f2f-235a-4b24-9de8-c6a53d95d767,Test Technician - 3rd Shift,manufacturing_production,manufacturing,17-3024.01,Robotics Technicians,exact,Test Technician,3
+ccd89b57-ab45-42c0-b283-cb96f2e62b19,Test Technician - Capacitor Voltage Transformers (2nd Shift),manufacturing_production,manufacturing,17-3024.01,Robotics Technicians,segment,Test Technician,3
+f665ba58-95ca-4e1f-948c-83cdba8b13ed,Test Technician -2nd shift,manufacturing_production,manufacturing,17-3024.01,Robotics Technicians,exact,Test Technician,3
+a7525d6d-257d-4e92-a094-335e50e60b56,Test Technician-CVT-2nd Shift,manufacturing_production,manufacturing,17-3021.00,Aerospace Engineering and Operations Technologists and Technicians,fuzzy,Test Technician,3
+1388c165-29da-4bbe-a000-c98feb94d0b8,TIG Welder-Entry (Forrester Dr. Location),welding_fabrication,construction,51-4121.00,"Welders, Cutters, Solderers, and Brazers",segment,TIG Welder,2
+e2da5f0b-c98e-43d1-9090-556f324d9ffa,TIG Welder-Entry (Forrester Dr. Location),welding_fabrication,construction,51-4121.00,"Welders, Cutters, Solderers, and Brazers",segment,TIG Welder,2
+ccecb41e-9738-4e17-af60-5bc41c457a43,Tool & Die Maker - Kansas City Assembly Plant (KCAP),cnc_machining,manufacturing,51-4111.00,Tool and Die Makers,segment,Tool and Die Makers,3
+2c073634-56d4-4b30-a743-61c902d19d36,Tool Maker,cnc_machining,manufacturing,51-4111.00,Tool and Die Makers,exact,Tool Maker,3
+977c99ef-17cb-4b5d-bc0f-0588d92a139f,Tool Room Attendant,other_transportation,transportation,53-7065.00,Stockers and Order Fillers,exact,Tool Room Attendant,2
+20c6eb5b-170a-4a62-9a6d-914ebb2d054c,Tooling & Maintenance Specialist - Night Shift,industrial_maintenance,manufacturing,37-3011.00,Landscaping and Groundskeeping Workers,fuzzy,Maintenance Specialist,2
+2478c6e7-aa62-4f07-a388-380cd540a292,Tooling Inventory Specialist – Major Correctives & Blade Services,other_transportation,transportation,43-5071.00,"Shipping, Receiving, and Inventory Clerks",fuzzy,Inventory Specialist,2
+9cab639a-ddd2-40d8-9071-7680e9e90779,Tooling Specialist,utility_public_works,public_safety,,,unmapped,,
+abbbb300-2044-44d8-b1d9-fb090a1e44a9,Tooling Specialist,utility_public_works,public_safety,,,unmapped,,
+9bc1723f-1b1e-4fec-8c93-97598a309380,Toolmaker & Template Maker - Southeast MI (SE MI),cnc_machining,manufacturing,51-4061.00,"Model Makers, Metal and Plastic",fuzzy,Template Maker,3
+9b5cc08f-d2aa-45b9-882f-a02499258f0f,Turbine Technician - 1st Shift,utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,exact,Turbine Technician,3
+18e70152-ecbf-43d0-824c-8854f620a6e6,Turbine Technician - 2nd shift,utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,exact,Turbine Technician,3
+6337191f-3415-41a5-82a2-7619f9e7e7e8,TX3 Wind Hub Technician,utility_public_works,public_safety,,,unmapped,,
+d5bd45a8-493b-4749-8be7-2dd2420f31de,Underground Lineman - DFW Texas Region,electrical,construction,,,unmapped,,
+e217ece1-37b8-428d-845d-13210bd083b9,Underground Lineman - Eastern Region,electrical,construction,,,unmapped,,
+3e894383-011b-4efb-ba73-5bbe576ed6d2,Underground Lineman - Western Region,electrical,construction,,,unmapped,,
+174ab583-2c3f-4eae-88b2-063ef266eafe,Warehouse Associate,other_transportation,transportation,51-9111.00,Packaging and Filling Machine Operators and Tenders,exact,Warehouse Associate,2
+2d12daa4-0dc4-4d64-9841-45d7fe7d7163,Warehouse Associate,other_transportation,transportation,51-9111.00,Packaging and Filling Machine Operators and Tenders,exact,Warehouse Associate,2
+4a3db3da-c217-4737-90cf-ebd81a83bb71,Warehouse Associate,other_transportation,transportation,51-9111.00,Packaging and Filling Machine Operators and Tenders,exact,Warehouse Associate,2
+c22860cc-0ce3-45d8-bf63-bb2e45b4ac9f,Warehouse Associate,other_transportation,transportation,51-9111.00,Packaging and Filling Machine Operators and Tenders,exact,Warehouse Associate,2
+418555e6-0dd3-45f7-ba3f-2eb6faca3972,Warehouse Associate (Cor),other_transportation,transportation,51-9111.00,Packaging and Filling Machine Operators and Tenders,segment,Warehouse Associate,2
+76162d86-6c3c-4ca0-8b9a-07e6ec254065,Warehouse Associate III,other_transportation,transportation,51-9111.00,Packaging and Filling Machine Operators and Tenders,exact,Warehouse Associate,2
+4a18b57e-bd29-4490-b7b8-ceedb39c3237,Warehouse Associate Manufacturing I,other_transportation,transportation,17-3026.00,Industrial Engineering Technologists and Technicians,fuzzy,Manufacturing Associate,3
+334c520d-9f9d-4ba6-b719-3ba479d79642,Warehouse Associate Manufacturing II,other_transportation,transportation,17-3026.00,Industrial Engineering Technologists and Technicians,fuzzy,Manufacturing Associate,3
+92590e54-154b-4c57-bb63-9474a07ed6f7,Warehouse Associate Manufacturing II,other_transportation,transportation,17-3026.00,Industrial Engineering Technologists and Technicians,fuzzy,Manufacturing Associate,3
+bf6b4bf7-bb1c-4622-ba58-0f138afba361,Warehouse Associate Manufacturing II,other_transportation,transportation,17-3026.00,Industrial Engineering Technologists and Technicians,fuzzy,Manufacturing Associate,3
+c5c038f7-28c1-4d3d-8c12-933878644fc1,Warehouse Associate Manufacturing II,other_transportation,transportation,17-3026.00,Industrial Engineering Technologists and Technicians,fuzzy,Manufacturing Associate,3
+93aa8682-945e-4195-a457-3465ccccd201,Warehouse Coordinator,other_transportation,transportation,53-1042.00,"First-Line Supervisors of Helpers, Laborers, and Material Movers, Hand",exact,Warehouse Coordinator,2
+4c71636d-0b48-4567-8a69-aa123d15c822,Warehouse Operator,other_transportation,transportation,53-7065.00,Stockers and Order Fillers,exact,Warehouse Operator,2
+9d716dfd-fc73-4cce-b143-ee83c923702c,Warehouse Operator (1st shift),other_transportation,transportation,53-7065.00,Stockers and Order Fillers,exact,Warehouse Operator,2
+59912a47-216a-452d-bb8b-8a4bb446c398,Warehouse Operator (2nd Shift),other_transportation,transportation,53-7065.00,Stockers and Order Fillers,exact,Warehouse Operator,2
+fc5c1942-f214-48df-971b-7037fe3e837b,Warehouse Specialist,other_transportation,transportation,53-7065.00,Stockers and Order Fillers,exact,Warehouse Specialist,2
+fd5a5798-fa31-4633-88e6-19ee7d32b26a,Warehouse Technician,other_transportation,transportation,53-7065.00,Stockers and Order Fillers,exact,Warehouse Technician,2
+d8421e2c-02d3-4f2a-a759-c2f660e15d63,Web Moulding Technician I,utility_public_works,public_safety,15-1254.00,Web Developers,fuzzy,Web Technician,3
+6e0cf920-9cdc-40a1-a692-9191c7cde9f1,Welder,welding_fabrication,construction,51-4121.00,"Welders, Cutters, Solderers, and Brazers",exact,Welder,2
+78ccb34c-cc0a-4824-854e-89a6310f83ee,Welder — Entry Level,welding_fabrication,construction,51-4121.00,"Welders, Cutters, Solderers, and Brazers",exact,Welder,2
+809a42aa-52da-4100-a76e-7765effa23c0,Welder — Entry Level,welding_fabrication,construction,51-4121.00,"Welders, Cutters, Solderers, and Brazers",exact,Welder,2
+407b9989-71f7-4145-89a1-440422fb8d02,Welder 1,welding_fabrication,construction,51-4121.00,"Welders, Cutters, Solderers, and Brazers",exact,Welder,2
+ffb3176d-c61f-4abd-8b43-242c6466eb0a,Welder- Intermediate-2,welding_fabrication,construction,51-4121.00,"Welders, Cutters, Solderers, and Brazers",segment,Welder,2
+b5a26d13-3f56-4004-8591-56c1e66fae5b,"Wind Hub Technician - CO LW (Grover, CO Area)",utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+b02f1e6a-a061-457e-bc5d-4660236b7507,"Wind Hub Technician - Idaho 1 (Idaho Falls, ID)",utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+38ba9878-ebfa-4b78-944f-2ad291b0bc6c,"Wind Hub Technician - NE 1 (Elgin, Nebraska)",utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+0ca58a9b-a419-436b-a0cf-5b5b8a9991e2,"Wind Hub Technician - NE1 (Broken Bow, Nebraska)",utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+17904ff7-a9e3-476f-a621-fc323dc9d767,Wind Hub Technician - NM (SunZia & Western Spirit),transmission_linework,energy,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+917def9b-c006-4daa-9352-b308ede17b77,"Wind Hub Technician - OK 2 (Apache, OK Area)",transmission_linework,energy,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+4a7d64eb-9602-4947-a5c5-2c6fd7e2c282,"Wind Hub Technician - Oregon 1 (Arlington, OR area)",transmission_linework,energy,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+00b33858-0b92-4260-a9df-6e40a21b95f2,"Wind Hub Technician - Sweetwater 1, 2, & 3 (Leeward, TX Area)",transmission_linework,energy,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+16e11222-e29b-4445-9c3f-0f8e8249cee4,"Wind Hub Technician - TX 10 (Amarillo, TX Area)",utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+2dea146e-18f7-4785-83de-aa6b92c60c51,"Wind Hub Technician - TX 10 (Amarillo, TX Area)",utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+ab6392af-d97d-4319-89be-b8e8ce5bc0d4,"Wind Hub Technician - TX 15 (Big Lake, TX Area)",transmission_linework,energy,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+f90ce8d3-f4a4-41eb-8984-00ecb1405158,"Wind Hub Technician - TX 16 (Hereford, TX area)",utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+442d755f-0805-4645-a3ad-0c39ed77eeb0,"Wind Hub Technician - TX1 (Abilene, TX Area)",utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+767d6749-1957-41ae-a8b3-434a061f90e5,"Wind Hub Technician -TX 12 (Lubbock, TX)",utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+fa50429c-2961-478a-83a7-61a8b676810f,"Wind Hub Technician -TX 12 (Lubbock, TX)",utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+f7e06ead-6c9c-4896-8d6e-21a8007f15f7,"Wind Hub Technician (Criterion, Maryland)",transmission_linework,energy,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+e3ab63ed-3f7f-4556-b73c-476a85ccc80d,"Wind Hub Technician TX9 (Weinert,TX)",transmission_linework,energy,,,unmapped,,
+926166ec-defd-44d0-a5f7-b61c70218eb0,"Wind Hub Technician- (Petersburg, NE)",utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+be021614-4c9f-4c2e-8b87-cff28a690128,"Wind Hub Technician- $7500 Sign-on Bonus - ND2 (Pollock, SD)",utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+3597b0bf-8594-4ceb-91bd-a973a283f208,"Wind Hub Technician- $7500 Sign-on Bonus - ND2 (Wishek, ND)",utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+5cea65d2-e262-4952-8d97-b8cffa57be87,"Wind Hub Technician- $7500 Sign-on Bonus- SD2 (Highmore, SD)",utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+956c8d70-3a53-40df-ae64-ddd26ee31f9e,"Wind Hub Technician- $7500 Sign-on Bonus- SD2 (Wessington, SD)",utility_public_works,public_safety,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+bb55c26e-fc03-4a46-a774-21fa5cbfeac6,"Wind Hub Technician- Traverse, OK",transmission_linework,energy,49-9081.00,Wind Turbine Service Technicians,fuzzy,Wind Technician,3
+db6a4f00-b1e1-470a-a28f-62dc5fe8bb10,"Wind Technician- Horse Creek (Weinert, TX)",transmission_linework,energy,49-9081.00,Wind Turbine Service Technicians,segment,Wind Technician,3
+2a15213b-899d-4856-b329-f49fa6ae12b6,Wiring Associate,manufacturing_production,manufacturing,,,unmapped,,
+7f02ac08-f3b0-4c46-92b8-4dd331e7647d,Wiring Associate,manufacturing_production,manufacturing,,,unmapped,,
+8a8d9e95-9521-4fe3-aed0-ea241ab3115d,Wiring Associate,manufacturing_production,manufacturing,,,unmapped,,
+9ad929a9-6066-4409-baf7-81d214deb199,Wiring Associate,manufacturing_production,manufacturing,,,unmapped,,
+b33c1496-cc62-463b-8758-5351bb031a00,Wiring Associate,manufacturing_production,manufacturing,,,unmapped,,
+c097f62f-195c-4b32-9e6b-c4f71d295ed6,Wiring Associate,manufacturing_production,manufacturing,,,unmapped,,
+c916aeca-94d2-4025-b270-384f697bd983,Wiring Associate,manufacturing_production,manufacturing,,,unmapped,,
+6a74db91-6fc1-4c43-85df-e507bed9755b,Wiring Technician,electrical,construction,51-2022.00,Electrical and Electronic Equipment Assemblers,exact,Wiring Technician,2
+4fe2ae1d-924f-418d-97da-a23c088f1919,Wiring Technician - 2nd Shift,electrical,construction,51-2022.00,Electrical and Electronic Equipment Assemblers,exact,Wiring Technician,2
+3e61c307-d428-4f72-9bc1-07ed93c1b394,Wiring Technician - 3rd Shift,electrical,construction,51-2022.00,Electrical and Electronic Equipment Assemblers,exact,Wiring Technician,2
+f288b685-3e77-44b0-91ea-0e835cb1905b,Wiring Technician - 3rd Shift,electrical,construction,51-2022.00,Electrical and Electronic Equipment Assemblers,exact,Wiring Technician,2
+24f6fa14-88a4-4216-a3d6-630e6181fa45,Wiring Technician-1st Shift,electrical,construction,51-2022.00,Electrical and Electronic Equipment Assemblers,exact,Wiring Technician,2
+a22d790c-c482-461c-b580-5384dc66b200,Wiring Technician-1st Shift,electrical,construction,51-2022.00,Electrical and Electronic Equipment Assemblers,exact,Wiring Technician,2

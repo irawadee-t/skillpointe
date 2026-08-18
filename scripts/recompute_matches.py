@@ -163,12 +163,16 @@ def main() -> int:
     print(f"Extracted signals: {len(app_signals_map)} applicants, {len(job_signals_map)} jobs")
     print(f"Embeddings: {len(app_embedding_map)} applicants, {len(job_embedding_map)} jobs")
 
-    # Candidate generation (--prefilter): same state + sector-plausible.
-    # 43k applicants x 400 jobs = 17M raw pairs; storing gate-fail rows at
-    # that scale is pure ballast. Sector plausibility mirrors the family
-    # gate exactly (sn_taxonomy.relate != "unrelated"), so nothing that
-    # could score above ineligible is ever skipped.
+    # Candidate generation (--prefilter): same-or-adjacent state + sector-
+    # plausible. 43k applicants x 400 jobs = 17M raw pairs; storing gate-fail
+    # rows at that scale is pure ballast. Sector plausibility mirrors the
+    # family gate exactly (sn_taxonomy.relate != "unrelated"), so nothing
+    # that could score above ineligible is ever skipped. Adjacent states are
+    # included because the geography GATE passes border commutes on distance
+    # (Camden -> Philadelphia); the gate — not the prefilter — decides
+    # pass / near_fit / fail for every generated pair.
     from matching import sn_taxonomy as _snt
+    from matching.state_adjacency import neighbors as _adj_states
 
     def _candidates(app: dict) -> list[dict]:
         if not args.prefilter:
@@ -176,10 +180,11 @@ def main() -> int:
         a_state = (app.get("state") or "").upper()
         if not a_state:
             return []          # no geography signal; profile stays match-less for now
+        ok_states = {a_state} | set(_adj_states(a_state))
         a_code = app.get("canonical_job_family_code")
         out = []
         for j in jobs:
-            if (j.get("state") or "").upper() != a_state and (j.get("work_setting") or "") != "remote":
+            if (j.get("state") or "").upper() not in ok_states and (j.get("work_setting") or "") != "remote":
                 continue
             j_code = j.get("canonical_job_family_code")
             if a_code and j_code and _snt.relate(a_code, j_code) == "unrelated":
@@ -241,7 +246,18 @@ def main() -> int:
                 if args.verbose:
                     _print_match(result, app, job)
 
-                if not args.dry_run:
+                # Cross-state pairs that gate out as ineligible are storage
+                # ballast, not information: no surface shows them (applicants
+                # and employers see eligible/near_fit only), and they exist
+                # solely because adjacency candidate generation lets the
+                # geography gate rule on border commutes. Same-state
+                # ineligibles ARE kept — admins use them to answer "why isn't
+                # X matched to Y" for the pairs people actually ask about.
+                _skip_store = (
+                    result.eligibility_status == "ineligible"
+                    and (app.get("state") or "").upper() != (job.get("state") or "").upper()
+                )
+                if not args.dry_run and not _skip_store:
                     _batch_buffer.append(result)
                     if len(_batch_buffer) >= BATCH:
                         _flush_batch(conn, _batch_buffer)
@@ -443,7 +459,10 @@ def _fetch_applicants(conn, applicant_id=None, limit=None) -> list[dict]:
 
 
 def _fetch_jobs(conn, job_id=None, limit=None) -> list[dict]:
-    where = "WHERE j.is_active = TRUE"
+    # US-only guard: scrapers have mis-parsed Canadian postings (country code
+    # "CA" stored as the state California) — never let a non-US job into the
+    # matching pool regardless of what its state column claims.
+    where = "WHERE j.is_active = TRUE AND COALESCE(j.country, 'US') IN ('US', 'USA', 'United States')"
     params = []
     if job_id:
         where += " AND j.id = %s"
@@ -680,7 +699,7 @@ def _flush_batch(conn, results: list[MatchResult]) -> None:
         json.dumps(r.top_strengths), json.dumps(r.top_gaps),
         json.dumps(r.required_missing_items), r.recommended_next_step,
         r.confidence_level, r.requires_review, r.match_tier, r.tier_reason,
-        r.distance_miles, r.n_gaps, r.primary_gap,
+        r.distance_miles, r.n_gaps, r.primary_gap, r.evidence_pct,
         r.scoring_run_id, r.scoring_run_at, r.policy_version,
     ) for r in results]
 
@@ -694,7 +713,7 @@ def _flush_batch(conn, results: list[MatchResult]) -> None:
                 match_label, top_strengths, top_gaps, required_missing_items,
                 recommended_next_step, confidence_level, requires_review,
                 match_tier, tier_reason, distance_miles,
-                n_gaps, primary_gap,
+                n_gaps, primary_gap, score_evidence_pct,
                 scoring_run_id, scoring_run_at, policy_version
             ) VALUES %s
             ON CONFLICT (applicant_id, job_id) DO UPDATE SET
@@ -719,6 +738,7 @@ def _flush_batch(conn, results: list[MatchResult]) -> None:
                 distance_miles = EXCLUDED.distance_miles,
                 n_gaps = EXCLUDED.n_gaps,
                 primary_gap = EXCLUDED.primary_gap,
+                score_evidence_pct = EXCLUDED.score_evidence_pct,
                 scoring_run_id = EXCLUDED.scoring_run_id,
                 scoring_run_at = EXCLUDED.scoring_run_at,
                 policy_version = EXCLUDED.policy_version,
@@ -727,7 +747,7 @@ def _flush_batch(conn, results: list[MatchResult]) -> None:
         """, rows, template="""(
             %s, %s, %s, %s, %s::jsonb, %s::jsonb, %s, %s, %s, %s::jsonb, %s,
             %s, %s::jsonb, %s::jsonb, %s::jsonb, %s, %s, %s, %s, %s, %s,
-            %s, %s,
+            %s, %s, %s,
             %s::uuid, %s::date, %s)""", page_size=len(rows), fetch=True)
 
         id_by_pair = {(r[1], r[2]): str(r[0]) for r in returned}

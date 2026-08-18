@@ -58,6 +58,9 @@ export interface JobMatchSummary {
   preferred_qualifications_raw: string | null;
   experience_level: string | null;
   confidence_level: "high" | "medium" | "low" | null;
+  /** Share (0-100) of the score backed by real evidence vs defaults.
+   *  Below 40 the UI shows "Early estimate" instead of a number. */
+  score_evidence_pct: number | null;
   requires_review: boolean;
   applicant_interest: "interested" | "applied" | "not_interested" | null;
   // Relaxation tier (visibility/grouping only — never a score change)

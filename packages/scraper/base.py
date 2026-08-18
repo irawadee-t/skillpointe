@@ -6,15 +6,14 @@ scrape_listings() and scrape_detail().
 """
 from __future__ import annotations
 
-import re
-import time
 import logging
-from dataclasses import dataclass, field
-from typing import Any, Optional, Tuple
+import time
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Any, Optional, Tuple
 
 import httpx
-from bs4 import BeautifulSoup, Tag
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
@@ -134,19 +133,31 @@ class BaseAdapter(ABC):
         return jobs
 
 
+# Canadian province/territory codes. In "Whitby, ON, CA, L4K 4B5" the ON is
+# not a US state, so a naive scan walks past it and matches the COUNTRY code
+# CA as California — which put Ontario postings in front of California
+# applicants (2026-08 audit). A province anywhere in the string means the
+# location is Canadian and carries no US state.
+CA_PROVINCE_ABBRS = {"AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON",
+                     "PE", "QC", "SK", "YT"}
+
+
 def parse_location(location_str: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
-    """Parse 'City, ST, US, ZIP' or 'City, ST' into (city, state)."""
+    """Parse 'City, ST, US, ZIP' or 'City, ST' into (city, state).
+
+    Canadian locations return (city, None) — never a US state.
+    """
     if not location_str:
         return None, None
     parts = [p.strip() for p in location_str.split(",")]
     city = parts[0] if parts else None
-    state = None
-    for p in parts[1:]:
-        p = p.strip()
-        if len(p) == 2 and p.isalpha() and p.upper() in US_STATE_ABBRS:
-            state = p.upper()
-            break
-    return city, state
+    codes = [p.upper() for p in parts[1:] if len(p.strip()) == 2 and p.strip().isalpha()]
+    if any(c in CA_PROVINCE_ABBRS for c in codes):
+        return city, None
+    for c in codes:
+        if c in US_STATE_ABBRS:
+            return city, c
+    return city, None
 
 
 def normalize_state(raw: Optional[str]) -> Optional[str]:

@@ -648,14 +648,17 @@ class TestScoreExperienceAlignment:
 
     def test_no_data_defaults_to_trade_training_baseline(self):
         # New grads with no experience text aren't penalized — trade training
-        # counts as foundational experience (55), not a null default.
+        # counts as foundational experience (55). It IS flagged as a default:
+        # a population-wide constant is not applicant evidence, and the
+        # evidence-weighted aggregate must be able to exclude it.
         d = score_experience_alignment(None, None, None, 10, 50)
-        assert d.null_handling_applied is False
+        assert d.null_handling_applied is True
         assert d.raw_score == 55.0
 
     def test_short_experience_uses_training_baseline(self):
+        # Sub-threshold text carries no signal either — same flagged default.
         d = score_experience_alignment("Tech", None, None, 10, 50)
-        assert d.null_handling_applied is False
+        assert d.null_handling_applied is True
         assert d.raw_score == 55.0
 
 
@@ -693,7 +696,7 @@ class TestComputeStructuredScore:
         )
         timing = TimingResult(0, "available_now", False)
         config = _default_config()
-        score, dims = compute_structured_score(app, job, timing, config)
+        score, dims, _ = compute_structured_score(app, job, timing, config)
         assert score > 70.0
         assert len(dims) == 9
 
@@ -702,32 +705,34 @@ class TestComputeStructuredScore:
         job = _make_job(canonical_job_family_code="electrical")
         timing = TimingResult(0, "available_now", False)
         config = _default_config()
-        score_bad, _ = compute_structured_score(app, job, timing, config)
+        score_bad, _, _ = compute_structured_score(app, job, timing, config)
 
         app2 = _make_applicant(canonical_job_family_code="electrical")
-        score_good, _ = compute_structured_score(app2, job, timing, config)
+        score_good, _, _ = compute_structured_score(app2, job, timing, config)
         assert score_bad < score_good
 
     def test_dimension_count_always_nine(self):
         app = _make_applicant()
         job = _make_job()
         timing = TimingResult(None, "unknown", False)
-        _, dims = compute_structured_score(app, job, timing, _default_config())
+        _, dims, _ = compute_structured_score(app, job, timing, _default_config())
         assert len(dims) == 9
 
-    def test_weighted_scores_sum_equals_total(self):
+    def test_total_is_evidence_weighted_mean(self):
         app = _make_applicant()
         job = _make_job()
         timing = TimingResult(0, "available_now", False)
-        total, dims = compute_structured_score(app, job, timing, _default_config())
-        assert total == pytest.approx(sum(d.weighted_score for d in dims), abs=0.01)
+        total, dims, _ = compute_structured_score(app, job, timing, _default_config())
+        known = [d for d in dims if not d.null_handling_applied]
+        expected = sum(d.weight * d.raw_score for d in known) / sum(d.weight for d in known)
+        assert total == pytest.approx(min(100.0, expected), abs=0.01)
 
     def test_score_bounded_0_to_100(self):
         for _ in range(3):
             app = _make_applicant()
             job = _make_job()
             timing = TimingResult(0, "available_now", False)
-            score, _ = compute_structured_score(app, job, timing, _default_config())
+            score, _, _ = compute_structured_score(app, job, timing, _default_config())
             assert 0.0 <= score <= 100.0
 
 

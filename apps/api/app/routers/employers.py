@@ -1226,6 +1226,8 @@ async def get_job_applicants(
                 m.confidence_level::text,
                 m.requires_review,
                 m.distance_miles,
+                m.n_gaps,
+                m.score_evidence_pct,
                 j.city        AS job_city,
                 j.state       AS job_state,
                 j.region      AS job_region,
@@ -1248,6 +1250,12 @@ async def get_job_applicants(
         )
 
     applicants = [_row_to_applicant_summary(dict(r)) for r in applicant_rows]
+
+    # Ranked-impression log (fire-and-forget): employer candidate views feed
+    # the same feedback loop as applicant match views (see match_impressions).
+    import asyncio as _asyncio
+    _asyncio.create_task(_log_candidate_impressions(
+        job_id, (page - 1) * per_page, applicant_rows))
 
     return RankedApplicantsResponse(
         job_id=job_id,
@@ -1289,6 +1297,34 @@ async def _resolve_employer_id(conn: Any, user_id: str) -> Any:
             detail="Employer account not found. Contact admin to link your account.",
         )
     return employer_id
+
+
+async def _log_candidate_impressions(job_id: str, offset: int, rows) -> None:
+    """Best-effort insert of served candidate rows; never fails the page."""
+    try:
+        values = []
+        for i, r in enumerate(rows):
+            row = dict(r)
+            values.append((
+                str(row["applicant_id"]), job_id,
+                str(row["match_id"]) if row.get("match_id") else None,
+                "employer_candidates", offset + i + 1,
+                row.get("eligibility_status"),
+                row.get("policy_adjusted_score"), row.get("n_gaps"),
+                row.get("score_evidence_pct"),
+            ))
+        if not values:
+            return
+        async with get_db() as conn:
+            await conn.executemany(
+                """INSERT INTO public.match_impressions
+                       (applicant_id, job_id, match_id, context, position,
+                        tier, score, n_gaps, evidence_pct)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
+                values,
+            )
+    except Exception:  # noqa: BLE001 - analytics must never break serving
+        logger.warning("candidate impressions insert failed", exc_info=True)
 
 
 def _row_to_applicant_summary(row: dict[str, Any]) -> ApplicantMatchSummary:

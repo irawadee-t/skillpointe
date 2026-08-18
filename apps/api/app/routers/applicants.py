@@ -17,6 +17,7 @@ DECISIONS.md guardrails:
 """
 from __future__ import annotations
 
+import asyncio as _asyncio
 import logging
 from typing import Annotated, Any
 
@@ -541,7 +542,10 @@ async def get_my_matches(
                 m.required_missing_items,
                 m.recommended_next_step,
                 m.confidence_level::text,
+                m.score_evidence_pct,
                 m.requires_review,
+                m.score_evidence_pct,
+                m.n_gaps,
                 j.title_normalized,
                 j.title_raw,
                 j.city         AS job_city,
@@ -626,6 +630,17 @@ async def get_my_matches(
     eligible = [_row_to_summary(dict(r)) for r in eligible_rows]
     near_fit = [_row_to_summary(dict(r)) for r in near_fit_rows]
     nearby = [_row_to_summary(dict(r)) for r in nearby_rows]
+
+    # Ranked-impression log (fire-and-forget): what was shown, where, with the
+    # scoring state used at serve time. Joined with engagement_events this is
+    # the ground truth for offline evaluation and any future learned ranker —
+    # click data without serve-time positions is unusable (position bias).
+    _asyncio.create_task(_log_impressions(
+        applicant_id,
+        [("eligible", eligible_offset, eligible_rows),
+         ("near_fit", near_fit_offset, near_fit_rows),
+         ("nearby", nearby_offset, nearby_rows)],
+    ))
 
     return RankedMatchesResponse(
         applicant_id=applicant_id,
@@ -816,6 +831,40 @@ async def get_match_detail(
 # Private helpers
 # ---------------------------------------------------------------------------
 
+async def _log_impressions(
+    applicant_id: str,
+    tiers: list[tuple[str, int, list[Any]]],
+) -> None:
+    """Batch-insert the served ranked rows into match_impressions.
+
+    Best-effort: an analytics write must never fail a page load, so every
+    error is swallowed into a log line.
+    """
+    try:
+        values = []
+        for tier, offset, rows in tiers:
+            for i, r in enumerate(rows):
+                row = dict(r)
+                values.append((
+                    applicant_id, str(row["job_id"]), str(row["match_id"]),
+                    "applicant_matches", offset + i + 1, tier,
+                    row.get("policy_adjusted_score"), row.get("n_gaps"),
+                    row.get("score_evidence_pct"),
+                ))
+        if not values:
+            return
+        async with get_db() as conn:
+            await conn.executemany(
+                """INSERT INTO public.match_impressions
+                       (applicant_id, job_id, match_id, context, position,
+                        tier, score, n_gaps, evidence_pct)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)""",
+                values,
+            )
+    except Exception:  # noqa: BLE001 - analytics must never break serving
+        logger.warning("match_impressions insert failed", exc_info=True)
+
+
 def _row_to_summary(row: dict[str, Any]) -> JobMatchSummary:
     """Convert a DB row dict to a JobMatchSummary."""
     return JobMatchSummary(
@@ -848,6 +897,7 @@ def _row_to_summary(row: dict[str, Any]) -> JobMatchSummary:
         preferred_qualifications_raw=row.get("preferred_qualifications_raw"),
         experience_level=row.get("experience_level"),
         confidence_level=row.get("confidence_level"),
+        score_evidence_pct=_safe_float(row.get("score_evidence_pct")),
         requires_review=bool(row.get("requires_review", False)),
         applicant_interest=row.get("applicant_interest"),
         match_tier=row.get("match_tier"),

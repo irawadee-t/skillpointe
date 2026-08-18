@@ -437,7 +437,13 @@ function MatchRow({
   const [expanded, setExpanded] = useState(false);
 
   // Explicit null check — a legitimate score of 0 must still render.
-  const score = match.policy_adjusted_score != null
+  // Information gate: a score computed mostly from null-handling defaults
+  // (evidence below 40% of scoring weight) is not shown as a confident
+  // numeral — the card says "Early estimate" until the profile carries
+  // enough real data. Nothing is hidden; the label is the honest display.
+  const lowEvidence =
+    match.score_evidence_pct != null && match.score_evidence_pct < 40;
+  const score = match.policy_adjusted_score != null && !lowEvidence
     ? Math.min(99, Math.floor(match.policy_adjusted_score))
     : null;
   const location = [match.job_city, match.job_state].filter((v) => v && !/^unspecified$/i.test(v.trim())).join(", ");
@@ -541,14 +547,21 @@ function MatchRow({
             </span>
           )
         ) : (
-          score !== null && (
+          score !== null ? (
             <span
               className="shrink-0 pt-1 font-display text-[1.75rem] leading-none tabular-nums text-cohere-ink"
               title={`Match score ${score} out of 100`}
             >
               {score}
             </span>
-          )
+          ) : lowEvidence ? (
+            <span
+              className="shrink-0 pt-2 text-[11px] font-medium leading-tight text-slate-muted text-right max-w-[5.5rem]"
+              title="We don't have enough profile information yet to score this precisely"
+            >
+              Early estimate
+            </span>
+          ) : null
         )}
       </div>
 
@@ -760,6 +773,8 @@ function ExpandedMatchContent({
 
 function ScoringBreakdown({ match }: { match: JobMatchSummary }) {
   // Explicit null check — a legitimate score of 0 must still render.
+  const lowEvidence =
+    match.score_evidence_pct != null && match.score_evidence_pct < 40;
   const score = match.policy_adjusted_score != null
     ? Math.min(99, Math.floor(match.policy_adjusted_score))
     : null;
@@ -768,7 +783,9 @@ function ScoringBreakdown({ match }: { match: JobMatchSummary }) {
     <div className="bg-stone rounded-sm p-3 text-micro text-slate space-y-2">
       <div className="flex items-center justify-between">
         <span className="font-medium text-ink">Overall score</span>
-        <span className="font-bold text-cohere-blue">{score ?? "—"}/100</span>
+        <span className="font-bold text-cohere-blue">
+          {lowEvidence ? "Early estimate" : `${score ?? "—"}/100`}
+        </span>
       </div>
       <div className="flex items-center justify-between">
         <span>Eligibility</span>

@@ -50,7 +50,46 @@ extractions with the source phrase recorded:
 - **Unknown is neutral, never zero** — missing data on either side scores
   null-default and is flagged, not punished.
 
+## Evidence-first audit decisions (2026-08-18)
+
+- **Evidence-weighted scoring.** The neutral-default census found 88% of
+  pairs had 3+ of 9 dimensions resolved to constants (timing 100% defaulted,
+  compensation 99%, experience a constant-55 masquerading as evidence), which
+  compressed every list into a ~3-point band. The structured score is now the
+  weighted mean over evidence-backed dimensions only; `score_evidence_pct`
+  is stored per match and the UI shows "Early estimate" instead of a numeral
+  below 40% evidence. Constants can no longer impersonate confidence.
+- **Adjacent-state candidate generation.** The geography gate always passed
+  border commutes (Camden -> Philadelphia), but the same-state prefilter never
+  generated those pairs — 31.9% of applicants had zero matches while 98% of
+  them had feasible jobs one state over. The prefilter now includes adjacent
+  states (packages/matching/state_adjacency.py); the gate remains the decider.
+- **US-only guard.** Scrapers had parsed "Whitby, ON, CA" as California and
+  served Ontario postings to CA applicants. parse_location now recognizes
+  Canadian provinces; _fetch_jobs filters on country; 15 rows corrected.
+- **O*NET as external ground truth.** All active jobs carry onet_soc_code +
+  job zone (audit/onet/). Known impurities to work: manufacturing_production
+  is a catch-all (41% SOC agreement); "Lead X" titles inflate to senior on
+  low-preparation occupations; warehouse roles hide in other_transportation.
+- **Golden set + eval harness.** 258 hand-labeled pairs (audit/golden/) and
+  packages/matching/eval_metrics.py + scripts/eval_harness.py compute
+  P@K/NDCG/MRR vs random, popularity, and BM25 nulls. No ranking change ships
+  without moving these numbers.
+- **Ranked-impression logging.** match_impressions records what was shown at
+  which position with serve-time scoring state — the prerequisite for any
+  learned ranker and for honest offline evaluation of click data.
+- **Known catalog gaps (not algorithm bugs):** no welding jobs in FL/AZ, no
+  automotive in AZ, no healthcare anywhere — applicants in those fields see
+  only adjacent-field stretches. Partner acquisition is the fix.
+- **specific_career is unread by matching** (see below) — applicants who
+  typed "aviation maintenance technician" rank their exact-match job by
+  generic same-state order only.
+
 ## Designed, not yet implemented (needs product input)
+
+- **Applicant field inference from free text** — specific_career / program
+  text should feed the family classifier (the job side already does this);
+  13.4% of PSA applicants stated a career the matcher ignores.
 
 - **Shift preference on the applicant profile** — the job side is extracted;
   the applicant side needs a profile field before it can gate or score.

@@ -1,0 +1,3 @@
+# O*NET database distribution — download via scripts/map_onet.py, not vendored
+onet/db_*_text.zip
+onet/db_*_text/
