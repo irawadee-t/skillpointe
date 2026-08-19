@@ -406,8 +406,6 @@ def generic_careers_scrape(
     and ``incomplete_reason``) — the caller must not run removal detection on
     an incomplete crawl.
     """
-    from scraper.base import ScrapedJob, strip_html  # type: ignore
-    from scraper.extract import parse_sections  # type: ignore
     from scraper.trades import classify  # type: ignore
 
     try:
@@ -485,44 +483,56 @@ def generic_careers_scrape(
         ):
             _bump(stats, "early_rejected")
             continue
-        try:
-            time.sleep(_DETAIL_FETCH_DELAY)
-            _bump(stats, "fetches")
-            resp = safe_get_sync(link, timeout=_TIMEOUT, headers={"User-Agent": _UA})
-            if resp.status_code >= 400:
-                continue
-        except (BlockedURLError, httpx.HTTPError):
-            continue
-        detail_html = resp.text
-        # Detail-page JSON-LD is still the best-quality parse.
-        detail_jobs = parse_jsonld_jobpostings(detail_html, link, employer_name=employer_name)
-        if detail_jobs:
-            job = detail_jobs[0]
-            job.source_url = link  # canonical posting URL the user landed on
+        time.sleep(_DETAIL_FETCH_DELAY)
+        _bump(stats, "fetches")
+        job = scrape_detail_page(link, employer_name=employer_name, site=site)
+        if job:
             out.append(job)
-            continue
-        title, body = _extract_title_and_body(detail_html)
-        if not title:
-            continue
-        parsed = parse_sections(body)
-        city, state = _location_from_page(body, link)
-        out.append(
-            ScrapedJob(
-                title=title,
-                employer_name=employer_name,
-                source_url=link,
-                source_site=site,
-                city=city,
-                state=state,
-                description=parsed.description or strip_html(body),
-                responsibilities=parsed.responsibilities,
-                requirements=parsed.requirements,
-                qualifications=parsed.qualifications,
-                pay_raw=parsed.pay_raw,
-                experience_level=parsed.experience_level,
-            )
-        )
     return out
+
+
+def scrape_detail_page(link: str, *, employer_name: str,
+                       site: Optional[str] = None) -> Optional[Any]:
+    """Fetch and parse ONE posting page into a ScrapedJob.
+
+    The unit of targeted syncs: when a sitemap diff names exactly which
+    postings changed, this is all that gets fetched — JSON-LD first, then
+    the heuristic title/body/section parse. Sync; run in a thread."""
+    from scraper.base import ScrapedJob, strip_html  # type: ignore
+    from scraper.extract import parse_sections  # type: ignore
+
+    site = site or f"careers:{urlparse(link).hostname or 'unknown'}"
+    try:
+        resp = safe_get_sync(link, timeout=_TIMEOUT, headers={"User-Agent": _UA})
+        if resp.status_code >= 400:
+            return None
+    except (BlockedURLError, httpx.HTTPError):
+        return None
+    detail_html = resp.text
+    detail_jobs = parse_jsonld_jobpostings(detail_html, link, employer_name=employer_name)
+    if detail_jobs:
+        job = detail_jobs[0]
+        job.source_url = link  # canonical posting URL the user landed on
+        return job
+    title, body = _extract_title_and_body(detail_html)
+    if not title:
+        return None
+    parsed = parse_sections(body)
+    city, state = _location_from_page(body, link)
+    return ScrapedJob(
+        title=title,
+        employer_name=employer_name,
+        source_url=link,
+        source_site=site,
+        city=city,
+        state=state,
+        description=parsed.description or strip_html(body),
+        responsibilities=parsed.responsibilities,
+        requirements=parsed.requirements,
+        qualifications=parsed.qualifications,
+        pay_raw=parsed.pay_raw,
+        experience_level=parsed.experience_level,
+    )
 
 
 # "City, ST" (optionally ", US, 30119") near the top of a posting page.

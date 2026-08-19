@@ -345,6 +345,19 @@ def incremental_scrape(
     listing_url = profile.get("listing_url") or url
 
     try:
+        # Sitemap-first: when the source publishes a sitemap (discovered by
+        # the freshness fast lane), ONE fetch replaces the entire listing
+        # crawl AND is a complete census — the exact changed-posting set
+        # falls out of the lastmod diff. Any failure falls through to the
+        # platform/generic paths below.
+        if profile.get("sitemap_url"):
+            try:
+                return _sitemap_incremental(
+                    profile["sitemap_url"], url, stored,
+                    employer_name=employer_name, max_jobs=max_jobs,
+                    stats=stats, http_meta=http_meta)
+            except (BlockedURLError, httpx.HTTPError, ProfileStaleError):
+                pass
         if platform == "workday":
             return _workday_incremental(params, stored, employer_name=employer_name,
                                         max_jobs=max_jobs, stats=stats, http_meta=http_meta)
@@ -362,6 +375,61 @@ def incremental_scrape(
         raise
     except (BlockedURLError, httpx.HTTPError) as exc:
         raise ProfileStaleError(f"listing fetch failed: {exc}") from exc
+
+
+def _sitemap_incremental(
+    sitemap_url: str, source_url: str, stored: dict[str, dict[str, Any]], *,
+    employer_name: str, max_jobs: int, stats: Optional[dict[str, int]],
+    http_meta: dict[str, Any],
+) -> IncrementalResult:
+    """Sitemap-driven sync: the site's own change feed names exactly WHAT
+    changed. present = every job URL in the sitemap (a complete census, so
+    removal detection is legitimate); details are fetched ONLY for URLs that
+    are new or whose <lastmod> moved. Cost: 1 sitemap fetch + K detail
+    fetches, where K = number of actually-changed postings."""
+    import time as _time
+    from urllib.parse import urlparse as _urlparse
+
+    from app.skilled_pro.career_sources import (
+        _SITEMAP_LASTMOD_RE,
+        _job_like,
+        scrape_detail_page,
+    )
+
+    host = _urlparse(source_url).hostname or ""
+    resp, new_meta = conditional_get(sitemap_url, http_meta, stats=stats)
+    if resp is None:
+        return IncrementalResult(not_modified=True, http=new_meta, complete=True)
+    if resp.status_code >= 400:
+        raise ProfileStaleError(f"sitemap returned {resp.status_code}")
+
+    present: dict[str, str] = {}
+    for u, lastmod in _SITEMAP_LASTMOD_RE.findall(resp.text):
+        if _job_like(u, host):
+            present[u] = lastmod or ""
+    if not present:
+        raise ProfileStaleError("sitemap no longer lists job URLs")
+
+    to_fetch: list[str] = []
+    for u, lastmod in present.items():
+        rec = stored.get(u)
+        if rec is None or rec.get("vanished_at"):
+            to_fetch.append(u)                      # new (or resurrected)
+        elif lastmod and rec.get("listing_fingerprint") not in ("", None, lastmod):
+            to_fetch.append(u)                      # lastmod moved -> changed
+    to_fetch = to_fetch[:max_jobs]
+
+    jobs = []
+    for u in to_fetch:
+        _time.sleep(0.4)
+        if stats is not None:
+            stats["fetches"] = stats.get("fetches", 0) + 1
+        j = scrape_detail_page(u, employer_name=employer_name)
+        if j is not None:
+            jobs.append(j)
+    return IncrementalResult(
+        present=present, jobs=jobs, http=new_meta,
+        complete=True, pages_crawled=1)
 
 
 def _check_still_alive(present: dict[str, str], stored: dict[str, dict[str, Any]]) -> None:
