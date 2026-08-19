@@ -898,6 +898,7 @@ def _row_to_summary(row: dict[str, Any]) -> JobMatchSummary:
         experience_level=row.get("experience_level"),
         confidence_level=row.get("confidence_level"),
         score_evidence_pct=_safe_float(row.get("score_evidence_pct")),
+        n_gaps=row.get("n_gaps"),
         requires_review=bool(row.get("requires_review", False)),
         applicant_interest=row.get("applicant_interest"),
         match_tier=row.get("match_tier"),

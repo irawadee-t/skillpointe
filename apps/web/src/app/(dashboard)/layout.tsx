@@ -55,6 +55,7 @@ const NAV_ITEMS: Record<string, { label: string; href: string }[]> = {
     // Insights — surfaced directly under Dashboard (see AppSidebar NAV_GROUPS).
     { label: "Engagement", href: "/admin/engagement" },
     { label: "Impact", href: "/admin/foundation" },
+    { label: "Match quality", href: "/admin/match-quality" },
     // Review queue
     { label: "Imports", href: "/admin/job-imports" },
     { label: "Review", href: "/admin/review" },

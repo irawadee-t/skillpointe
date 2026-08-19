@@ -61,6 +61,7 @@ const ADMIN_CMDS: Cmd[] = [
   // Insights — mirrors the sidebar order (surfaced directly under Dashboard).
   { id: "ad-eng",    label: "Engagement",       href: "/admin/engagement",      icon: Activity,        section: "Go to" },
   { id: "ad-impact", label: "Impact",           href: "/admin/foundation",      icon: BarChart3,       section: "Go to" },
+  { id: "ad-matchq", label: "Match quality",    href: "/admin/match-quality",   icon: BarChart3,       section: "Go to" },
   { id: "ad-imp",    label: "Import approvals", href: "/admin/job-imports",     icon: Upload,          section: "Review" },
   { id: "ad-review", label: "Review queue",     href: "/admin/review",          icon: ShieldCheck,     section: "Review" },
   { id: "ad-cred",   label: "Credentials",      href: "/admin/credentials",     icon: BadgeCheck,      section: "Review" },

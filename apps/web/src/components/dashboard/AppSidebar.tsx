@@ -7,7 +7,7 @@ import {
   LayoutDashboard, Sparkles, Briefcase, MessagesSquare, Mail, BadgeCheck,
   FileText, User, ShieldCheck, Plus, BarChart3, Map, Users, Building2,
   Activity, FlaskConical, GraduationCap, Search, Menu, X,
-  Upload, Link2, SlidersHorizontal, Eye, ClipboardCheck, ScrollText,
+  Upload, Link2, SlidersHorizontal, Eye, ClipboardCheck, ScrollText, Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SkilledNationLogo } from "@/components/ui/Logo";
@@ -21,7 +21,7 @@ const ICONS: Record<string, typeof LayoutDashboard> = {
   Messages: Mail, Credentials: BadgeCheck, "Résumé": FileText, Profile: User,
   "Verified workers": ShieldCheck, "Post a job": Plus, Analytics: BarChart3,
   Map: Map, Applicants: Users, Employers: Building2,
-  Impact: BarChart3, Engagement: Activity, "Test matches": FlaskConical,
+  Impact: BarChart3, Engagement: Activity, "Match quality": Target, "Test matches": FlaskConical,
   Imports: Upload,
   Review: ClipboardCheck,
   "Audit log": ScrollText,
@@ -66,7 +66,7 @@ const NAV_GROUPS: Record<string, Array<{ heading: string | null; items: string[]
   admin: [
     { heading: null, items: ["Dashboard"] },
     // Insights surfaced at the top — the numbers are the morning read.
-    { heading: "Insights", items: ["Engagement", "Impact"] },
+    { heading: "Insights", items: ["Engagement", "Impact", "Match quality"] },
     // Ordered by review frequency: the daily queue next.
     { heading: "Review", items: ["Imports", "Review", "Credentials", "Career sources"] },
     { heading: "Marketplace", items: ["Applicants", "Employers", "Jobs", "Map"] },

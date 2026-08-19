@@ -119,6 +119,9 @@ class JobMatchSummary(BaseModel):
     # Share (0-100) of the structured score backed by real evidence rather
     # than defaults. Below ~40 the UI shows a label instead of a number.
     score_evidence_pct: float | None = None
+    # Count of gates standing between this pair and eligible. Drives the
+    # three-tier display: 0 = ready now, 1 = one step away, 2+ = stretch.
+    n_gaps: int | None = None
 
     # Applicant's self-reported interest for this job
     applicant_interest: str | None   # interested | applied | not_interested | None

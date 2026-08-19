@@ -61,6 +61,8 @@ export interface JobMatchSummary {
   /** Share (0-100) of the score backed by real evidence vs defaults.
    *  Below 40 the UI shows "Early estimate" instead of a number. */
   score_evidence_pct: number | null;
+  /** Gates between this pair and eligible: 0 ready now, 1 one step away, 2+ stretch. */
+  n_gaps: number | null;
   requires_review: boolean;
   applicant_interest: "interested" | "applied" | "not_interested" | null;
   // Relaxation tier (visibility/grouping only — never a score change)

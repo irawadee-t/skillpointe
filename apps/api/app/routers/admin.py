@@ -2468,3 +2468,148 @@ async def get_test_applicant_matches(
         total_eligible=len(eligible),
         total_near_fit=len(near_fit),
     )
+
+
+# ---------------------------------------------------------------------------
+# GET /admin/analytics/marketplace — supply/demand composition + match coverage
+# ---------------------------------------------------------------------------
+# Not activity analytics (engagement covers that): this is the SHAPE of the
+# marketplace — what expertise applicants bring, what each partner's catalog
+# actually contains, how well the two meet, and which missing profile fields
+# are holding matches back. Every number here is a live aggregate; nothing is
+# precomputed, so it is always honest about the current state.
+
+@router.get("/analytics/marketplace")
+async def marketplace_analytics(user=Depends(require_admin)):
+    from datetime import datetime, timezone
+    async with get_db() as conn:
+        # --- Applicant expertise distribution (sector level + top fields) ---
+        sectors = [dict(r) for r in await conn.fetch("""
+            SELECT COALESCE(s.name, 'Not yet classified') AS sector,
+                   count(*) AS applicants
+              FROM public.applicants a
+              LEFT JOIN public.canonical_job_families f ON f.id = a.canonical_job_family_id
+              LEFT JOIN public.sectors s ON s.code = a.sector_code
+             GROUP BY 1 ORDER BY 2 DESC""")]
+        fields = [dict(r) for r in await conn.fetch("""
+            SELECT f.name AS field, count(*) AS applicants
+              FROM public.applicants a
+              JOIN public.canonical_job_families f ON f.id = a.canonical_job_family_id
+             GROUP BY 1 ORDER BY 2 DESC LIMIT 15""")]
+
+        # --- Job composition per partner (source site / employer) ---
+        partners = [dict(r) for r in await conn.fetch("""
+            SELECT COALESCE(e.name, initcap(j.source)) AS partner,
+                   count(*) AS active_jobs,
+                   round(100.0*count(*) FILTER (WHERE j.experience_level='entry')/count(*),1)      AS pct_entry,
+                   round(100.0*count(*) FILTER (WHERE j.experience_level='mid')/count(*),1)        AS pct_mid,
+                   round(100.0*count(*) FILTER (WHERE j.experience_level='senior')/count(*),1)     AS pct_senior,
+                   round(100.0*count(*) FILTER (WHERE j.experience_level='management')/count(*),1) AS pct_management,
+                   round(100.0*count(*) FILTER (WHERE j.entry_friendly)/count(*),1)                AS pct_will_train,
+                   round(100.0*count(*) FILTER (WHERE j.is_apprenticeship)/count(*),1)             AS pct_apprenticeship,
+                   round(100.0*count(*) FILTER (WHERE jsonb_array_length(
+                       COALESCE(j.required_credentials_canonical,'[]'::jsonb)) > 0)/count(*),1)    AS pct_with_credentials,
+                   round(100.0*count(*) FILTER (WHERE j.pay_min IS NOT NULL)/count(*),1)           AS pct_with_pay,
+                   count(DISTINCT j.state) AS states
+              FROM public.jobs j
+              LEFT JOIN public.employers e ON e.id = j.employer_id
+             WHERE j.is_active
+             GROUP BY 1 ORDER BY active_jobs DESC""")]
+
+        # --- Match coverage: how many matches does a person actually have ---
+        coverage = dict(await conn.fetchrow("""
+            WITH per_app AS (
+              SELECT a.id,
+                     count(m.job_id) FILTER (WHERE m.eligibility_status IN ('eligible','near_fit')) AS visible,
+                     count(m.job_id) FILTER (WHERE m.eligibility_status = 'eligible') AS eligible,
+                     count(m.job_id) FILTER (WHERE m.eligibility_status = 'near_fit' AND m.n_gaps <= 1) AS one_step,
+                     count(m.job_id) FILTER (WHERE m.eligibility_status = 'near_fit' AND m.n_gaps >= 2) AS stretch
+                FROM public.applicants a
+                LEFT JOIN public.matches m ON m.applicant_id = a.id
+               GROUP BY a.id)
+            SELECT count(*) AS applicants,
+                   count(*) FILTER (WHERE visible > 0) AS with_any_match,
+                   count(*) FILTER (WHERE eligible > 0) AS with_eligible,
+                   count(*) FILTER (WHERE one_step > 0) AS with_one_step,
+                   count(*) FILTER (WHERE visible > 0 AND eligible = 0) AS near_fit_only,
+                   count(*) FILTER (WHERE visible = 0) AS zero,
+                   count(*) FILTER (WHERE visible BETWEEN 1 AND 4)  AS b_1_4,
+                   count(*) FILTER (WHERE visible BETWEEN 5 AND 19) AS b_5_19,
+                   count(*) FILTER (WHERE visible >= 20) AS b_20_plus,
+                   percentile_disc(0.5) WITHIN GROUP (ORDER BY visible) FILTER (WHERE visible > 0) AS median_when_matched
+              FROM per_app"""))
+
+        # --- Why the zero-match population is zero (named causes, live) ---
+        zero_causes = dict(await conn.fetchrow("""
+            WITH zero AS (
+              SELECT a.* FROM public.applicants a
+               WHERE NOT EXISTS (SELECT 1 FROM public.matches m
+                  WHERE m.applicant_id = a.id AND m.eligibility_status IN ('eligible','near_fit')))
+            SELECT count(*) AS total,
+                   count(*) FILTER (WHERE state IS NULL) AS no_location,
+                   count(*) FILTER (WHERE state IS NOT NULL AND NOT EXISTS (
+                       SELECT 1 FROM public.jobs j WHERE j.is_active AND j.state = zero.state))
+                       AS no_jobs_in_state,
+                   count(*) FILTER (WHERE state IS NOT NULL
+                       AND canonical_job_family_id IS NOT NULL
+                       AND NOT EXISTS (
+                         SELECT 1 FROM public.jobs j
+                          WHERE j.is_active AND j.sector_code = zero.sector_code))
+                       AS no_jobs_in_field
+              FROM zero"""))
+
+        # --- Data-gap impact: matches held back by missing profile fields ---
+        # The PSA import left timing, certifications, and essays blank. Each
+        # row here says: this field is missing for X% of applicants, and it is
+        # the NAMED blocker on Y matches right now (not hypothetical).
+        one_cert_away = int(await conn.fetchval("""
+            SELECT count(*) FROM public.matches
+             WHERE eligibility_status = 'near_fit' AND n_gaps = 1
+               AND primary_gap = 'required_credential_compatibility'""") or 0)
+        one_cert_people = int(await conn.fetchval("""
+            SELECT count(DISTINCT applicant_id) FROM public.matches
+             WHERE eligibility_status = 'near_fit' AND n_gaps = 1
+               AND primary_gap = 'required_credential_compatibility'""") or 0)
+        timing_gap = int(await conn.fetchval("""
+            SELECT count(*) FROM public.matches
+             WHERE eligibility_status = 'near_fit'
+               AND primary_gap IN ('readiness_timing','timing_readiness')""") or 0)
+        field_cov = dict(await conn.fetchrow("""
+            SELECT round(100.0*count(expected_completion_date)/count(*),1) AS timing_pct,
+                   round(100.0*count(NULLIF(specific_career,''))/count(*),1) AS stated_career_pct,
+                   round(100.0*count(canonical_job_family_id)/count(*),1) AS classified_pct,
+                   round(100.0*count(NULLIF(city,''))/count(*),1) AS city_pct,
+                   round(100.0*count(commute_radius_miles)/count(*),1) AS radius_pct
+              FROM public.applicants"""))
+        creds_disclosed = int(await conn.fetchval(
+            "SELECT count(DISTINCT applicant_id) FROM public.credentials") or 0)
+        evidence = dict(await conn.fetchrow("""
+            SELECT round(avg(score_evidence_pct),1) AS mean,
+                   round(percentile_cont(0.5) WITHIN GROUP (ORDER BY score_evidence_pct)::numeric,1) AS median
+              FROM public.matches WHERE score_evidence_pct IS NOT NULL"""))
+
+    total_apps = int(coverage["applicants"] or 1)
+    return {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "applicant_sectors": sectors,
+        "applicant_fields": fields,
+        "partners": partners,
+        "coverage": {
+            **{k: int(v or 0) for k, v in coverage.items() if k != "median_when_matched"},
+            "median_when_matched": int(coverage["median_when_matched"] or 0),
+            "pct_with_any": round(100.0 * int(coverage["with_any_match"] or 0) / total_apps, 1),
+            "pct_with_eligible": round(100.0 * int(coverage["with_eligible"] or 0) / total_apps, 1),
+            "pct_near_fit_only": round(100.0 * int(coverage["near_fit_only"] or 0) / total_apps, 1),
+            "pct_zero": round(100.0 * int(coverage["zero"] or 0) / total_apps, 1),
+        },
+        "zero_causes": {k: int(v or 0) for k, v in zero_causes.items()},
+        "data_gaps": {
+            "field_coverage": {k: float(v or 0) for k, v in field_cov.items()},
+            "credentials_disclosed_applicants": creds_disclosed,
+            "one_cert_away_matches": one_cert_away,
+            "one_cert_away_people": one_cert_people,
+            "timing_blocked_matches": timing_gap,
+            "score_evidence_mean": float(evidence["mean"] or 0),
+            "score_evidence_median": float(evidence["median"] or 0),
+        },
+    }

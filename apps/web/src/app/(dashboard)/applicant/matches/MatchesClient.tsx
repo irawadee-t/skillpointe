@@ -172,6 +172,14 @@ export function MatchesClient({ data, fetchError, token }: Props) {
 
   const visibleEligible = servedEligible.filter((m) => !hiddenIds.has(m.match_id));
   const visibleNearFit = servedNearFit.filter((m) => !hiddenIds.has(m.match_id));
+  // Three-tier split (research-backed: plain-language tiers measurably steer
+  // seekers toward winnable applications — ZipRecruiter saw -47% mismatched
+  // applies after shipping theirs). Ours is derived from the auditable gate
+  // count, not an opaque score: 1 gap = one named thing to close; 2+ = a
+  // stretch worth knowing about but presented with more distance. The server
+  // orders near-fit by n_gaps ASC, so this split is pagination-stable.
+  const visibleOneStep = visibleNearFit.filter((m) => (m.n_gaps ?? 2) <= 1);
+  const visibleStretch = visibleNearFit.filter((m) => (m.n_gaps ?? 2) >= 2);
   const visibleNearby = servedNearby.filter((m) => !hiddenIds.has(m.match_id));
 
   // Header counts come from the API's TRUE totals, not the served list — the
@@ -296,28 +304,50 @@ export function MatchesClient({ data, fetchError, token }: Props) {
               </div>
             </section>
 
-            {/* Near-fit Section */}
+            {/* One step away — near-fit with exactly one named gate to close */}
             <section data-tour-id="matches-close">
               <h2 className="text-base font-semibold text-cohere-ink">
-                Close matches <span className="ml-1 font-normal text-slate-muted">{nearFitCount.toLocaleString()}</span>
+                One step away <span className="ml-1 font-normal text-slate-muted">{visibleOneStep.length.toLocaleString()}</span>
               </h2>
+              <p className="mt-0.5 text-micro text-slate-muted">
+                One thing stands between you and eligible — each card names it.
+              </p>
               <div className="mt-3">
-                {visibleNearFit.length === 0 ? (
-                  <EmptySection message="No near-fit matches right now." />
+                {visibleOneStep.length === 0 ? (
+                  <EmptySection message="No one-step matches right now." />
                 ) : (
                   <div className="space-y-4">
-                    {visibleNearFit.map(renderRow)}
+                    {visibleOneStep.map(renderRow)}
                   </div>
                 )}
-                <ShowMore
-                  shown={servedNearFit.length}
-                  total={matches?.total_near_fit ?? 0}
-                  loading={loadingTier === "near_fit"}
-                  disabled={loadingTier !== null}
-                  onClick={() => loadMore("near_fit")}
-                />
               </div>
             </section>
+
+            {/* Worth exploring — near-fit with 2+ gaps, honestly framed */}
+            {(visibleStretch.length > 0 || servedNearFit.length < (matches?.total_near_fit ?? 0)) && (
+              <section>
+                <h2 className="text-base font-semibold text-cohere-ink">
+                  Worth exploring <span className="ml-1 font-normal text-slate-muted">{visibleStretch.length.toLocaleString()}</span>
+                </h2>
+                <p className="mt-0.5 text-micro text-slate-muted">
+                  A few things to close before these are realistic — shown so you can see what's out there.
+                </p>
+                <div className="mt-3">
+                  {visibleStretch.length > 0 && (
+                    <div className="space-y-4">
+                      {visibleStretch.map(renderRow)}
+                    </div>
+                  )}
+                  <ShowMore
+                    shown={servedNearFit.length}
+                    total={matches?.total_near_fit ?? 0}
+                    loading={loadingTier === "near_fit"}
+                    disabled={loadingTier !== null}
+                    onClick={() => loadMore("near_fit")}
+                  />
+                </div>
+              </section>
+            )}
 
             {/* Nearby tier — geography-only relaxation. Shown only when the
                 stricter sections are thin; grouped separately and labeled so
