@@ -527,23 +527,78 @@ def generic_careers_scrape(
 
 # "City, ST" (optionally ", US, 30119") near the top of a posting page.
 _CITY_STATE_LINE = re.compile(r"^([A-Z][\w .'\-]{1,40}),\s*([A-Z]{2})(?:\b|,)")
+# Full state names too: SuccessFactors sites commonly render
+# "Newport News, Virginia" — a 2-letter-only pattern left every HII posting
+# location-less (2026-08 audit), and a job without a state matches nobody.
+_CITY_STATENAME_LINE = re.compile(r"^([A-Z][\w .'\-]{1,40}),\s*([A-Za-z ]{4,25})(?:,|$)")
 # ATS URL slugs often carry "-ST-ZIP" ("/job/Carrollton-Welder-GA-30119/123/").
 _URL_STATE_RE = re.compile(r"-([A-Z]{2})-\d{4,5}(?:/|$)")
 
 
 def _location_from_page(body: Optional[str], url: str) -> tuple[Optional[str], Optional[str]]:
     """Deterministic city/state fallback for heuristic detail parses: a
-    "City, ST" line near the top of the page, else a state code in the URL."""
-    from scraper.base import US_STATE_ABBRS  # type: ignore
+    "City, ST" or "City, StateName" line near the top of the page, else a
+    state code in the URL."""
+    from scraper.base import US_STATE_ABBRS, normalize_state  # type: ignore
 
     for line in (body or "").split("\n")[:20]:
-        m = _CITY_STATE_LINE.match(line.strip())
+        stripped = line.strip()
+        m = _CITY_STATE_LINE.match(stripped)
         if m and m.group(2) in US_STATE_ABBRS:
             return m.group(1).strip(), m.group(2)
+        m = _CITY_STATENAME_LINE.match(stripped)
+        if m:
+            st = normalize_state(m.group(2).strip())
+            if st:
+                return m.group(1).strip(), st
     m = _URL_STATE_RE.search(urlparse(url).path)
     if m and m.group(1) in US_STATE_ABBRS:
         return None, m.group(1)
-    return None, None
+    return _location_from_sf_slug(url)
+
+
+def _location_from_sf_slug(url: str) -> tuple[Optional[str], Optional[str]]:
+    """SuccessFactors slug fallback: /job/Newport-News-SOME-TITLE-Virg/123/.
+
+    The slug leads with the city in Title-Case tokens and ends with a
+    TRUNCATED full state name ("Virg" for Virginia) — neither a "City, ST"
+    body line nor a 2-letter URL code exists, which left every HII posting
+    location-less (2026-08). City = leading Titlecase tokens (stopping at the
+    first ALL-CAPS title token); state = unique full-name prefix match of the
+    trailing token, 4+ chars so "Virg" resolves but "New" never guesses.
+    """
+    from scraper.base import US_STATE_FULL_TO_ABBR  # type: ignore
+
+    # Slug tokens may include digits and %-escapes ("UP-TO-%2410K-BONUS",
+    # "2026-HIGH-SCHOOL-SENIORS") — accept them; token logic filters below.
+    m = re.search(r"/job/([A-Za-z][A-Za-z0-9%-]+)/\d+/?$", urlparse(url).path)
+    if not m:
+        return None, None
+    tokens = [t for t in m.group(1).split("-") if t]
+    if len(tokens) < 3:
+        return None, None
+
+    state = None
+    tail = tokens[-1].lower()
+    if len(tail) >= 4:
+        hits = {abbr for name, abbr in US_STATE_FULL_TO_ABBR.items()
+                if name.split()[0].startswith(tail) or name.replace(" ", "").startswith(tail)}
+        if len(hits) == 1:
+            state = next(iter(hits))
+
+    city_tokens: list[str] = []
+    for t in tokens:
+        # Title-Case tokens before the first ALL-CAPS/lower token are the city.
+        if t[0].isupper() and not t.isupper() and t[1:].islower():
+            city_tokens.append(t)
+            if len(city_tokens) >= 3:
+                break
+        else:
+            break
+    city = " ".join(city_tokens) if city_tokens else None
+    if state is None and city is None:
+        return None, None
+    return city, state
 
 
 def _looks_like_title(text: str) -> bool:
@@ -1703,3 +1758,110 @@ async def _ensure_batch(
     )
     source["batch_id"] = row["id"]
     return row["id"]
+
+
+# ---------------------------------------------------------------------------
+# Fast-lane freshness: cheap listing fingerprints between full syncs
+# ---------------------------------------------------------------------------
+# "No stale jobs" without an API key: every scheduler tick (15 min), each
+# connected source gets ONE cheap probe — the listing page (or the platform's
+# page-1 search JSON) — hashed down to the set of posting identifiers. A
+# changed fingerprint triggers a real incremental pull immediately; an
+# unchanged one costs a single HTTP request. Detection latency therefore
+# tracks the tick interval (~15 min) instead of the 6h-and-adaptive cadence,
+# while total load stays at one request per source per tick.
+
+def compute_listing_fingerprint(url: str, platform: str | None) -> Optional[str]:
+    """One-fetch content fingerprint of a source's CURRENT posting set.
+
+    Returns a stable hash of the posting identifiers visible on the first
+    listing page, or None when the probe fails (callers treat None as
+    "unknown — do nothing"; a probe failure must never trigger a pull storm).
+    Sync — run in a thread.
+    """
+    import hashlib
+
+    from app.util.net_guard import BlockedURLError, safe_get_sync, validate_public_url
+
+    try:
+        validate_public_url(url)
+    except BlockedURLError:
+        return None
+
+    ids: list[str] = []
+    try:
+        if platform == "cornerstone":
+            import httpx as _httpx
+            from scraper.universal import _CSOD_TOKEN_RE, _parse_cornerstone  # type: ignore
+            parsed = _parse_cornerstone(url)
+            if not parsed:
+                return None
+            host, site_id, corp = parsed
+            with _httpx.Client(headers={"User-Agent": "Mozilla/5.0"}, timeout=15.0,
+                               follow_redirects=True) as client:
+                home = client.get(f"https://{host}/ux/ats/careersite/{site_id}/home",
+                                  params={"c": corp})
+                tok = _CSOD_TOKEN_RE.search(home.text or "")
+                if home.status_code != 200 or not tok:
+                    return None
+                r = client.post(
+                    f"https://{host}/services/x/career-site/v1/search",
+                    headers={"Authorization": f"Bearer {tok.group(1)}",
+                             "Content-Type": "application/json"},
+                    json={"careerSiteId": site_id, "careerSitePageId": site_id,
+                          "pageNumber": 1, "pageSize": 100, "cultureId": 1,
+                          "cultureName": "en-US", "searchText": "", "states": [],
+                          "countryCodes": [], "cities": [], "placeID": "",
+                          "radius": None, "postingsWithinDays": None,
+                          "customFieldCheckboxKeys": [], "customFieldDropdowns": [],
+                          "customFieldRadios": []})
+                if r.status_code != 200:
+                    return None
+                reqs = ((r.json() or {}).get("data") or {}).get("requisitions") or []
+                ids = [f"{q.get('requisitionId')}:{q.get('postingEffectiveDate')}"
+                       for q in reqs]
+        else:
+            # Generic + every HTML-shell platform: one GET of the listing URL,
+            # fingerprint the discovered job links.
+            r = safe_get_sync(url, timeout=15.0, headers={"User-Agent": "Mozilla/5.0"})
+            if r.status_code != 200:
+                return None
+            ids = [u for u, _t in discover_job_links(r.text, url)]
+    except Exception:
+        return None
+    if not ids:
+        return None
+    return hashlib.sha256("\n".join(sorted(set(ids))).encode()).hexdigest()[:32]
+
+
+async def fast_freshness_check(conn, source: dict[str, Any]) -> bool:
+    """Probe one source; pull immediately if its posting set changed.
+
+    Returns True when a pull was triggered. Stores the fingerprint in
+    extraction_profile.listing_hash either way, so the next tick compares
+    against current reality.
+    """
+    import asyncio as _aio
+
+    profile = _parse_profile(source.get("extraction_profile")) or {}
+    fp = await _aio.to_thread(
+        compute_listing_fingerprint, source["url"], source.get("platform"))
+    if fp is None:
+        return False
+    prev = profile.get("listing_hash")
+    if prev == fp:
+        return False
+    changed = prev is not None       # first-ever probe just seeds the hash
+    profile["listing_hash"] = fp
+    await conn.execute(
+        """UPDATE public.employer_career_sources
+              SET extraction_profile = COALESCE(extraction_profile, '{}'::jsonb)
+                  || jsonb_build_object('listing_hash', $2::text),
+                  updated_at = now()
+            WHERE id = $1""",
+        source["id"], fp,
+    )
+    if changed:
+        await run_pull(conn, source, triggered_by=None)
+        return True
+    return False

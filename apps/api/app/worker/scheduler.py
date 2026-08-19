@@ -436,6 +436,34 @@ async def _career_source_auto_sync_tick() -> None:
                 # run_pull records its own failures; this guards the tick itself.
                 logger.exception("Auto-sync failed for source %s: %s", str(r["id"]), exc)
 
+    # Fast lane — sources NOT due yet still get one cheap listing probe per
+    # tick, so an added or removed posting is detected within ~one tick
+    # (15 min) instead of waiting out the multi-hour cadence. A changed
+    # fingerprint triggers a real incremental pull on the spot.
+    from app.skilled_pro.career_sources import fast_freshness_check
+    async with get_db() as conn:
+        idle = await conn.fetch(
+            """
+            SELECT s.*, e.name AS employer_name
+              FROM public.employer_career_sources s
+              JOIN public.employers e ON e.id = s.employer_id
+             WHERE s.auto_sync_enabled
+               AND s.next_auto_sync_at IS NOT NULL AND s.next_auto_sync_at > now()
+               AND NOT s.needs_attention
+             LIMIT $1
+            """,
+            _CS_AUTO_SYNC_BATCH,
+        )
+        for r in idle:
+            try:
+                pulled = await fast_freshness_check(conn, dict(r))
+                if pulled:
+                    logger.info("Fast-lane freshness pull for source %s (%s)",
+                                str(r["id"]), r["employer_name"])
+            except Exception as exc:
+                logger.warning("Fast-lane check failed for source %s: %s",
+                               str(r["id"]), exc)
+
 
 # ---------------------------------------------------------------------------
 # Interview reminder ticker — runs every 5 minutes.
@@ -650,11 +678,61 @@ async def _acquire_recompute_slot(target_key: str, ttl: int = 90) -> bool:
 
 
 async def _debounced_recompute(*, job_id: str | None = None, applicant_id: str | None = None) -> None:
-    target_key = f"job:{job_id}" if job_id else f"applicant:{applicant_id}"
-    if not await _acquire_recompute_slot(target_key):
-        logger.debug("Recompute for %s already pending — skipping duplicate trigger", target_key)
+    """Enqueue the target for the resident match worker.
+
+    The queue's partial unique index (pending targets) IS the debounce —
+    re-triggering an already-pending target is a silent no-op, with no Redis
+    involved. NOTIFY wakes the worker immediately. Falls back to the old
+    one-shot subprocess only if the enqueue itself fails (queue table absent
+    mid-migration), so a trigger is never dropped.
+    """
+    from app.db import get_db
+    etype = "job" if job_id else "applicant"
+    eid = job_id or applicant_id
+    try:
+        async with get_db() as conn:
+            await conn.execute(
+                """INSERT INTO public.match_queue (entity_type, entity_id)
+                   VALUES ($1, $2::uuid)
+                   ON CONFLICT (entity_type, entity_id) WHERE processed_at IS NULL
+                   DO NOTHING""",
+                etype, eid,
+            )
+            await conn.execute("NOTIFY match_queue")
+        _ensure_match_worker()
+    except Exception as exc:
+        logger.warning("match_queue enqueue failed (%s) — subprocess fallback", exc)
+        target_key = f"job:{job_id}" if job_id else f"applicant:{applicant_id}"
+        if not await _acquire_recompute_slot(target_key):
+            return
+        await _run_recompute_subprocess(job_id=job_id, applicant_id=applicant_id)
+
+
+_match_worker_proc = None
+
+
+def _ensure_match_worker() -> None:
+    """Keep exactly one resident match worker alive.
+
+    Cheap enough to call on every enqueue; the daemon's pg_advisory_lock
+    makes accidental doubles exit immediately, so supervision here only has
+    to be best-effort.
+    """
+    global _match_worker_proc
+    if _match_worker_proc is not None and _match_worker_proc.poll() is None:
         return
-    await _run_recompute_subprocess(job_id=job_id, applicant_id=applicant_id)
+    script = _REPO_ROOT / "scripts" / "match_worker_daemon.py"
+    if not script.exists():
+        logger.warning("match_worker_daemon.py not found — resident worker unavailable")
+        return
+    import subprocess
+    _match_worker_proc = subprocess.Popen(
+        [sys.executable, str(script)],
+        stdout=open("/tmp/match_worker.log", "ab"),
+        stderr=subprocess.STDOUT,
+        cwd=str(_REPO_ROOT),
+    )
+    logger.info("resident match worker started (pid %s)", _match_worker_proc.pid)
 
 
 async def trigger_recompute_for_job(job_id: str) -> None:

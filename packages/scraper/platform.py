@@ -34,6 +34,7 @@ class Platform(str, Enum):
     JOBVITE         = "jobvite"
     BAMBOOHR        = "bamboohr"
     PARADOX         = "paradox"
+    CORNERSTONE     = "cornerstone"
     UNKNOWN         = "unknown"
 
 
@@ -50,6 +51,7 @@ _HOST_RULES: list[tuple[re.Pattern[str], Platform]] = [
     (re.compile(r"jobs\.jobvite\.com$|\.jobvite\.com$",                                re.I), Platform.JOBVITE),
     (re.compile(r"bamboohr\.com$",                                                     re.I), Platform.BAMBOOHR),
     (re.compile(r"paradox\.ai$|\.paradox\.ai$",                                       re.I), Platform.PARADOX),
+    (re.compile(r"\.csod\.com$",                                                      re.I), Platform.CORNERSTONE),
 ]
 
 

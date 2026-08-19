@@ -257,6 +257,123 @@ def parse_lever_jobs(data: Any, url: str, *, employer_name: str,
     return out
 
 
+
+
+# ============================================================================
+# Cornerstone OnDemand (csod.com) — token-bootstrapped JSON API
+# ============================================================================
+# The career-site SPA at /ux/ats/careersite/{id}/home embeds a short-lived JWT
+# in its HTML shell; that token + session cookies authorize the JSON search
+# and jobDetails endpoints the SPA itself uses. One adapter serves EVERY
+# Cornerstone-hosted employer (careerSiteId and corp name come from the URL).
+
+_CSOD_URL_RE = re.compile(
+    r"https?://(?P<host>[^/]+\.csod\.com)/ux/ats/careersite/(?P<site>\d+)/home",
+    re.I,
+)
+_CSOD_TOKEN_RE = re.compile(r'"token"\s*:\s*"([^"]+)"')
+
+
+def _parse_cornerstone(url: str) -> Optional[tuple[str, int, str]]:
+    """(host, career_site_id, corp) from a csod careersite URL."""
+    m = _CSOD_URL_RE.match(url or "")
+    if not m:
+        return None
+    host = m.group("host")
+    corp = host.split(".")[0]
+    # honor an explicit ?c= corp override (some tenants use vanity hosts)
+    cm = re.search(r"[?&]c=([\w-]+)", url)
+    if cm:
+        corp = cm.group(1)
+    return host, int(m.group("site")), corp
+
+
+def scrape_cornerstone(url: str, *, employer_name: str, max_jobs: int = 500) -> list[ScrapedJob]:
+    parsed = _parse_cornerstone(url)
+    if not parsed:
+        return []
+    host, site_id, corp = parsed
+    base = f"https://{host}"
+
+    out: list[ScrapedJob] = []
+    with httpx.Client(headers={"User-Agent": USER_AGENT}, timeout=30.0,
+                      follow_redirects=True) as client:
+        # 1. Bootstrap: the SPA shell carries the JWT + sets session cookies.
+        try:
+            home = client.get(f"{base}/ux/ats/careersite/{site_id}/home", params={"c": corp})
+            tok = _CSOD_TOKEN_RE.search(home.text or "")
+        except Exception:
+            return []
+        if home.status_code != 200 or not tok:
+            return []
+        auth = {"Authorization": f"Bearer {tok.group(1)}",
+                "Content-Type": "application/json"}
+
+        # 2. Paginated search — same payload shape the SPA sends.
+        page = 1
+        page_size = 50
+        while len(out) < max_jobs:
+            try:
+                r = client.post(f"{base}/services/x/career-site/v1/search",
+                                headers=auth,
+                                json={"careerSiteId": site_id, "careerSitePageId": site_id,
+                                      "pageNumber": page, "pageSize": page_size,
+                                      "cultureId": 1, "cultureName": "en-US",
+                                      "searchText": "", "states": [], "countryCodes": [],
+                                      "cities": [], "placeID": "", "radius": None,
+                                      "postingsWithinDays": None,
+                                      "customFieldCheckboxKeys": [],
+                                      "customFieldDropdowns": [], "customFieldRadios": []})
+            except Exception:
+                break
+            if r.status_code != 200:
+                break
+            reqs = ((r.json() or {}).get("data") or {}).get("requisitions") or []
+            if not reqs:
+                break
+            for req in reqs:
+                rid = req.get("requisitionId")
+                if not rid:
+                    continue
+                title = req.get("displayJobTitle") or "Unknown"
+                locs = req.get("locations") or []
+                city = state = country = None
+                if locs and isinstance(locs, list):
+                    city = locs[0].get("city")
+                    state = normalize_state(locs[0].get("state"))
+                    country = locs[0].get("country")
+                description = None
+                try:
+                    det = client.get(
+                        f"{base}/services/x/job-requisition/v2/requisitions/{rid}/jobDetails",
+                        params={"cultureId": 1}, headers=auth, timeout=20.0)
+                    dd = ((det.json() or {}).get("data") or {}) if det.status_code == 200 else {}
+                    description = strip_html(dd.get("externalDescription"))
+                    prim = dd.get("primaryLocation") or {}
+                    city = city or prim.get("city")
+                    state = state or normalize_state(prim.get("state"))
+                except Exception:
+                    pass
+                out.append(ScrapedJob(
+                    title=title,
+                    employer_name=employer_name,
+                    source_url=(f"{base}/ux/ats/careersite/{site_id}/home/"
+                                f"requisition/{rid}?c={corp}"),
+                    source_site=f"cornerstone:{corp}",
+                    city=city, state=state,
+                    country=country or "US",
+                    description=description,
+                    posted_date=req.get("postingEffectiveDate"),
+                    req_id=str(rid),
+                ))
+                if len(out) >= max_jobs:
+                    break
+            if len(reqs) < page_size:
+                break
+            page += 1
+    return out
+
+
 # ============================================================================
 # Dispatch
 # ============================================================================
@@ -271,4 +388,6 @@ def scrape_by_platform(platform: str, url: str, *, employer_name: str,
         return scrape_greenhouse(url, employer_name=employer_name, max_jobs=max_jobs)
     if platform == "lever":
         return scrape_lever(url, employer_name=employer_name, max_jobs=max_jobs)
+    if platform == "cornerstone":
+        return scrape_cornerstone(url, employer_name=employer_name, max_jobs=max_jobs)
     return []
