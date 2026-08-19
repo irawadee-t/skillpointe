@@ -87,14 +87,30 @@ async def _run_locked(lock_name: str, ttl: int, coro_factory) -> None:
 def create_scheduler() -> AsyncIOScheduler:
     """Create and configure the APScheduler instance."""
     scheduler = AsyncIOScheduler()
+    # Weekly FULL recompute — a safety net, not the steady state. Day-to-day
+    # freshness is event-driven (match_queue) plus the 6h delta sweep below;
+    # the full pass only exists to catch inputs that change without an
+    # updated_at bump (e.g. scoring-config edits) and any drift.
     scheduler.add_job(
         _locked_recompute,
         trigger="interval",
-        hours=6,
+        hours=168,
         id="full_recompute",
-        name="Full match recompute (6h)",
+        name="Full match recompute (weekly safety net)",
         replace_existing=True,
-        misfire_grace_time=600,  # 10-min grace if server was down
+        misfire_grace_time=3600,
+    )
+    # Delta sweep — enqueue ONLY entities changed since the last sweep into
+    # match_queue for the resident worker. Compute scales with change volume,
+    # not catalog size: a quiet 6 hours costs one indexed query.
+    scheduler.add_job(
+        _locked_delta_sweep,
+        trigger="interval",
+        hours=6,
+        id="delta_sweep",
+        name="Delta match sweep (6h)",
+        replace_existing=True,
+        misfire_grace_time=600,
     )
     scheduler.add_job(
         _locked_interview_reminders,
@@ -561,6 +577,56 @@ async def _interview_reminders_tick() -> None:
                     payload={"slot_id": slot_id, "reminder": kind_slug, "application_id": str(r['application_id'])},
                 )
         logger.info("Interview reminders tick: processed %d slot windows", len(rows))
+
+
+async def _locked_delta_sweep() -> None:
+    await _run_locked("delta_sweep", ttl=1800, coro_factory=_delta_sweep_tick)
+
+
+async def _delta_sweep_tick() -> None:
+    """Enqueue entities changed since the last completed sweep.
+
+    Watermark = the previous delta run's start time (first run: 6h back, the
+    old full-sweep cadence). The queue's pending-unique index absorbs
+    overlap with event-driven triggers for free.
+    """
+    from app.db import get_db
+    try:
+        async with get_db() as conn:
+            row = await conn.fetchrow(
+                """INSERT INTO public.recompute_runs (kind, status, started_at)
+                   VALUES ('delta', 'in_progress', now()) RETURNING id::text""")
+            run_id = row["id"]
+            wm = await conn.fetchval(
+                """SELECT max(started_at) FROM public.recompute_runs
+                    WHERE kind = 'delta' AND status = 'complete'""")
+            jobs = await conn.fetch(
+                """INSERT INTO public.match_queue (entity_type, entity_id)
+                   SELECT 'job', id FROM public.jobs
+                    WHERE is_active AND updated_at > COALESCE(
+                          $1::timestamptz, now() - interval '6 hours')
+                   ON CONFLICT (entity_type, entity_id)
+                        WHERE processed_at IS NULL DO NOTHING
+                   RETURNING id""", wm)
+            apps = await conn.fetch(
+                """INSERT INTO public.match_queue (entity_type, entity_id)
+                   SELECT 'applicant', id FROM public.applicants
+                    WHERE updated_at > COALESCE(
+                          $1::timestamptz, now() - interval '6 hours')
+                   ON CONFLICT (entity_type, entity_id)
+                        WHERE processed_at IS NULL DO NOTHING
+                   RETURNING id""", wm)
+            await conn.execute("NOTIFY match_queue")
+            await conn.execute(
+                """UPDATE public.recompute_runs
+                      SET status='complete', completed_at=now() WHERE id=$1::uuid""",
+                run_id)
+        if jobs or apps:
+            _ensure_match_worker()
+            logger.info("Delta sweep enqueued %d job(s), %d applicant(s)",
+                        len(jobs), len(apps))
+    except Exception as exc:
+        logger.exception("Delta sweep failed: %s", exc)
 
 
 async def _locked_recompute() -> None:

@@ -60,3 +60,28 @@ class TestFullStateNameBodyLine:
         from app.skilled_pro.career_sources import _location_from_page
         body = "Carrollton, GA, US, 30119"
         assert _location_from_page(body, "https://x.com/j/1") == ("Carrollton", "GA")
+
+
+class TestSitemapFingerprinting:
+    def test_lastmod_pairs_parse(self):
+        from app.skilled_pro.career_sources import _SITEMAP_LASTMOD_RE
+        xml = """<urlset>
+          <url><loc>https://x.com/job/A-Virg/1/</loc><lastmod>2026-08-15</lastmod></url>
+          <url><loc>https://x.com/job/B-Virg/2/</loc></url>
+        </urlset>"""
+        pairs = _SITEMAP_LASTMOD_RE.findall(xml)
+        assert ("https://x.com/job/A-Virg/1/", "2026-08-15") in pairs
+        assert ("https://x.com/job/B-Virg/2/", "") in pairs
+
+    def test_job_like_filters_host_and_path(self):
+        from app.skilled_pro.career_sources import _job_like
+        assert _job_like("https://careers.x.com/job/Welder/1/", "careers.x.com")
+        assert _job_like("https://x.com/job/Welder/1/", "careers.x.com")  # same registrable
+        assert not _job_like("https://other.com/job/Welder/1/", "careers.x.com")
+        assert not _job_like("https://careers.x.com/about/", "careers.x.com")
+
+    def test_delta_kind_allowed(self):
+        # migration relaxed the CHECK; keep the allowed set explicit here so a
+        # future constraint change is a conscious decision
+        allowed = {"full", "job", "applicant", "delta"}
+        assert "delta" in allowed

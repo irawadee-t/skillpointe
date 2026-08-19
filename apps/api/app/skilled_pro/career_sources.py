@@ -1837,31 +1837,174 @@ def compute_listing_fingerprint(url: str, platform: str | None) -> Optional[str]
 async def fast_freshness_check(conn, source: dict[str, Any]) -> bool:
     """Probe one source; pull immediately if its posting set changed.
 
-    Returns True when a pull was triggered. Stores the fingerprint in
-    extraction_profile.listing_hash either way, so the next tick compares
-    against current reality.
+    Probe ladder, cheapest-and-most-complete first:
+      1. sitemap.xml with stored ETag/Last-Modified validators — a 304 is a
+         near-free "nothing changed"; a 200 yields the COMPLETE posting set
+         (removals anywhere in the catalog, not just listing page 1)
+      2. platform page-1 JSON / listing-link fingerprint (fallback)
+    Sitemap discovery runs once and is cached in the profile; sources
+    without one are re-probed weekly. Returns True when a pull fired.
     """
     import asyncio as _aio
+    import time as _time
 
     profile = _parse_profile(source.get("extraction_profile")) or {}
-    fp = await _aio.to_thread(
-        compute_listing_fingerprint, source["url"], source.get("platform"))
+    updates: dict[str, Any] = {}
+    fp = None
+    host = urlparse(source["url"]).hostname or ""
+
+    # --- Ladder rung 1: sitemap ---
+    sm_url = profile.get("sitemap_url")
+    if sm_url is None and (
+            _time.time() - float(profile.get("sitemap_checked_at") or 0)
+            > _SITEMAP_RECHECK_S):
+        sm_url = await _aio.to_thread(discover_sitemap, source["url"])
+        updates["sitemap_url"] = sm_url or False
+        updates["sitemap_checked_at"] = _time.time()
+    if sm_url:
+        res = await _aio.to_thread(
+            sitemap_fingerprint, sm_url, host,
+            profile.get("sitemap_etag"), profile.get("sitemap_last_modified"))
+        if res:
+            fp, new_etag, new_lm = res
+            if fp == "unchanged":
+                return False              # 304 — provably nothing to do
+            updates["sitemap_etag"] = new_etag
+            updates["sitemap_last_modified"] = new_lm
+
+    # --- Ladder rung 2: platform/listing fingerprint ---
     if fp is None:
+        fp = await _aio.to_thread(
+            compute_listing_fingerprint, source["url"], source.get("platform"))
+    if fp is None:
+        if updates:
+            await _store_profile_updates(conn, source["id"], updates)
         return False
+
     prev = profile.get("listing_hash")
-    if prev == fp:
-        return False
-    changed = prev is not None       # first-ever probe just seeds the hash
-    profile["listing_hash"] = fp
-    await conn.execute(
-        """UPDATE public.employer_career_sources
-              SET extraction_profile = COALESCE(extraction_profile, '{}'::jsonb)
-                  || jsonb_build_object('listing_hash', $2::text),
-                  updated_at = now()
-            WHERE id = $1""",
-        source["id"], fp,
-    )
+    changed = prev is not None and prev != fp   # first probe just seeds
+    updates["listing_hash"] = fp
+    await _store_profile_updates(conn, source["id"], updates)
     if changed:
         await run_pull(conn, source, triggered_by=None)
         return True
     return False
+
+
+async def _store_profile_updates(conn, source_id, updates: dict[str, Any]) -> None:
+    await conn.execute(
+        """UPDATE public.employer_career_sources
+              SET extraction_profile = COALESCE(extraction_profile, '{}'::jsonb)
+                  || $2::jsonb,
+                  updated_at = now()
+            WHERE id = $1""",
+        # The pool's jsonb codec dumps Python values itself — pass the dict,
+        # never a pre-dumped string (that double-encodes; 2026-08 lesson).
+        source_id, updates,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Sitemap-first freshness: the API hiding in plain sight
+# ---------------------------------------------------------------------------
+# Career sites maintain sitemap.xml FOR search engines — a machine-readable
+# list of every live posting URL, often with lastmod dates. That is a
+# complete change feed, no key required: one fetch detects adds, removals
+# (anywhere in the catalog, not just listing page 1), and updates. Probes
+# send stored ETag/Last-Modified validators; hosts that honor them answer
+# 304 with an empty body, making an unchanged probe nearly free. Hosts that
+# don't still only cost one small XML fetch.
+
+_SITEMAP_LOC_RE = re.compile(r"<loc>\s*([^<\s]+)\s*</loc>", re.I)
+_SITEMAP_LASTMOD_RE = re.compile(
+    r"<loc>\s*([^<\s]+)\s*</loc>\s*(?:<lastmod>\s*([^<\s]+)\s*</lastmod>)?", re.I)
+_SITEMAP_RECHECK_S = 7 * 24 * 3600   # a source without a sitemap: re-probe weekly
+
+
+def _job_like(u: str, host: str) -> bool:
+    try:
+        p = urlparse(u)
+    except ValueError:
+        return False
+    if _registrable(p.hostname or "") != _registrable(host):
+        return False
+    path = (p.path or "").lower()
+    return any(k in path for k in ("/job", "/career", "/position", "/requisition", "/opening"))
+
+
+def discover_sitemap(source_url: str) -> Optional[str]:
+    """Find a sitemap that lists this source's postings. One-time, cached in
+    the source profile. robots.txt Sitemap lines first, then /sitemap.xml."""
+    from app.util.net_guard import safe_get_sync
+
+    host = urlparse(source_url).hostname or ""
+    origin = f"{urlparse(source_url).scheme}://{host}"
+    candidates: list[str] = []
+    try:
+        r = safe_get_sync(f"{origin}/robots.txt", timeout=10.0,
+                          headers={"User-Agent": "Mozilla/5.0"})
+        if r.status_code == 200:
+            candidates += re.findall(r"(?im)^sitemap:\s*(\S+)", r.text)[:3]
+    except Exception:
+        pass
+    candidates.append(f"{origin}/sitemap.xml")
+
+    for cand in candidates:
+        try:
+            r = safe_get_sync(cand, timeout=15.0, headers={"User-Agent": "Mozilla/5.0"})
+        except Exception:
+            continue
+        if r.status_code != 200 or "<" not in (r.text or "")[:200]:
+            continue
+        locs = _SITEMAP_LOC_RE.findall(r.text)
+        # One level of sitemap-index indirection.
+        if locs and "sitemapindex" in r.text[:400].lower():
+            for sub in locs[:3]:
+                try:
+                    rs = safe_get_sync(sub, timeout=15.0,
+                                       headers={"User-Agent": "Mozilla/5.0"})
+                    if rs.status_code == 200 and any(
+                            _job_like(u, host) for u in _SITEMAP_LOC_RE.findall(rs.text)[:200]):
+                        return sub
+                except Exception:
+                    continue
+            continue
+        if any(_job_like(u, host) for u in locs[:500]):
+            return cand
+    return None
+
+
+def sitemap_fingerprint(
+    sitemap_url: str, source_host: str,
+    etag: Optional[str] = None, last_modified: Optional[str] = None,
+) -> Optional[tuple[str, Optional[str], Optional[str]]]:
+    """(fingerprint, new_etag, new_last_modified) — or None on failure.
+
+    Sends stored validators; a 304 short-circuits to the sentinel
+    fingerprint "unchanged" without downloading the body.
+    """
+    import hashlib
+
+    from app.util.net_guard import safe_get_sync
+
+    headers = {"User-Agent": "Mozilla/5.0"}
+    if etag:
+        headers["If-None-Match"] = etag
+    if last_modified:
+        headers["If-Modified-Since"] = last_modified
+    try:
+        r = safe_get_sync(sitemap_url, timeout=20.0, headers=headers)
+    except Exception:
+        return None
+    if r.status_code == 304:
+        return "unchanged", etag, last_modified
+    if r.status_code != 200:
+        return None
+    entries = [f"{u}|{lm or ''}" for u, lm in _SITEMAP_LASTMOD_RE.findall(r.text)
+               if _job_like(u, source_host)]
+    if not entries:
+        return None
+    fp = hashlib.sha256("\n".join(sorted(entries)).encode()).hexdigest()[:32]
+    return (fp,
+            r.headers.get("etag") or None,
+            r.headers.get("last-modified") or None)
