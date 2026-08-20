@@ -306,7 +306,11 @@ def main() -> int:
                     UPDATE public.match_queue SET claimed_at = now()
                      WHERE id = (SELECT id FROM public.match_queue
                                   WHERE processed_at IS NULL
-                                  ORDER BY enqueued_at
+                                  -- People first: an applicant edit has a
+                                  -- human waiting at the matches page; a
+                                  -- bulk job rescore (config change, sync
+                                  -- wave) does not. FIFO within each class.
+                                  ORDER BY (entity_type <> 'applicant'), enqueued_at
                                   FOR UPDATE SKIP LOCKED LIMIT 1)
                     RETURNING id, entity_type, entity_id""")
                 row = cur.fetchone()
@@ -330,10 +334,25 @@ def main() -> int:
             log.info("%s %s: %s in %.1fs", etype, eid, counters, time.monotonic() - t0)
 
         cache.maybe_refresh(conn)
-        # Sleep until NOTIFY or POLL_S timeout.
-        if select.select([lconn], [], [], POLL_S)[0]:
-            lconn.poll()
-            lconn.notifies.clear()
+        # Sleep until NOTIFY or POLL_S timeout. A dead LISTEN connection
+        # must not kill the worker — rebuild it and fall back to polling.
+        try:
+            if select.select([lconn], [], [], POLL_S)[0]:
+                lconn.poll()
+                lconn.notifies.clear()
+        except Exception:
+            log.warning("LISTEN connection lost — rebuilding")
+            try:
+                lconn.close()
+            except Exception:
+                pass
+            try:
+                lconn = get_connection()
+                lconn.autocommit = True
+                with lconn.cursor() as cur:
+                    cur.execute("LISTEN match_queue")
+            except Exception:
+                time.sleep(POLL_S)   # DB briefly down; poll loop continues
     return 0
 
 

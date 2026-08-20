@@ -112,6 +112,10 @@ def main() -> int:
             from etl.db import get_connection, create_import_run, complete_import_run
             from etl.db import insert_applicant, insert_import_row
             conn = get_connection()
+            # Bulk import: suppress per-row match enqueue (explicit recompute
+            # follows); mass trigger inserts would occupy the worker for hours.
+            with conn.cursor() as _c:
+                _c.execute("SET skilled.skip_match_enqueue = 'on'")
             result.run_id = create_import_run(
                 conn,
                 import_type="applicants",

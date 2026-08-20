@@ -164,6 +164,10 @@ def main() -> int:
     conn = psycopg2.connect(DSN)
     conn.autocommit = False
     cur = conn.cursor()
+    # Bulk import: suppress per-row match enqueue (an explicit
+    # sharded recompute follows); 43k trigger inserts would
+    # occupy the resident worker for hours to no benefit.
+    cur.execute("SET skilled.skip_match_enqueue = 'on'")
 
     # Replace the previous demo pool (same domain, pre-PSA rows).
     cur.execute("DELETE FROM public.applicants WHERE email LIKE %s AND email NOT LIKE 'psa-%%'",

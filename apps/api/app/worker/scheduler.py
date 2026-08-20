@@ -170,6 +170,20 @@ def create_scheduler() -> AsyncIOScheduler:
         replace_existing=True,
         misfire_grace_time=3600,
     )
+    # Live freshness probes — EVERY minute, every connected source gets one
+    # cheap change probe (sitemap 304 / census fingerprint), concurrently
+    # with a bounded fan-out. Detection latency for partner-site changes is
+    # therefore ~60s, the practical limit of keyless polling; failing
+    # sources back off exponentially so a dead site can't eat the budget.
+    scheduler.add_job(
+        _locked_fast_probe,
+        trigger="interval",
+        minutes=1,
+        id="fast_probe",
+        name="Career-source live probes (1m)",
+        replace_existing=True,
+        misfire_grace_time=90,
+    )
     # Worker supervision — a dead resident worker with trigger-only writes
     # (raw SQL, scripts) would let the queue accumulate silently, because
     # database triggers cannot respawn a process. One cheap liveness check
@@ -470,34 +484,6 @@ async def _career_source_auto_sync_tick() -> None:
                 # run_pull records its own failures; this guards the tick itself.
                 logger.exception("Auto-sync failed for source %s: %s", str(r["id"]), exc)
 
-    # Fast lane — sources NOT due yet still get one cheap listing probe per
-    # tick, so an added or removed posting is detected within ~one tick
-    # (15 min) instead of waiting out the multi-hour cadence. A changed
-    # fingerprint triggers a real incremental pull on the spot.
-    from app.skilled_pro.career_sources import fast_freshness_check
-    async with get_db() as conn:
-        idle = await conn.fetch(
-            """
-            SELECT s.*, e.name AS employer_name
-              FROM public.employer_career_sources s
-              JOIN public.employers e ON e.id = s.employer_id
-             WHERE s.auto_sync_enabled
-               AND s.next_auto_sync_at IS NOT NULL AND s.next_auto_sync_at > now()
-               AND NOT s.needs_attention
-             ORDER BY s.updated_at ASC   -- least-recently-probed first: no starvation
-             LIMIT $1
-            """,
-            _CS_FAST_LANE_BATCH,
-        )
-        for r in idle:
-            try:
-                pulled = await fast_freshness_check(conn, dict(r))
-                if pulled:
-                    logger.info("Fast-lane freshness pull for source %s (%s)",
-                                str(r["id"]), r["employer_name"])
-            except Exception as exc:
-                logger.warning("Fast-lane check failed for source %s: %s",
-                               str(r["id"]), exc)
 
 
 # ---------------------------------------------------------------------------
@@ -598,6 +584,84 @@ async def _interview_reminders_tick() -> None:
         logger.info("Interview reminders tick: processed %d slot windows", len(rows))
 
 
+async def _locked_fast_probe() -> None:
+    await _run_locked("fast_probe", ttl=55, coro_factory=_fast_probe_tick)
+
+
+async def _fast_probe_tick() -> None:
+    """One change probe per connected source per minute, fanned out.
+
+    Failure backoff lives in the source profile (probe_fail_streak): a source
+    that keeps erroring is probed at 2^n minutes (capped at 15) instead of
+    every tick, so one dead site never consumes the minute's budget.
+    """
+    import asyncio as _aio
+    import time as _time
+
+    from app.db import get_db
+    from app.skilled_pro.career_sources import _parse_profile, fast_freshness_check
+
+    async with get_db() as conn:
+        rows = await conn.fetch(
+            """
+            SELECT s.*, e.name AS employer_name
+              FROM public.employer_career_sources s
+              JOIN public.employers e ON e.id = s.employer_id
+             WHERE s.auto_sync_enabled AND NOT s.needs_attention
+             ORDER BY s.updated_at ASC
+             LIMIT $1
+            """,
+            _CS_FAST_LANE_BATCH,
+        )
+    if not rows:
+        return
+
+    sem = _aio.Semaphore(8)
+    now = _time.time()
+
+    async def probe(r) -> None:
+        source = dict(r)
+        profile = _parse_profile(source.get("extraction_profile")) or {}
+        streak = int(profile.get("probe_fail_streak") or 0)
+        last_fail = float(profile.get("probe_last_fail_at") or 0)
+        if streak and now - last_fail < min(60 * (2 ** streak), 900):
+            return                       # backing off a failing source
+        async with sem:
+            # Each probe writes through its own connection so one slow
+            # source never serializes the others behind a shared conn.
+            try:
+                async with get_db() as pconn:
+                    pulled = await fast_freshness_check(pconn, source)
+                    if streak:
+                        await pconn.execute(
+                            """UPDATE public.employer_career_sources
+                                  SET extraction_profile =
+                                      COALESCE(extraction_profile,'{}'::jsonb)
+                                      || '{"probe_fail_streak": 0}'::jsonb
+                                WHERE id = $1""", source["id"])
+                if pulled:
+                    logger.info("Live probe pulled source %s (%s)",
+                                str(source["id"]), source["employer_name"])
+            except Exception as exc:
+                logger.warning("Live probe failed for source %s: %s",
+                               str(source["id"]), exc)
+                try:
+                    async with get_db() as pconn:
+                        await pconn.execute(
+                            """UPDATE public.employer_career_sources
+                                  SET extraction_profile =
+                                      COALESCE(extraction_profile,'{}'::jsonb)
+                                      || $2::jsonb
+                                WHERE id = $1""",
+                            source["id"],
+                            {"probe_fail_streak": streak + 1,
+                             "probe_last_fail_at": now})
+                except Exception:
+                    pass
+
+    await _aio.gather(*(probe(r) for r in rows))
+
+
 async def _supervise_match_worker() -> None:
     try:
         _ensure_match_worker()
@@ -626,19 +690,30 @@ async def _delta_sweep_tick() -> None:
             wm = await conn.fetchval(
                 """SELECT max(started_at) FROM public.recompute_runs
                     WHERE kind = 'delta' AND status = 'complete'""")
+            # Only entities whose change has NO queue record at/after the
+            # change time are drift — routine trigger-handled changes leave
+            # a (possibly processed) queue row and must not raise alarms.
             jobs = await conn.fetch(
                 """INSERT INTO public.match_queue (entity_type, entity_id)
-                   SELECT 'job', id FROM public.jobs
-                    WHERE is_active AND updated_at > COALESCE(
+                   SELECT 'job', j.id FROM public.jobs j
+                    WHERE j.is_active AND j.updated_at > COALESCE(
                           $1::timestamptz, now() - interval '6 hours')
+                      AND NOT EXISTS (
+                        SELECT 1 FROM public.match_queue q
+                         WHERE q.entity_type = 'job' AND q.entity_id = j.id
+                           AND q.enqueued_at >= j.updated_at - interval '1 minute')
                    ON CONFLICT (entity_type, entity_id)
                         WHERE processed_at IS NULL DO NOTHING
                    RETURNING id""", wm)
             apps = await conn.fetch(
                 """INSERT INTO public.match_queue (entity_type, entity_id)
-                   SELECT 'applicant', id FROM public.applicants
-                    WHERE updated_at > COALESCE(
+                   SELECT 'applicant', a.id FROM public.applicants a
+                    WHERE a.updated_at > COALESCE(
                           $1::timestamptz, now() - interval '6 hours')
+                      AND NOT EXISTS (
+                        SELECT 1 FROM public.match_queue q
+                         WHERE q.entity_type = 'applicant' AND q.entity_id = a.id
+                           AND q.enqueued_at >= a.updated_at - interval '1 minute')
                    ON CONFLICT (entity_type, entity_id)
                         WHERE processed_at IS NULL DO NOTHING
                    RETURNING id""", wm)
