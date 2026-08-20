@@ -1814,22 +1814,30 @@ def compute_listing_fingerprint(url: str, platform: str | None) -> Optional[str]
                 tok = _CSOD_TOKEN_RE.search(home.text or "")
                 if home.status_code != 200 or not tok:
                     return None
-                r = client.post(
-                    f"https://{host}/services/x/career-site/v1/search",
-                    headers={"Authorization": f"Bearer {tok.group(1)}",
-                             "Content-Type": "application/json"},
-                    json={"careerSiteId": site_id, "careerSitePageId": site_id,
-                          "pageNumber": 1, "pageSize": 100, "cultureId": 1,
-                          "cultureName": "en-US", "searchText": "", "states": [],
-                          "countryCodes": [], "cities": [], "placeID": "",
-                          "radius": None, "postingsWithinDays": None,
-                          "customFieldCheckboxKeys": [], "customFieldDropdowns": [],
-                          "customFieldRadios": []})
-                if r.status_code != 200:
-                    return None
-                reqs = ((r.json() or {}).get("data") or {}).get("requisitions") or []
-                ids = [f"{q.get('requisitionId')}:{q.get('postingEffectiveDate')}"
-                       for q in reqs]
+                # Walk up to 3 pages (300 postings) so the fingerprint is a
+                # census for realistic catalogs — a removal below page 1
+                # must not wait for the slow-cadence pull.
+                for page in (1, 2, 3):
+                    r = client.post(
+                        f"https://{host}/services/x/career-site/v1/search",
+                        headers={"Authorization": f"Bearer {tok.group(1)}",
+                                 "Content-Type": "application/json"},
+                        json={"careerSiteId": site_id, "careerSitePageId": site_id,
+                              "pageNumber": page, "pageSize": 100, "cultureId": 1,
+                              "cultureName": "en-US", "searchText": "", "states": [],
+                              "countryCodes": [], "cities": [], "placeID": "",
+                              "radius": None, "postingsWithinDays": None,
+                              "customFieldCheckboxKeys": [], "customFieldDropdowns": [],
+                              "customFieldRadios": []})
+                    if r.status_code != 200:
+                        break
+                    reqs = ((r.json() or {}).get("data") or {}).get("requisitions") or []
+                    if not reqs:
+                        break
+                    ids += [f"{q.get('requisitionId')}:{q.get('postingEffectiveDate')}"
+                            for q in reqs]
+                    if len(reqs) < 100:
+                        break
         else:
             # Generic + every HTML-shell platform: one GET of the listing URL,
             # fingerprint the discovered job links.

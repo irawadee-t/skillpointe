@@ -155,6 +155,46 @@ def _score_pairs(conn, cache: Cache, pairs, run_id: str) -> dict:
     return counters
 
 
+def _reenrich_job(job_id: str) -> None:
+    """Re-run deterministic enrichment on a job before scoring it.
+
+    The audit found the stale-enrichment hole: a sync that updates a
+    published job's TEXT fires the rescore trigger, but the ontology stamp
+    (credentials, seniority, entry_friendly) was only computed at publish —
+    so the fresh text would be scored against a stale stamp. Re-enriching
+    here (idempotent, ~50ms) closes it for every path. preserve_level: an
+    explicitly chosen experience level is never clobbered.
+    """
+    import asyncio
+    import json as _json
+    import os
+
+    import asyncpg
+
+    async def _run() -> None:
+        dsn = os.environ.get("DATABASE_URL") or \
+            "postgresql://postgres:postgres@localhost:54322/postgres"
+        aconn = await asyncpg.connect(dsn)
+        try:
+            await aconn.set_type_codec(
+                "jsonb", encoder=_json.dumps, decoder=_json.loads,
+                schema="pg_catalog")
+            sys.path.insert(0, str(REPO / "apps" / "api"))
+            from app.skilled_pro.job_enrichment import enrich_jobs
+            # The enrichment UPDATE would re-fire the enqueue trigger and
+            # loop the queue forever — suppress it for this transaction.
+            async with aconn.transaction():
+                await aconn.execute("SET LOCAL skilled.skip_match_enqueue = 'on'")
+                await enrich_jobs(aconn, [job_id], preserve_level=True)
+        finally:
+            await aconn.close()
+
+    try:
+        asyncio.run(_run())
+    except Exception:  # noqa: BLE001 - enrichment failure must not block scoring
+        log.exception("re-enrichment failed for job %s (scoring continues)", job_id)
+
+
 def _process(conn, cache: Cache, entity_type: str, entity_id: str) -> dict:
     import uuid as _uuid
     run_id = str(_uuid.uuid4())
@@ -175,6 +215,8 @@ def _process(conn, cache: Cache, entity_type: str, entity_id: str) -> dict:
                 conn.commit()
                 counters = {"total": 0, "cleared": True}
             else:
+                _reenrich_job(entity_id)
+                fresh = rm._fetch_jobs(conn, job_id=entity_id)  # post-enrichment state
                 job = fresh[0]
                 cache.job_signals.update(rm._fetch_job_signals(conn))
                 rm._canonicalize_credential_inputs([job], [], {}, {})

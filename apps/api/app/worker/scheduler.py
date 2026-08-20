@@ -170,6 +170,19 @@ def create_scheduler() -> AsyncIOScheduler:
         replace_existing=True,
         misfire_grace_time=3600,
     )
+    # Worker supervision — a dead resident worker with trigger-only writes
+    # (raw SQL, scripts) would let the queue accumulate silently, because
+    # database triggers cannot respawn a process. One cheap liveness check
+    # per minute makes worker death a <=60s blip instead of an outage.
+    scheduler.add_job(
+        _supervise_match_worker,
+        trigger="interval",
+        minutes=1,
+        id="match_worker_supervisor",
+        name="Resident match worker supervision (1m)",
+        replace_existing=True,
+        misfire_grace_time=120,
+    )
     # Recovery: mark stuck in_progress recompute rows as failed on startup.
     scheduler.add_job(
         _recover_stuck_recomputes,
@@ -407,6 +420,9 @@ async def _record_run_end(run_id: str | None, ok: bool, error: str | None = None
 # which was never persisted anywhere — see the former TODO(#143).)
 # ---------------------------------------------------------------------------
 
+# Fast-lane probes are ~1.5s each and run every 15-min tick; 25 keeps every
+# realistic source count fully covered per tick with bounded tick time.
+_CS_FAST_LANE_BATCH = 25
 _CS_AUTO_SYNC_BATCH = 5   # sources per tick — incremental syncs are cheap,
                           # but a relearn can be slow; keep the tick bounded.
 
@@ -468,9 +484,10 @@ async def _career_source_auto_sync_tick() -> None:
              WHERE s.auto_sync_enabled
                AND s.next_auto_sync_at IS NOT NULL AND s.next_auto_sync_at > now()
                AND NOT s.needs_attention
+             ORDER BY s.updated_at ASC   -- least-recently-probed first: no starvation
              LIMIT $1
             """,
-            _CS_AUTO_SYNC_BATCH,
+            _CS_FAST_LANE_BATCH,
         )
         for r in idle:
             try:
@@ -581,6 +598,13 @@ async def _interview_reminders_tick() -> None:
         logger.info("Interview reminders tick: processed %d slot windows", len(rows))
 
 
+async def _supervise_match_worker() -> None:
+    try:
+        _ensure_match_worker()
+    except Exception as exc:
+        logger.warning("match worker supervision failed: %s", exc)
+
+
 async def _locked_delta_sweep() -> None:
     await _run_locked("delta_sweep", ttl=1800, coro_factory=_delta_sweep_tick)
 
@@ -619,6 +643,9 @@ async def _delta_sweep_tick() -> None:
                         WHERE processed_at IS NULL DO NOTHING
                    RETURNING id""", wm)
             await conn.execute("NOTIFY match_queue")
+            # Queue hygiene: processed rows are audit breadcrumbs, not data.
+            await conn.execute(
+                "DELETE FROM public.match_queue WHERE processed_at < now() - interval '7 days'")
             await conn.execute(
                 """UPDATE public.recompute_runs
                       SET status='complete', completed_at=now() WHERE id=$1::uuid""",
