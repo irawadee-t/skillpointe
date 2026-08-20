@@ -38,7 +38,8 @@ logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s match-worker %(levelname)s %(message)s")
 log = logging.getLogger("match_worker")
 
-CACHE_TTL_S = 600          # background pool refresh cadence
+CACHE_TTL_S = 600          # idle refresh cadence (burst-start reloads dominate)
+BURST_STALENESS_S = 30     # a work burst never scores against a pool older than this
 POLL_S = 10                # fallback wake if a NOTIFY is missed
 ADVISORY_LOCK_KEY = 0x534B4D57  # "SKMW" — single-instance guard
 
@@ -243,6 +244,19 @@ def main() -> int:
     log.info("listening on match_queue")
 
     while True:
+        # Burst-start freshness: tasks arriving now may reference entities
+        # created seconds ago on EITHER side of the marketplace. A brand-new
+        # job scored against a pool missing a brand-new applicant (or vice
+        # versa) would silently skip that pair until the next refresh — so a
+        # burst never begins against a pool older than BURST_STALENESS_S.
+        # The reload is cheap (~0.2s measured) relative to any burst.
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1 FROM public.match_queue WHERE processed_at IS NULL LIMIT 1")
+            has_work = cur.fetchone() is not None
+        conn.commit()
+        if has_work and time.monotonic() - cache.loaded_at > BURST_STALENESS_S:
+            cache.load(conn)
+
         # Drain everything pending, oldest first.
         while True:
             with conn.cursor() as cur:

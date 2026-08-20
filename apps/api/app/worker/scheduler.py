@@ -100,15 +100,17 @@ def create_scheduler() -> AsyncIOScheduler:
         replace_existing=True,
         misfire_grace_time=3600,
     )
-    # Delta sweep — enqueue ONLY entities changed since the last sweep into
-    # match_queue for the resident worker. Compute scales with change volume,
-    # not catalog size: a quiet 6 hours costs one indexed query.
+    # Drift detector — with database triggers guaranteeing every content
+    # write enqueues matching, this sweep should find NOTHING. Anything it
+    # does find is logged as a warning: evidence of a write path that
+    # bypassed the triggers (or a trigger regression). Hourly because the
+    # check is one indexed query.
     scheduler.add_job(
         _locked_delta_sweep,
         trigger="interval",
-        hours=6,
+        hours=1,
         id="delta_sweep",
-        name="Delta match sweep (6h)",
+        name="Match drift detector (hourly)",
         replace_existing=True,
         misfire_grace_time=600,
     )
@@ -623,8 +625,13 @@ async def _delta_sweep_tick() -> None:
                 run_id)
         if jobs or apps:
             _ensure_match_worker()
-            logger.info("Delta sweep enqueued %d job(s), %d applicant(s)",
-                        len(jobs), len(apps))
+            # Triggers should have caught these at write time. Finding work
+            # here means something wrote match-relevant data outside the
+            # trigger guarantee — surface it loudly, then heal it anyway.
+            logger.warning(
+                "Match drift detector found %d job(s), %d applicant(s) that "
+                "were NOT enqueued at write time — investigate the write path",
+                len(jobs), len(apps))
     except Exception as exc:
         logger.exception("Delta sweep failed: %s", exc)
 
