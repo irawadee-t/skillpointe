@@ -37,10 +37,10 @@ from pathlib import Path
 # Allow importing from packages/ without pip-installing the package
 sys.path.insert(0, str(Path(__file__).parent.parent / "packages"))
 
-from etl.loader import load_file, inspect_headers
-from etl.models import ImportResult, ImportRowResult
-from etl.reporting import print_summary, print_row_verbose
 from etl import applicant_mapper
+from etl.loader import inspect_headers, load_file
+from etl.models import ImportResult, ImportRowResult
+from etl.reporting import print_row_verbose, print_summary
 
 
 def main() -> int:
@@ -109,8 +109,13 @@ def main() -> int:
     conn = None
     if not args.dry_run:
         try:
-            from etl.db import get_connection, create_import_run, complete_import_run
-            from etl.db import insert_applicant, insert_import_row
+            from etl.db import (
+                complete_import_run,
+                create_import_run,
+                get_connection,
+                insert_applicant,
+                insert_import_row,
+            )
             conn = get_connection()
             # Bulk import: suppress per-row match enqueue (explicit recompute
             # follows); mass trigger inserts would occupy the worker for hours.
