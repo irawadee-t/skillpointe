@@ -74,7 +74,10 @@ def scrape_workday(url: str, *, employer_name: str, max_jobs: int = 500) -> list
                 break
             for post in postings:
                 ep = post.get("externalPath", "")
-                detail_url = f"{base}{ep}" if ep else url
+                # Public Workday URLs include the SITE segment:
+                # {base}/{site}{externalPath}. Omitting it 404s (the
+                # import link-guard caught exactly this on 3M).
+                detail_url = f"{base}/{site}{ep}" if ep else url
                 # Fetch detail for the description + structured fields.
                 title = post.get("title") or ""
                 location = post.get("locationsText") or post.get("location") or ""

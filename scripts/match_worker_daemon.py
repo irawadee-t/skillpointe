@@ -44,6 +44,11 @@ POLL_S = 10                # fallback wake if a NOTIFY is missed
 ADVISORY_LOCK_KEY = 0x534B4D57  # "SKMW" — single-instance guard
 
 FLUSH_EVERY = 1000
+# Surge handling: applicant tasks batch-claim so a mass signup (or import
+# wave) drains as ONE scoring pass — one fresh fetch, one matches DELETE,
+# one write stream — instead of per-person round-trips. Jobs stay
+# single-claim (each carries a large candidate set of its own).
+APPLICANT_CLAIM_BATCH = 500
 
 
 class Cache:
@@ -195,6 +200,58 @@ def _reenrich_job(job_id: str) -> None:
         log.exception("re-enrichment failed for job %s (scoring continues)", job_id)
 
 
+def _process_applicant_batch(conn, cache: Cache, aids: list[str]) -> dict:
+    """Score a batch of applicants as one pass — the mass-signup path.
+
+    One fresh fetch of every claimed profile, one matches DELETE, one write
+    stream. Deleted accounts in the batch are handled by absence: their
+    matches were already cascade-removed, the fresh fetch skips them.
+    """
+    import uuid as _uuid
+    run_id = str(_uuid.uuid4())
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO public.recompute_runs (kind, status, started_at) "
+            "VALUES ('applicant', 'in_progress', now()) RETURNING id")
+        rec_run = cur.fetchone()[0]
+    conn.commit()
+    try:
+        want = set(aids)
+        # Fetching the full pool and filtering is one query and, measured,
+        # as fast as 500 point lookups — and it doubles as a pool refresh.
+        fresh = [a for a in rm._fetch_applicants(conn) if str(a["id"]) in want]
+        creds = rm._fetch_applicant_credentials(conn)
+        sigs = rm._fetch_applicant_signals(conn)
+        rm._canonicalize_credential_inputs([], fresh, sigs, creds)
+        cache.app_signals.update(sigs)
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM public.matches WHERE applicant_id = ANY(%s::uuid[])",
+                        (aids,))
+        conn.commit()
+
+        def gen():
+            for a in fresh:
+                for j in _candidate_jobs(cache, a):
+                    yield a, j
+        counters = _score_pairs(conn, cache, gen(), run_id)
+        counters["applicants"] = len(fresh)
+        counters["missing_or_deleted"] = len(aids) - len(fresh)
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE public.recompute_runs SET status='complete', completed_at=now() "
+                "WHERE id=%s", (rec_run,))
+        conn.commit()
+        return counters
+    except Exception as exc:
+        conn.rollback()
+        with conn.cursor() as cur:
+            cur.execute(
+                "UPDATE public.recompute_runs SET status='failed', completed_at=now(), "
+                "error=%s WHERE id=%s", (str(exc)[:500], rec_run))
+        conn.commit()
+        raise
+
+
 def _process(conn, cache: Cache, entity_type: str, entity_id: str) -> dict:
     import uuid as _uuid
     run_id = str(_uuid.uuid4())
@@ -299,18 +356,48 @@ def main() -> int:
         if has_work and time.monotonic() - cache.loaded_at > BURST_STALENESS_S:
             cache.load(conn)
 
-        # Drain everything pending, oldest first.
+        # Drain everything pending. People first: an applicant edit has a
+        # human waiting at the matches page; bulk job rescores do not.
+        # Applicant tasks are claimed in batches (surge path); jobs one at
+        # a time (each is its own large candidate set).
         while True:
+            with conn.cursor() as cur:
+                cur.execute("""
+                    UPDATE public.match_queue SET claimed_at = now()
+                     WHERE id IN (SELECT id FROM public.match_queue
+                                  WHERE processed_at IS NULL
+                                    AND entity_type = 'applicant'
+                                  ORDER BY enqueued_at
+                                  FOR UPDATE SKIP LOCKED LIMIT %s)
+                    RETURNING id, entity_id""", (APPLICANT_CLAIM_BATCH,))
+                app_rows = cur.fetchall()
+            conn.commit()
+            if app_rows:
+                t0 = time.monotonic()
+                qids = [r[0] for r in app_rows]
+                aids = [str(r[1]) for r in app_rows]
+                try:
+                    counters = _process_applicant_batch(conn, cache, aids)
+                    err = None
+                except Exception as exc:  # noqa: BLE001
+                    log.exception("applicant batch of %d failed", len(aids))
+                    conn.rollback()
+                    counters, err = {}, str(exc)[:500]
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "UPDATE public.match_queue SET processed_at = now(), "
+                        "error = %s WHERE id = ANY(%s)", (err, qids))
+                conn.commit()
+                log.info("applicant batch x%d: %s in %.1fs",
+                         len(aids), counters, time.monotonic() - t0)
+                continue
+
             with conn.cursor() as cur:
                 cur.execute("""
                     UPDATE public.match_queue SET claimed_at = now()
                      WHERE id = (SELECT id FROM public.match_queue
                                   WHERE processed_at IS NULL
-                                  -- People first: an applicant edit has a
-                                  -- human waiting at the matches page; a
-                                  -- bulk job rescore (config change, sync
-                                  -- wave) does not. FIFO within each class.
-                                  ORDER BY (entity_type <> 'applicant'), enqueued_at
+                                  ORDER BY enqueued_at
                                   FOR UPDATE SKIP LOCKED LIMIT 1)
                     RETURNING id, entity_type, entity_id""")
                 row = cur.fetchone()
