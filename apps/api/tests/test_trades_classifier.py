@@ -97,27 +97,55 @@ def test_positive_titles_match_expected_family():
 # Should NOT match — corporate / office / engineering roles
 # ---------------------------------------------------------------------------
 
+# Policy change (2026-08, per the taxonomy owner): a title naming ANY field
+# in the SKILLED Nation taxonomy is in scope — engineering, software, data,
+# and cybersecurity are taxonomy fields with classified applicants, so they
+# are POSITIVES now. Negative = titles outside every taxonomy field.
 NEGATIVE = [
-    "Electrical Engineer",
-    "Manufacturing Engineer II",
-    "Senior Software Engineer",
-    "Data Analyst",
     "Marketing Manager",
     "Director of HR",
-    "Plant Manager",            # manager-only, no trade verb
     "Recruiter",
     "Procurement Buyer",
     "Product Designer",
     "Sales Account Executive",
-    "Engineering Intern",
+    "Engineering Intern",       # interns stay out regardless of field
     "Accountant",
-    "Cybersecurity Analyst",
+    "Corporate Counsel",
+    "Brand Ambassador",
+    "Escrow Officer",
+    "Mortgage Loan Processor",
 ]
+
+TAXONOMY_POSITIVE = {
+    "Electrical Engineer": "electrical_engineering",
+    "Manufacturing Engineer II": "manufacturing_engineering_tech",
+    "Senior Software Engineer": "software_and_web_development",
+    "Data Analyst": "data_science_and_analytics",
+    "Cybersecurity Analyst": "cybersecurity",
+    "Construction Manager": "construction_management",
+    "Signal Maintainer": "rail_signals_controls",
+    "Track Laborer": "railway_track_maintenance",
+    "Freight Conductor Trainee": "rail_vehicle_maintenance",
+    "Shipfitter": "shipfitting_and_boat_building",
+}
 
 
 def test_negative_titles_are_filtered_out():
     false_positives = [t for t in NEGATIVE if is_trade(t)]
-    assert not false_positives, f"corporate jobs leaking through: {false_positives}"
+    assert not false_positives, f"non-taxonomy jobs leaking through: {false_positives}"
+
+
+def test_taxonomy_fields_are_positives():
+    import sys as _sys
+    from pathlib import Path as _P
+    _sys.path.insert(0, str(_P(__file__).resolve().parents[3] / "packages"))
+    from matching import sn_taxonomy
+    from scraper.trades import classify
+    for title, want in TAXONOMY_POSITIVE.items():
+        r = classify(title)
+        assert r.is_trade, f"{title} rejected but its field is in the taxonomy"
+        got = sn_taxonomy.resolve_field_code(r.family) or r.family
+        assert got == want, f"{title}: {got} != {want}"
 
 
 # ---------------------------------------------------------------------------

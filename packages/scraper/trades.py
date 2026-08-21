@@ -114,8 +114,7 @@ FAMILIES: list[tuple[str, list[str]]] = [
         r"\bsmaw\b", r"\bgmaw\b", r"\bfcaw\b", r"\bgtaw\b",
         r"\bcombo welder\b", r"\bpipe welder\b",
         r"\bstructural welder\b",
-        r"\bship ?builder\b", r"\bshipfitter\b",
-    ]),
+        r"\bship ?builder\b",     ]),
     ("building_automation", [
         r"\bbuilding automation (?:tech|technician|specialist)\b",
         r"\bbas tech(?:nician)?\b",
@@ -138,10 +137,11 @@ FAMILIES: list[tuple[str, list[str]]] = [
     ("rail_transit", [
         # Must precede automotive_diesel — "Locomotive Diesel Technician"
         # would otherwise hit the generic diesel pattern.
+        # Signal and track titles are NOT listed here: Tasha's taxonomy
+        # splits rail into vehicle / signals / track fields, and the
+        # taxonomy layer below routes those titles to the finer field.
         r"\blocomotive (?:diesel )?(?:tech|technician|mechanic)\b",
         r"\brail(?:car|road) (?:tech|technician|mechanic)\b",
-        r"\btrack (?:worker|maintainer|technician)\b",
-        r"\bsignal maintainer\b",
         r"\bbridge[/\s].*?(?:rail|structure).*?tech(?:nician)?\b",
     ]),
     ("marine", [
@@ -201,7 +201,7 @@ FAMILIES: list[tuple[str, list[str]]] = [
         # Bare "Operator" (with optional roman/arabic level suffix) — on these
         # industrial sites it's always a machine operator role.
         r"^\s*operator\s*(?:[-,–]?\s*\w+)?\s*(?:I{1,3}|i{1,3}|\d+)?\s*$",
-        r"\bmaintainer\b",                      # Ball uses "Maintainer-Chemical Process"
+        r"\b(?:equipment|machine|production) maintainer\b", r"\bmaintainer[- ](?:chemical|process|mechanical|electrical|equipment)\b",                      # Ball uses "Maintainer-Chemical Process"
         r"\bchemical (?:operator|technician|tech)\b",
         r"\bstranding (?:operator|helper|associate)\b",
     ]),
@@ -381,6 +381,12 @@ def classify(title: str, description: Optional[str] = None) -> TradeMatch:
                 return TradeMatch(True, family=family, matched_term=m.group(0),
                                   reason="title match")
 
+    # Taxonomy-complete layer: any of Tasha's 116 fields named in the title
+    # is a match, deny-list notwithstanding (the taxonomy IS the authorization).
+    tax = classify_taxonomy(haystack)
+    if tax.is_trade:
+        return tax
+
     # Title didn't match. If we have a description, try the description as a
     # weaker secondary signal — but ONLY if the title isn't an obvious deny.
     if description and not _DENY_TITLES.search(haystack):
@@ -397,3 +403,156 @@ def classify(title: str, description: Optional[str] = None) -> TradeMatch:
 def is_trade(title: str, description: Optional[str] = None) -> bool:
     """Convenience wrapper — boolean check only."""
     return classify(title, description).is_trade
+
+
+# ===========================================================================
+# Taxonomy-complete layer — every field in the SKILLED Nation taxonomy is
+# match-eligible. The hand-curated FAMILIES above cover classic trade titles
+# with high precision and run first; this layer guarantees COVERAGE: a job
+# whose title names any of Tasha's 116 fields (Construction Management,
+# Rail Vehicle Maintenance, Cybersecurity, ...) is never rejected as
+# "not trades". A taxonomy hit bypasses the deny list by design — the field's
+# presence in the taxonomy IS the authorization (2026-08 audit: the deny
+# list was vetoing Construction Manager while construction_management held
+# 1,894 classified applicants).
+# ===========================================================================
+
+# Job-title forms per field code. Derived from the field names, hand-tuned to
+# how the titles appear on real postings (management -> manager, nursing ->
+# nurse, machining -> machinist, rail vocab, etc.).
+_TAXONOMY_PATTERNS: dict[str, list[str]] = {
+    "additive_manufacturing": [r"\badditive manufacturing\b", r"\b3d print"],
+    "ai_and_machine_learning": [r"\bmachine learning\b", r"\bml engineer\b", r"\bai (?:engineer|specialist)\b"],
+    "architectural_drafting_cad": [r"\bdraft(?:er|ing)\b", r"\bcad (?:tech|designer|drafter|operator)\b"],
+    "auto_body_collision": [r"\bauto body\b", r"\bcollision (?:repair|tech)\b", r"\bbody shop\b"],
+    "automotive_ev_service": [r"\bautomotive (?:tech|technician|mechanic|service)\b", r"\bev (?:tech|technician)\b"],
+    "aviation_maintenance": [r"\baircraft\b", r"\bavionics\b", r"\ba&p mechanic\b"],
+    "biomedical_equipment_technology": [r"\bbiomedical (?:equipment|tech)\b", r"\bbmet\b"],
+    "building_and_facilities_maintenance": [r"\bfacilit(?:y|ies) (?:maintenance|tech)\b", r"\bbuilding maintenance\b", r"\bhandyman\b"],
+    "building_automation_controls": [r"\bbuilding automation\b", r"\bbas (?:tech|specialist)\b", r"\bbms\b"],
+    "building_construction_technology": [r"\bconstruction (?:tech|technology|worker|laborer|crew)\b", r"\bgeneral laborer\b"],
+    "building_energy_management": [r"\benergy management\b", r"\benergy auditor\b"],
+    "cardiovascular_sonography": [r"\bcardiovascular sonograph"],
+    "cardiovascular_technician": [r"\bcardiovascular tech\b", r"\bekg tech\b", r"\becg tech\b"],
+    "carpentry_and_woodworking": [r"\bcarpent(?:er|ry)\b", r"\bwoodwork"],
+    "cloud_computing_and_infrastructure": [r"\bcloud (?:engineer|infrastructure|architect|administrator)\b"],
+    "cnc_machining": [r"\bcnc\b", r"\bmachinist\b", r"\bprecision machin"],
+    "commercial_driving_cdl": [r"\bcdl\b", r"\btruck driver\b", r"\bcommercial driver\b", r"\bdelivery driver\b"],
+    "computer_engineering": [r"\bcomputer engineer"],
+    "computer_systems_administration": [r"\bsystems? administrator\b", r"\bsysadmin\b"],
+    "construction_management": [r"\bconstruction manag(?:er|ement)\b", r"\bsuperintendent\b", r"\bfield manager\b", r"\bproject engineer\b.{0,20}\bconstruction\b", r"\bconstruction project (?:manager|engineer)\b", r"\bfield engineer\b", r"\bassistant construction manager\b", r"\bpreconstruction\b"],
+    "cosmetology_esthetician": [r"\bcosmetolog", r"\besthetician\b", r"\bbarber\b"],
+    "cybersecurity": [r"\bcyber ?security\b", r"\bsecurity (?:engineer|analyst|architect)\b", r"\binfosec\b"],
+    "data_center_operations": [r"\bdata cent(?:er|re) (?:tech|operations|operator)\b"],
+    "data_science_and_analytics": [r"\bdata scien", r"\bdata analy"],
+    "database_administration": [r"\bdatabase admin", r"\bdba\b"],
+    "dental_assistant": [r"\bdental assistant\b"],
+    "dental_hygienist": [r"\bdental hygien"],
+    "diagnostic_medical_sonography": [r"\bsonograph", r"\bultrasound tech\b"],
+    "diesel_service_and_technology": [r"\bdiesel\b", r"\bfleet (?:mechanic|tech)\b"],
+    "diet_nutrition": [r"\bdietitian\b", r"\bnutritionist\b"],
+    "electrical": [r"\belectrician\b", r"\belectrical (?:tech|technician|apprentice)\b"],
+    "electrical_engineering": [r"\belectrical engineer"],
+    "emt_paramedic": [r"\bemt\b", r"\bparamedic\b", r"\bemergency medical tech"],
+    "energy_storage": [r"\benergy storage\b", r"\bbattery (?:tech|systems)\b"],
+    "exercise_science_and_sports_medicine": [r"\bathletic trainer\b", r"\bsports medicine\b"],
+    "fiber_optics_technician": [r"\bfiber (?:optic|splic)", r"\bcable tech"],
+    "fire_science": [r"\bfirefighter\b", r"\bfire (?:science|marshal|inspector)\b"],
+    "gis": [r"\bgis\b", r"\bgeographic information\b"],
+    "health_information": [r"\bhealth information\b", r"\bmedical records\b"],
+    "healthcare_system_administration": [r"\bhealthcare admin"],
+    "heavy_equipment_operation": [r"\bheavy equipment operat", r"\bexcavator operator\b", r"\bcrane operator\b", r"\bdozer\b", r"\bloader operator\b"],
+    "heavy_equipment_service_and_technology": [r"\bheavy equipment (?:mechanic|tech|service)\b"],
+    "home_and_building_inspection": [r"\b(?:home|building) inspector\b"],
+    "hvac_r": [r"\bhvac\b", r"\brefrigeration (?:tech|mechanic)\b"],
+    "industrial_electrical_technology": [r"\bindustrial electric"],
+    "industrial_maintenance": [r"\bindustrial maintenance\b", r"\bmillwright\b", r"\bmaintenance (?:mechanic|tech)"],
+    "instrumentation_automation_controls": [r"\binstrumentation\b", r"\bcontrols tech", r"\bi&c tech\b", r"\bautomation tech"],
+    "instrumentation_controls": [r"\binstrument tech"],
+    "interior_finishing": [r"\bdrywall\b", r"\bfloor(?:ing)? install", r"\binsulation install", r"\bpainter\b", r"\bglazier\b"],
+    "it_network_support": [r"\bit support\b", r"\bhelp ?desk\b", r"\bnetwork support\b", r"\bdesktop support\b"],
+    "laboratory_technician": [r"\blab(?:oratory)? tech"],
+    "law_enforcement": [r"\bpolice officer\b", r"\bsecurity officer\b", r"\bcorrections officer\b"],
+    "lowvoltage_electrical_technology": [r"\blow[- ]voltage\b"],
+    "manufacturing_engineering_tech": [r"\bmanufacturing engineer", r"\bindustrial engineer", r"\bprocess engineer"],
+    "manufacturing_production": [r"\bproduction (?:operator|tech|associate|worker|supervisor)\b", r"\bmachine operator\b", r"\bassembl(?:er|y)\b", r"\bfabricat", r"\bplant (?:operator|tech)\b", r"\bmanufacturing (?:operator|associate|tech|supervisor)\b", r"\bpackag(?:er|ing operator)\b"],
+    "marine_systems_service": [r"\bmarine (?:tech|mechanic|systems)\b", r"\boutboard\b"],
+    "marine_welding": [r"\bmarine weld"],
+    "masonry_and_concrete": [r"\bmason(?:ry)?\b", r"\bconcrete\b", r"\bcement (?:mason|finisher)\b"],
+    "massage_therapy": [r"\bmassage therap"],
+    "mechanical_design_cad_cam": [r"\bcad/?cam\b", r"\bmechanical design"],
+    "medical_assistant": [r"\bmedical assistant\b"],
+    "medical_billing_and_coding": [r"\bmedical (?:billing|coding|coder)\b"],
+    "metrology_cmm": [r"\bmetrology\b", r"\bcmm (?:operator|programmer)\b", r"\bquality inspector\b"],
+    "mri_technician": [r"\bmri tech"],
+    "network_cabling_technician": [r"\bnetwork cabl", r"\bstructured cabling\b"],
+    "network_operations": [r"\bnetwork (?:engineer|operations|admin)"],
+    "nursing": [r"\b(?:registered )?nurse\b", r"\brn\b", r"\blpn\b", r"\blvn\b"],
+    "nursing_assistant": [r"\bcna\b", r"\bnursing assistant\b", r"\bcaregiver\b"],
+    "occupational_therapy_assistant": [r"\boccupational therapy assistant\b", r"\bcota\b"],
+    "oil_gas_production": [r"\boil (?:and|&) gas\b", r"\broustabout\b", r"\bderrick"],
+    "patient_care": [r"\bpatient care\b", r"\bhome health aide\b"],
+    "pharmacy_technician": [r"\bpharmacy tech"],
+    "phlebotomist": [r"\bphlebotom"],
+    "physical_therapy_assistant": [r"\bphysical therap(?:y|ist) assistant\b", r"\bpta\b"],
+    "pipefitting_steamfitting": [r"\bpipe ?fitter\b", r"\bsteam ?fitter\b", r"\bpipefitting\b"],
+    "pipeline_construction": [r"\bpipeline\b"],
+    "pipeline_welding": [r"\bpipeline weld"],
+    "plastics_composites": [r"\bplastics\b", r"\bcomposites?\b", r"\binjection mold", r"\bextrusion\b"],
+    "plumbing": [r"\bplumb"],
+    "power_plant_operation": [r"\bpower plant\b", r"\bplant operator\b", r"\bturbine\b"],
+    "powersports_service": [r"\bmotorcycle (?:tech|mechanic)\b", r"\bpowersports\b"],
+    "process_technology_and_plant_operations": [r"\bprocess (?:tech|operator)\b", r"\bplant operations\b", r"\bchemical operator\b"],
+    "qa_testing_and_automation": [r"\bqa (?:engineer|tester|analyst)\b", r"\btest automation\b"],
+    "quality_control_and_quality_assurance": [r"\bquality (?:control|assurance|tech)\b", r"\bqc (?:tech|inspector)\b"],
+    "radiology_technician": [r"\bradiolog(?:y|ic) tech", r"\bx-?ray tech"],
+    "rail_signals_controls": [r"\bsignal (?:maintainer|tech|apprentice|electrician)\b", r"\brail signal", r"\bc&s (?:tech|maintainer)\b", r"\bcommunications? (?:&|and) signals?\b"],
+    "rail_vehicle_maintenance": [r"\bcarman\b", r"\bcar (?:repair|inspector)\b.{0,20}\brail", r"\blocomotive\b", r"\brailcar\b", r"\bfreight car\b", r"\bconductor\b", r"\bbrakeman\b", r"\bswitchman\b", r"\byardmaster\b", r"\btrain(?:man| crew| service)\b"],
+    "railway_track_maintenance": [r"\btrack (?:laborer|maintainer|maintenance|foreman|inspector|worker)\b", r"\btrackman\b", r"\bmaintenance of way\b", r"\bmow\b", r"\broadmaster\b"],
+    "refrigeration": [r"\brefrigeration\b"],
+    "renewable_energy": [r"\brenewable\b", r"\bsolar\b", r"\bwind energy\b"],
+    "respiratory_therapy": [r"\brespiratory therap"],
+    "robotics_mechatronics": [r"\brobotics?\b", r"\bmechatronic"],
+    "security_systems_locksmithing": [r"\blocksmith\b", r"\bsecurity system(?:s)? (?:tech|install)"],
+    "sheet_metal_fabrication": [r"\bsheet metal\b"],
+    "shipfitting_and_boat_building": [r"\bship ?fitt", r"\bshipwright\b", r"\bboat build", r"\bshipbuild", r"\bhull (?:tech|mechanic)\b", r"\brigger\b"],
+    "software_and_web_development": [r"\bsoftware (?:engineer|developer)\b", r"\bweb develop", r"\bfull ?stack\b"],
+    "solar_installation": [r"\bsolar install", r"\bpv install"],
+    "surgical_technology": [r"\bsurgical tech"],
+    "surveying_mapping": [r"\bsurvey(?:or|ing)\b"],
+    "telecommunications_technician": [r"\btelecom(?:munications)? tech", r"\bcentral office tech\b"],
+    "tool_die_mold": [r"\btool (?:and|&) die\b", r"\btoolmaker\b", r"\bmold maker\b", r"\bdie maker\b"],
+    "transmission_linework": [r"\bline(?:man|worker)\b", r"\bpowerline\b", r"\btransmission line\b"],
+    "utility_public_works": [r"\butilit(?:y|ies) (?:tech|worker|operator)\b", r"\bpublic works\b", r"\bmeter (?:tech|reader)\b"],
+    "veterinary_technician": [r"\bveterinary tech", r"\bvet tech\b"],
+    "wastewater_operations": [r"\bwastewater\b", r"\bwater treatment\b"],
+    "welding_fabrication": [r"\bweld(?:er|ing)\b"],
+    "wind_turbine_technology": [r"\bwind turbine\b", r"\bwind tech"],
+}
+
+_TAXONOMY_COMPILED: list[tuple[str, list[re.Pattern[str]]]] = [
+    (code, [re.compile(p, re.IGNORECASE) for p in pats])
+    for code, pats in _TAXONOMY_PATTERNS.items()
+]
+
+# Even taxonomy coverage keeps obvious non-field noise out: a title that is
+# ONLY commercial/administrative never becomes a field match by accident.
+_TAXONOMY_HARD_DENY = re.compile(
+    r"\b(sales|marketing|recruiter|talent acquisition|payroll|accountant|"
+    r"accounting|finance|financial|legal|counsel|attorney|intern|internship|"
+    r"escrow|mortgage|loan)\b",
+    re.IGNORECASE,
+)
+
+
+def classify_taxonomy(title: str) -> TradeMatch:
+    """Match a title against the full SKILLED Nation field taxonomy."""
+    if not title or _TAXONOMY_HARD_DENY.search(title):
+        return TradeMatch(False, reason="taxonomy: denied or empty")
+    for code, patterns in _TAXONOMY_COMPILED:
+        for pat in patterns:
+            m = pat.search(title)
+            if m:
+                return TradeMatch(True, family=code, matched_term=m.group(0),
+                                  reason="taxonomy field match")
+    return TradeMatch(False, reason="taxonomy: no field match")

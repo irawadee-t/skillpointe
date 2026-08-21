@@ -165,6 +165,7 @@ LEGACY_FAMILY_BRIDGE: dict[str, str | None] = {
     "drafting": 'architectural_drafting_cad',
     "aviation": 'aviation_maintenance',
     "auto_body": 'auto_body_collision',
+    "aviation_aerospace": 'aviation_maintenance',
     "energy_lineman": 'transmission_linework',
     "solar_energy": 'solar_installation',
     "wind_energy": 'wind_turbine_technology',

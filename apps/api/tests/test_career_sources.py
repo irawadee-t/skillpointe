@@ -191,7 +191,7 @@ class TestTradesFilter:
         jobs = [
             ScrapedJob(title="Industrial Electrician", employer_name="A",
                        source_url="https://a.com/jobs/1", source_site="careers:a.com"),
-            ScrapedJob(title="Senior Software Engineer", employer_name="A",
+            ScrapedJob(title="Sales Account Executive", employer_name="A",
                        source_url="https://a.com/jobs/2", source_site="careers:a.com"),
             ScrapedJob(title="Welder I", employer_name="A",
                        source_url="https://a.com/jobs/3", source_site="careers:a.com"),

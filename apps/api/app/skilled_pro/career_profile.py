@@ -415,6 +415,9 @@ def _sitemap_incremental(
         rec = stored.get(u)
         if rec is None or rec.get("vanished_at"):
             to_fetch.append(u)                      # new (or resurrected)
+        elif not rec.get("fingerprint"):
+            to_fetch.append(u)                      # known from a census but
+                                                    # never detail-fetched
         elif lastmod and rec.get("listing_fingerprint") not in ("", None, lastmod):
             to_fetch.append(u)                      # lastmod moved -> changed
     to_fetch = to_fetch[:max_jobs]
