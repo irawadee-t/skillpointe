@@ -21,9 +21,8 @@ from typing import Any, Optional
 from urllib.parse import urlparse
 
 import httpx
-from bs4 import BeautifulSoup
 
-from .base import ScrapedJob, strip_html, normalize_state
+from .base import ScrapedJob, normalize_state, strip_html
 
 USER_AGENT = (
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
@@ -393,4 +392,112 @@ def scrape_by_platform(platform: str, url: str, *, employer_name: str,
         return scrape_lever(url, employer_name=employer_name, max_jobs=max_jobs)
     if platform == "cornerstone":
         return scrape_cornerstone(url, employer_name=employer_name, max_jobs=max_jobs)
+    if platform == "mcloud":
+        return scrape_mcloud(url, employer_name=employer_name, max_jobs=max_jobs)
     return []
+
+
+# ============================================================================
+# Cielo CWS / m-cloud (jobsapi-google.m-cloud.io) — embedded-config JSON API
+# ============================================================================
+# WordPress careers sites running the CWS plugin (Home Depot et al.) render
+# jobs client-side from an unauthenticated Google Cloud Talent API. The page
+# embeds the tenant config (company GUID + ATS portal list); the API pages
+# 100 at a time. One adapter serves every CWS-hosted employer. Catalogs can
+# be enormous (Home Depot: 25k postings, mostly retail), so the scrape runs
+# trade-oriented queries rather than sampling the full relevance stream.
+
+_MCLOUD_COMPANY_RE = re.compile(r"([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})")
+_MCLOUD_PORTALS_RE = re.compile(r"ats_portalid:([\w~ -]+)")
+
+_MCLOUD_QUERIES = [
+    "technician", "mechanic", "maintenance", "installer", "electrician",
+    "hvac", "plumber", "welder", "carpenter", "machinist", "warehouse",
+    "driver", "operator", "apprentice",
+]
+
+
+def _parse_mcloud(url: str, html: Optional[str] = None) -> Optional[tuple[str, str, str]]:
+    """(origin, company_guid, portal_filter) from a CWS careers page."""
+    parsed = urlparse(url)
+    origin = f"{parsed.scheme}://{parsed.netloc}"
+    if html is None:
+        try:
+            with httpx.Client(headers={"User-Agent": USER_AGENT}, timeout=25.0,
+                              follow_redirects=True) as client:
+                html = client.get(url).text
+        except Exception:
+            return None
+    if "m-cloud.io" not in (html or ""):
+        return None
+    cm = _MCLOUD_COMPANY_RE.search(html)
+    pm = _MCLOUD_PORTALS_RE.search(html)
+    if not cm:
+        return None
+    portals = [p.strip() for p in pm.group(1).split("~") if p.strip()] if pm else []
+    portal_filter = (" OR ".join(f'ats_portalid="{p}"' for p in portals)) if portals else ""
+    return origin, cm.group(1), f"({portal_filter})" if portal_filter else ""
+
+
+def scrape_mcloud(url: str, *, employer_name: str, max_jobs: int = 500) -> list[ScrapedJob]:
+    parsed = _parse_mcloud(url)
+    if not parsed:
+        return []
+    origin, company, portal_filter = parsed
+    api = "https://jobsapi-google.m-cloud.io/api/job/search"
+
+    out: list[ScrapedJob] = []
+    seen: set[str] = set()
+    with httpx.Client(headers={"User-Agent": USER_AGENT}, timeout=30.0) as client:
+        for q in _MCLOUD_QUERIES:
+            if len(out) >= max_jobs:
+                break
+            offset = 0
+            while len(out) < max_jobs:
+                params = {
+                    "callback": "cb", "pageSize": 100, "offset": offset,
+                    "companyName": f"companies/{company}", "query": q,
+                    "orderBy": "relevance desc",
+                }
+                if portal_filter:
+                    params["customAttributeFilter"] = portal_filter
+                try:
+                    r = client.get(api, params=params)
+                except httpx.HTTPError:
+                    break
+                if r.status_code != 200:
+                    break
+                m = re.match(r"^[\w.]+\((.*)\);?\s*$", r.text, re.S)
+                try:
+                    data = json.loads(m.group(1) if m else r.text)
+                except (ValueError, AttributeError):
+                    break
+                results = data.get("searchResults") or []
+                if not results:
+                    break
+                for res in results:
+                    j = res.get("job", res)
+                    jid = str(j.get("id") or "")
+                    if not jid or jid in seen:
+                        continue
+                    seen.add(jid)
+                    out.append(ScrapedJob(
+                        title=j.get("title") or "Unknown",
+                        employer_name=employer_name,
+                        source_url=f"{origin}/job/{jid}/",
+                        source_site=f"mcloud:{urlparse(origin).netloc}",
+                        city=j.get("primary_city"),
+                        state=normalize_state(j.get("primary_state")),
+                        country=j.get("primary_country") or "US",
+                        description=strip_html(j.get("description")),
+                        posted_date=j.get("open_date"),
+                        employment_type=j.get("employment_type"),
+                        job_category=j.get("primary_category"),
+                        req_id=str(j.get("ref") or j.get("clientid") or jid),
+                    ))
+                    if len(out) >= max_jobs:
+                        break
+                if len(results) < 100:
+                    break
+                offset += 100
+    return out

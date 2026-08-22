@@ -35,6 +35,7 @@ class Platform(str, Enum):
     BAMBOOHR        = "bamboohr"
     PARADOX         = "paradox"
     CORNERSTONE     = "cornerstone"
+    MCLOUD          = "mcloud"
     UNKNOWN         = "unknown"
 
 
@@ -81,6 +82,10 @@ def detect_from_url(url: str) -> Platform:
 # ----------------------------------------------------------------------------
 
 _BODY_FINGERPRINTS: list[tuple[re.Pattern[str], Platform]] = [
+    # Cielo CWS / m-cloud sites often LINK to per-req Workday/ATS apply URLs,
+    # so this fingerprint must outrank the workday one (Home Depot's page
+    # misdetected as workday before this ordering).
+    (re.compile(r"m-cloud\.io|cws\.jobs\.js",                     re.I), Platform.MCLOUD),
     (re.compile(r"boards\.greenhouse\.io|greenhouse_iframe",       re.I), Platform.GREENHOUSE),
     (re.compile(r"jobs\.lever\.co|lever-job-listing",              re.I), Platform.LEVER),
     (re.compile(r"myworkdayjobs|wd[0-9]+\.myworkdayjobs",          re.I), Platform.WORKDAY),
