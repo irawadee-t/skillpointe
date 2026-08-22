@@ -1800,7 +1800,34 @@ def compute_listing_fingerprint(url: str, platform: str | None) -> Optional[str]
 
     ids: list[str] = []
     try:
-        if platform == "cornerstone":
+        if platform == "mcloud":
+            import httpx as _httpx
+            from scraper.universal import _parse_mcloud  # type: ignore
+            parsed = _parse_mcloud(url)
+            if not parsed:
+                return None
+            _origin, company, pf = parsed
+            with _httpx.Client(headers={"User-Agent": "Mozilla/5.0"},
+                               timeout=15.0) as client:
+                params = {"callback": "cb", "pageSize": 100, "offset": 0,
+                          "companyName": f"companies/{company}", "query": "",
+                          "orderBy": "posting_publish_time desc"}
+                if pf:
+                    params["customAttributeFilter"] = pf
+                r = client.get(
+                    "https://jobsapi-google.m-cloud.io/api/job/search",
+                    params=params)
+                if r.status_code != 200:
+                    return None
+                m = re.match(r"^[\w.]+\((.*)\);?\s*$", r.text, re.S)
+                d = json.loads(m.group(1) if m else r.text)
+                res = d.get("searchResults") or []
+                # newest-100 ids + the total: adds surface in the id set,
+                # removals in the count — one request per probe.
+                ids = [f"total:{d.get('totalHits')}"] + [
+                    f"{(x.get('job', x)).get('id')}:{(x.get('job', x)).get('open_date')}"
+                    for x in res]
+        elif platform == "cornerstone":
             import httpx as _httpx
             from scraper.universal import _CSOD_TOKEN_RE, _parse_cornerstone  # type: ignore
             parsed = _parse_cornerstone(url)

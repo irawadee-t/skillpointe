@@ -118,7 +118,11 @@ class SourceSettingsIn(BaseModel):
 
 class PullIn(BaseModel):
     source_id: Optional[str] = None
-    max_jobs: int = Field(default=200, ge=1, le=500)
+    # 6000 ceiling: crawl-based sources never approach it (their own page
+    # bounds cap them), while API platforms (workday/cornerstone/mcloud) page
+    # 100 jobs per request — a deep catalog costs ~1 request per 100 jobs,
+    # so the old 500 cap was silently truncating Home Depot's 25k catalog.
+    max_jobs: int = Field(default=200, ge=1, le=6000)
     # 'auto' reuses the learned profile (instant incremental); 'full' forces
     # a from-scratch discovery + relearn.
     mode: str = Field(default="auto", pattern="^(auto|full)$")
