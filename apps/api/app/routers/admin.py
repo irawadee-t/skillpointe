@@ -2613,3 +2613,179 @@ async def marketplace_analytics(user=Depends(require_admin)):
             "score_evidence_median": float(evidence["median"] or 0),
         },
     }
+
+
+# ---------------------------------------------------------------------------
+# GET /admin/analytics/readiness — would the platform be ready for an applicant?
+# ---------------------------------------------------------------------------
+# Critical mass is a WHERE x WHAT question, so the unit of readiness is the
+# (sector x state) cell, evaluated against an explicit first-session bar
+# using our 43k real applicants as the proxy population:
+#
+#   READY for one applicant  =  >= 3 visible matches
+#                               AND >= 1 actionable one (eligible or 1-gap)
+#
+# A cell is Ready when >= 70% of its applicants meet the bar, Partial at
+# >= 40%. Cells below the bar carry their dominant blocker (no jobs in
+# reach vs thin catalog vs gate gaps), so every red cell names its fix.
+
+_READINESS_CACHE: dict = {"at": 0.0, "data": None}
+_READINESS_TTL_S = 600   # the full report costs ~12s of aggregate SQL
+
+
+@router.get("/analytics/readiness")
+async def readiness_report(user=Depends(require_admin)):
+    import time as _time
+    from datetime import datetime, timezone
+    if _READINESS_CACHE["data"] and _time.monotonic() - _READINESS_CACHE["at"] < _READINESS_TTL_S:
+        return _READINESS_CACHE["data"]
+    async with get_db() as conn:
+        per_app = """
+            SELECT a.id, COALESCE(s.name, 'Not yet classified') AS sector,
+                   COALESCE(a.state, '—') AS state,
+                   count(m.job_id) FILTER (WHERE m.eligibility_status IN ('eligible','near_fit')) AS visible,
+                   count(m.job_id) FILTER (WHERE m.eligibility_status = 'eligible'
+                         OR (m.eligibility_status = 'near_fit' AND m.n_gaps <= 1)) AS actionable
+              FROM public.applicants a
+              LEFT JOIN public.sectors s ON s.code = a.sector_code
+              LEFT JOIN public.matches m ON m.applicant_id = a.id
+             GROUP BY a.id, sector, a.state
+        """
+        overall = dict(await conn.fetchrow(f"""
+            WITH pa AS ({per_app})
+            SELECT count(*) AS applicants,
+                   count(*) FILTER (WHERE visible >= 3 AND actionable >= 1) AS ready,
+                   count(*) FILTER (WHERE visible >= 3) AS has_depth,
+                   count(*) FILTER (WHERE actionable >= 1) AS has_actionable,
+                   percentile_disc(0.5) WITHIN GROUP (ORDER BY visible) AS median_visible
+              FROM pa"""))
+        cells = [dict(r) for r in await conn.fetch(f"""
+            WITH pa AS ({per_app})
+            SELECT sector, state, count(*) AS applicants,
+                   count(*) FILTER (WHERE visible >= 3 AND actionable >= 1) AS ready,
+                   round(avg(visible), 1) AS avg_visible,
+                   count(*) FILTER (WHERE actionable >= 1) AS with_actionable
+              FROM pa
+             GROUP BY sector, state
+            HAVING count(*) >= 25
+             ORDER BY count(*) DESC""")]
+        # Dominant blocker per below-bar cell: does the catalog even have
+        # jobs for that sector reachable from that state?
+        jobs_by = {(r["sector"], r["state"]): int(r["n"]) for r in await conn.fetch("""
+            SELECT COALESCE(s.name, 'Not yet classified') AS sector, j.state, count(*) AS n
+              FROM public.jobs j LEFT JOIN public.sectors s ON s.code = j.sector_code
+             WHERE j.is_active GROUP BY 1, 2""")}
+
+        # Why the not-ready aren't ready — named causes over the WHOLE pool,
+        # mutually exclusive, data causes before catalog causes.
+        why_not = [dict(r) for r in await conn.fetch(f"""
+            WITH pa AS ({per_app}),
+            short AS (SELECT * FROM pa WHERE NOT (visible >= 3 AND actionable >= 1)),
+            j AS (SELECT a.id AS aid,
+                         a.state IS NULL AS no_loc,
+                         a.canonical_job_family_id IS NULL AS no_field,
+                         EXISTS (SELECT 1 FROM public.jobs jj
+                                  WHERE jj.is_active AND jj.sector_code = a.sector_code) AS sector_anywhere,
+                         EXISTS (SELECT 1 FROM public.jobs jj
+                                  WHERE jj.is_active AND jj.state = a.state) AS jobs_in_state
+                    FROM public.applicants a)
+            SELECT CASE
+                     WHEN j.no_loc THEN 'No location on profile'
+                     WHEN j.no_field THEN 'Career field not classified (free-text or non-trades)'
+                     WHEN NOT j.sector_anywhere THEN 'No jobs in their sector anywhere — partner gap'
+                     WHEN NOT j.jobs_in_state THEN 'No jobs in their state (sector exists elsewhere)'
+                     WHEN s.visible < 3 THEN 'Catalog too thin near them (< 3 visible)'
+                     ELSE 'Has matches, none actionable — credential/timing gaps'
+                   END AS reason, count(*) AS applicants
+              FROM short s JOIN j ON j.aid = s.id
+             GROUP BY 1 ORDER BY 2 DESC""")]
+
+        # Employer overview: what their SITE showed at last sync vs what we
+        # ingested as trades, and how launch-relevant that catalog is.
+        employers = [dict(r) for r in await conn.fetch("""
+            WITH site AS (
+              -- largest census ever seen for the employer's sources — the
+              -- last-sync counter understates API platforms whose deep
+              -- pulls run query-scoped
+              SELECT s.employer_id, max(p.jobs_found) AS site_found
+                FROM public.employer_career_sources s
+                JOIN public.career_source_pulls p ON p.source_id = s.id
+               GROUP BY s.employer_id),
+            jj AS (
+              SELECT j.employer_id, count(*) AS jobs,
+                     count(DISTINCT j.state) AS states,
+                     round(100.0*count(*) FILTER (WHERE j.experience_level='entry')/count(*),0) AS entry_pct,
+                     round(100.0*count(*) FILTER (WHERE j.entry_friendly)/count(*),0) AS will_train_pct,
+                     round(100.0*count(*) FILTER (WHERE j.is_apprenticeship)/count(*),0) AS apprentice_pct
+                FROM public.jobs j WHERE j.is_active GROUP BY j.employer_id),
+            mm AS (
+              SELECT j.employer_id,
+                     count(DISTINCT m.applicant_id) AS reach,
+                     count(*) FILTER (WHERE m.eligibility_status='eligible'
+                           OR (m.eligibility_status='near_fit' AND m.n_gaps<=1)) AS actionable_pairs
+                FROM public.matches m JOIN public.jobs j ON j.id = m.job_id
+               WHERE j.is_active GROUP BY j.employer_id)
+            SELECT e.name, COALESCE(site.site_found, 0) AS site_postings,
+                   COALESCE(jj.jobs, 0) AS trades_jobs,
+                   COALESCE(jj.states, 0) AS states,
+                   COALESCE(jj.entry_pct, 0) AS entry_pct,
+                   COALESCE(jj.will_train_pct, 0) AS will_train_pct,
+                   COALESCE(jj.apprentice_pct, 0) AS apprentice_pct,
+                   COALESCE(mm.reach, 0) AS reach,
+                   COALESCE(mm.actionable_pairs, 0) AS actionable_pairs
+              FROM public.employers e
+              LEFT JOIN site ON site.employer_id = e.id
+              LEFT JOIN jj ON jj.employer_id = e.id
+              LEFT JOIN mm ON mm.employer_id = e.id
+             WHERE COALESCE(jj.jobs,0) > 0 OR COALESCE(site.site_found,0) > 0
+             ORDER BY COALESCE(jj.jobs,0) DESC""")]
+
+    total = int(overall["applicants"] or 1)
+    out_cells = []
+    for c in cells:
+        n = int(c["applicants"])
+        ready_pct = round(100.0 * int(c["ready"]) / n, 1)
+        jobs_here = jobs_by.get((c["sector"], c["state"]), 0)
+        if ready_pct >= 70:
+            status, blocker = "ready", None
+        elif ready_pct >= 40:
+            status, blocker = "partial", None
+        else:
+            status = "not_ready"
+            if jobs_here == 0:
+                blocker = "no jobs in this sector in-state — partner gap"
+            elif float(c["avg_visible"] or 0) < 3:
+                blocker = "catalog too thin — more postings needed"
+            else:
+                blocker = "matches exist but gated — data/credential gaps"
+        out_cells.append({
+            "sector": c["sector"], "state": c["state"], "applicants": n,
+            "ready_pct": ready_pct, "avg_visible": float(c["avg_visible"] or 0),
+            "jobs_in_state": jobs_here, "status": status, "blocker": blocker,
+        })
+
+    below = sorted((c for c in out_cells if c["status"] != "ready"),
+                   key=lambda c: -c["applicants"] * (100 - c["ready_pct"]))
+    ready_pct_overall = round(100.0 * int(overall["ready"] or 0) / total, 1)
+    verdict = ("ready" if ready_pct_overall >= 60
+               else "partial" if ready_pct_overall >= 35 else "not_ready")
+    result = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "bar": {"min_visible": 3, "min_actionable": 1,
+                "cell_ready_threshold_pct": 70},
+        "overall": {
+            "applicants": total,
+            "ready": int(overall["ready"] or 0),
+            "ready_pct": ready_pct_overall,
+            "pct_with_depth": round(100.0 * int(overall["has_depth"] or 0) / total, 1),
+            "pct_with_actionable": round(100.0 * int(overall["has_actionable"] or 0) / total, 1),
+            "median_visible": int(overall["median_visible"] or 0),
+            "verdict": verdict,
+        },
+        "cells": out_cells,
+        "biggest_unlocks": below[:8],
+        "why_not": why_not,
+        "employers": employers,
+    }
+    _READINESS_CACHE.update(at=_time.monotonic(), data=result)
+    return result

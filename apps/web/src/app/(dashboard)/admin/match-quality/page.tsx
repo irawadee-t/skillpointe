@@ -57,6 +57,39 @@ interface Marketplace {
   };
 }
 
+interface ReadinessCell {
+  sector: string; state: string; applicants: number; ready_pct: number;
+  avg_visible: number; jobs_in_state: number; status: string; blocker: string | null;
+}
+interface Readiness {
+  bar: { min_visible: number; min_actionable: number; cell_ready_threshold_pct: number };
+  overall: {
+    applicants: number; ready: number; ready_pct: number;
+    pct_with_depth: number; pct_with_actionable: number;
+    median_visible: number; verdict: string;
+  };
+  cells: ReadinessCell[];
+  biggest_unlocks: ReadinessCell[];
+  why_not: { reason: string; applicants: number }[];
+  employers: {
+    name: string; site_postings: number; trades_jobs: number; states: number;
+    entry_pct: number; will_train_pct: number; apprentice_pct: number;
+    reach: number; actionable_pairs: number;
+  }[];
+}
+
+async function fetchReadiness(token: string): Promise<Readiness | null> {
+  try {
+    const res = await fetch(`${API_URL()}/admin/analytics/readiness`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    return res.ok ? res.json() : null;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchMarketplace(token: string): Promise<Marketplace | null> {
   try {
     const res = await fetch(`${API_URL()}/admin/analytics/marketplace`, {
@@ -97,13 +130,203 @@ function SectionCard({ title, sub, children }: { title: string; sub?: string; ch
   );
 }
 
+const VERDICT_META: Record<string, { label: string; cls: string; sub: string }> = {
+  ready:     { label: "Ready for launch", cls: "bg-[#2E6B4F] text-white",
+               sub: "Most incoming applicants would see a useful first screen." },
+  partial:   { label: "Ready for a targeted pilot", cls: "bg-[#9A6A00] text-white",
+               sub: "Strong in specific sectors and states; launch there, grow the rest." },
+  not_ready: { label: "Not ready yet", cls: "bg-[#B3372F] text-white",
+               sub: "Too few applicants would see a useful first screen." },
+};
+
+function heatColor(pct: number): string {
+  if (pct >= 70) return "rgba(46,107,79,0.85)";     // ready green
+  if (pct >= 40) return "rgba(154,106,0,0.75)";     // partial amber
+  if (pct > 0)  return "rgba(179,55,47,0.65)";      // low red
+  return "rgba(120,117,110,0.25)";                   // zero grey
+}
+
+function LaunchReadiness({ r }: { r: Readiness }) {
+  const v = VERDICT_META[r.overall.verdict] ?? VERDICT_META.not_ready;
+  const funnel = [
+    { label: "All applicants", n: r.overall.applicants, pct: 100 },
+    { label: `Have ≥${r.bar.min_visible} visible matches`, n: Math.round(r.overall.applicants * r.overall.pct_with_depth / 100), pct: r.overall.pct_with_depth },
+    { label: "Have ≥1 actionable (ready-now or one-step)", n: Math.round(r.overall.applicants * r.overall.pct_with_actionable / 100), pct: r.overall.pct_with_actionable },
+    { label: "Meet the full launch bar", n: r.overall.ready, pct: r.overall.ready_pct },
+  ];
+  // Heatmap axes: top sectors x top states by applicant volume
+  const cellMap = new Map(r.cells.map((c) => [`${c.sector}|${c.state}`, c]));
+  const topOf = (key: "sector" | "state") => {
+    const agg = new Map<string, number>();
+    for (const c of r.cells) agg.set(c[key], (agg.get(c[key]) ?? 0) + c.applicants);
+    return [...agg.entries()].sort((a, b) => b[1] - a[1]).slice(0, key === "state" ? 10 : 7).map((e) => e[0]);
+  };
+  const sectors = topOf("sector");
+  const states = topOf("state");
+
+  return (
+    <section className="rounded-[14px] border border-hairline bg-white p-6">
+      {/* Verdict hero */}
+      <div className="flex flex-wrap items-center gap-4">
+        <span className={`rounded-md px-4 py-2 text-[1.05rem] font-semibold ${v.cls}`}>
+          {v.label}
+        </span>
+        <div>
+          <div className="font-display text-[1.6rem] leading-none text-cohere-ink tabular-nums">
+            {r.overall.ready_pct}%
+          </div>
+          <div className="text-micro text-slate">
+            of {nf(r.overall.applicants)} applicants would land on a useful first screen
+          </div>
+        </div>
+        <p className="basis-full text-body text-slate max-w-prose">{v.sub}{" "}
+          <span className="text-slate-muted">
+            The bar: at least {r.bar.min_visible} relevant jobs visible and at least one
+            they can act on today (eligible, or a single named step away).
+          </span>
+        </p>
+      </div>
+
+      {/* Funnel */}
+      <div className="mt-6 space-y-2">
+        {funnel.map((f) => (
+          <div key={f.label} className="flex items-center gap-3">
+            <span className="w-72 shrink-0 truncate text-body text-ink">{f.label}</span>
+            <div className="h-5 flex-1 rounded-sm bg-stone">
+              <div className="h-5 rounded-sm bg-cohere-blue/80" style={{ width: `${Math.max(1.5, f.pct)}%` }} />
+            </div>
+            <span className="w-32 shrink-0 text-right text-body tabular-nums text-slate">
+              {nf(f.n)} · {f.pct.toFixed(0)}%
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {/* Why the rest aren't ready */}
+      <h3 className="mt-7 text-[0.95rem] font-semibold text-cohere-ink">Why the rest aren&apos;t ready</h3>
+      <div className="mt-3 space-y-2">
+        {r.why_not.map((w) => (
+          <div key={w.reason} className="flex items-center gap-3">
+            <span className="w-96 shrink-0 truncate text-body text-ink" title={w.reason}>{w.reason}</span>
+            <div className="h-4 flex-1 rounded-sm bg-stone">
+              <div className="h-4 rounded-sm bg-[#B3372F]/60"
+                   style={{ width: `${Math.max(1.5, (w.applicants / Math.max(1, r.why_not[0]?.applicants ?? 1)) * 100)}%` }} />
+            </div>
+            <span className="w-20 shrink-0 text-right text-body tabular-nums text-slate">{nf(w.applicants)}</span>
+          </div>
+        ))}
+      </div>
+
+      {/* Sector x state heatmap */}
+      <h3 className="mt-7 text-[0.95rem] font-semibold text-cohere-ink">Where the platform is ready</h3>
+      <p className="mt-1 text-micro text-slate">
+        % of applicants meeting the bar, by sector and state (cells with ≥25 applicants).
+        Green ≥70% · amber ≥40% · red below · grey none.
+      </p>
+      <div className="mt-3 overflow-x-auto">
+        <table className="text-micro tabular-nums">
+          <thead>
+            <tr>
+              <th className="pr-3 text-left font-medium text-slate">Sector \ State</th>
+              {states.map((st) => (
+                <th key={st} className="px-1 pb-1 text-center font-medium text-slate">{st}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {sectors.map((sec) => (
+              <tr key={sec}>
+                <td className="max-w-52 truncate pr-3 text-ink" title={sec}>{sec}</td>
+                {states.map((st) => {
+                  const c = cellMap.get(`${sec}|${st}`);
+                  return (
+                    <td key={st} className="p-0.5">
+                      <div
+                        className="flex h-9 w-14 items-center justify-center rounded-[4px] text-[11px] font-semibold text-white"
+                        style={{ background: c ? heatColor(c.ready_pct) : "rgba(120,117,110,0.12)" }}
+                        title={c ? `${sec} · ${st}: ${c.ready_pct}% of ${nf(c.applicants)} ready · ${c.jobs_in_state} jobs in-state${c.blocker ? ` · ${c.blocker}` : ""}` : "fewer than 25 applicants"}
+                      >
+                        {c ? `${Math.round(c.ready_pct)}%` : ""}
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Biggest unlocks */}
+      <h3 className="mt-7 text-[0.95rem] font-semibold text-cohere-ink">Biggest unlocks</h3>
+      <p className="mt-1 text-micro text-slate">
+        Ranked by applicants held back — each names its fix.
+      </p>
+      <div className="mt-3 space-y-1.5">
+        {r.biggest_unlocks.slice(0, 6).map((u) => (
+          <div key={`${u.sector}|${u.state}`} className="flex flex-wrap items-baseline gap-x-2 text-body">
+            <span className="font-medium text-ink">{u.sector}</span>
+            <span className="text-slate-muted">·</span>
+            <span className="text-ink">{u.state}</span>
+            <span className="tabular-nums text-slate">{nf(u.applicants)} applicants at {u.ready_pct}%</span>
+            {u.blocker && <span className="text-[#B3372F]">→ {u.blocker}</span>}
+          </div>
+        ))}
+      </div>
+
+      {/* Employer overview */}
+      <h3 className="mt-7 text-[0.95rem] font-semibold text-cohere-ink">Employer catalogs, site vs platform</h3>
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full text-body tabular-nums">
+          <thead>
+            <tr className="border-b border-ink/70 text-left text-micro uppercase tracking-wide text-slate">
+              <th className="py-2 pr-4 font-medium">Employer</th>
+              <th className="py-2 pr-4 text-right font-medium">On their site</th>
+              <th className="py-2 pr-4 text-right font-medium">Trades ingested</th>
+              <th className="py-2 pr-4 text-right font-medium">States</th>
+              <th className="py-2 pr-4 text-right font-medium">Entry</th>
+              <th className="py-2 pr-4 text-right font-medium">Will train</th>
+              <th className="py-2 pr-4 text-right font-medium">Apprentice</th>
+              <th className="py-2 pr-4 text-right font-medium">Applicants reached</th>
+              <th className="py-2 text-right font-medium">Actionable pairs</th>
+            </tr>
+          </thead>
+          <tbody>
+            {r.employers.map((e) => (
+              <tr key={e.name} className="border-b border-hairline">
+                <td className="py-2 pr-4 text-ink">{e.name}</td>
+                <td className="py-2 pr-4 text-right text-slate">{e.site_postings ? nf(e.site_postings) : "—"}</td>
+                <td className="py-2 pr-4 text-right font-semibold text-cohere-ink">{nf(e.trades_jobs)}</td>
+                <td className="py-2 pr-4 text-right text-slate">{e.states}</td>
+                <td className="py-2 pr-4 text-right text-slate">{e.entry_pct}%</td>
+                <td className={`py-2 pr-4 text-right ${e.will_train_pct >= 25 ? "font-semibold text-cohere-ink" : "text-slate"}`}>{e.will_train_pct}%</td>
+                <td className={`py-2 pr-4 text-right ${e.apprentice_pct >= 10 ? "font-semibold text-cohere-ink" : "text-slate"}`}>{e.apprentice_pct}%</td>
+                <td className="py-2 pr-4 text-right">{nf(e.reach)}</td>
+                <td className="py-2 text-right">{nf(e.actionable_pairs)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="mt-3 text-micro text-slate max-w-prose">
+        &ldquo;On their site&rdquo; is the largest census our syncs have observed; for query-scoped
+        API catalogs (Home Depot) the true site total is larger still. Entry / will-train /
+        apprentice shares are what makes a catalog launch-relevant for a trainee audience.
+      </p>
+    </section>
+  );
+}
+
 export default async function AdminMatchQualityPage() {
   const supabase = await createClient();
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) redirect("/login");
   if (session.user.app_metadata?.role !== "admin") redirect("/login");
 
-  const data = await fetchMarketplace(session.access_token);
+  const [data, readiness] = await Promise.all([
+    fetchMarketplace(session.access_token),
+    fetchReadiness(session.access_token),
+  ]);
   if (!data) {
     return (
       <main className="py-8">
@@ -132,6 +355,8 @@ export default async function AdminMatchQualityPage() {
           title="Match quality"
           lead="The shape of the marketplace: who has matches, why the rest don't, what each partner's catalog contains, and which missing data is holding matches back."
         />
+
+        {readiness && <LaunchReadiness r={readiness} />}
 
         {/* 1 — Coverage headline */}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
