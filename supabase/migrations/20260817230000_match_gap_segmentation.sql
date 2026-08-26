@@ -1,3 +1,11 @@
+-- The backfill below walks every existing match row doing JSONB parsing —
+-- on hosted nano compute that exceeds the migration role's statement
+-- timeout (observed live on the 2026-08 prod push). Lift it for this
+-- session only; the setting dies with the migration connection. The
+-- backfill itself is belt-and-braces: any full recompute rewrites every
+-- row with engine-computed values anyway.
+SET statement_timeout = 0;
+
 -- Gap-based segmentation: what stands between this applicant and this job,
 -- as data. n_gaps = how many gates are near-fit (0 for eligible);
 -- primary_gap = the most structural one, for the card's one-sentence story.
