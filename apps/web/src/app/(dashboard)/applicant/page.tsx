@@ -58,9 +58,11 @@ async function ApplicantHome({
   // in-flight requests are simply discarded).
   const matchesPromise = fetchMyMatches(token).catch(() => null);
   const badgesPromise = fetchMyBadges(token).catch(() => null);
+  let profileErrorStatus: number | undefined;
   const profile = await fetchMyProfile(token).catch((e) => {
     if (e instanceof ApiError && e.status === 404) { profileMissing = true; return null; }
-    return null; // API unreachable — render error state below
+    if (e instanceof ApiError) profileErrorStatus = e.status;
+    return null; // failed — render the error state below, honestly worded
   });
 
   // Under admin view-as, a missing profile must not bounce the admin into the
@@ -83,7 +85,7 @@ async function ApplicantHome({
     }
     redirect("/applicant/setup");
   }
-  if (!profile) return <ApiUnreachable />;
+  if (!profile) return <ApiUnreachable status={profileErrorStatus} />;
 
   const [matches, badges] = await Promise.all([matchesPromise, badgesPromise]);
 

@@ -9,7 +9,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { RefreshCw, Loader2 } from "lucide-react";
 
-export function ApiUnreachable() {
+export function ApiUnreachable({ status }: { status?: number }) {
   const router = useRouter();
   const [retrying, setRetrying] = useState(false);
 
@@ -26,10 +26,27 @@ export function ApiUnreachable() {
       <div className="page-shell">
         <div className="bg-studio-maroon/[0.06] border border-studio-maroon/30 rounded-md p-5 text-body text-cohere-ink flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <strong>Could not reach the API.</strong>{" "}
-            <span className="text-cohere-ink/80">
-              The backend may be starting up. Try again in a moment.
-            </span>
+            {/* A server ERROR and an unreachable server are different
+                incidents — naming them correctly is what lets a demo-day
+                screenshot be diagnosed in one glance (2026-08 lesson: a
+                schema-drift 500 spent a day disguised as "backend may be
+                starting up"). */}
+            {status && status >= 500 ? (
+              <>
+                <strong>Something broke on our side (error {status}).</strong>{" "}
+                <span className="text-cohere-ink/80">
+                  The service is reachable but hit a server error. We&apos;ve
+                  been notified — try again shortly.
+                </span>
+              </>
+            ) : (
+              <>
+                <strong>Could not reach the API.</strong>{" "}
+                <span className="text-cohere-ink/80">
+                  The backend may be starting up. Try again in a moment.
+                </span>
+              </>
+            )}
           </div>
           <button
             onClick={handleRetry}
