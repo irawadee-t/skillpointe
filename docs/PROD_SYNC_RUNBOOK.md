@@ -28,6 +28,35 @@ for VISIBLE matches only (the invisible ineligible rows' breakdowns are
 never rendered) — say the word and Claude will add that switch to the
 recompute before you run Phase 2.
 
+## Phase 0.5 — The slowness incident, RESOLVED (2026-08-26 afternoon)
+
+Symptom: every page crawled (10s+ loads), Supabase auth intermittently
+failed to issue tokens, the dashboard SQL editor stalled. Cause: the
+deployed API's background machinery (minute-cadence match-worker
+supervision, freshness probes, sweeps) was hammering the nano-compute
+prod database — 37/60 connections, 56% sustained DB CPU.
+
+Two fixes shipped and verified:
+
+1. **Background jobs are now opt-in in production** (65b8afd, a588314).
+   The deployed API serves requests only. To turn background processing
+   on later (after the DB is provisioned for it — Supabase compute
+   upgrade beyond nano recommended first), set `BACKGROUND_JOBS_ENABLED=true`
+   in Railway service variables and redeploy. Until then, job/profile
+   edits in prod still enqueue to `match_queue` (cheap, lossless) — the
+   work runs whenever a worker is next enabled, and match reads use the
+   precomputed rows.
+
+2. **Railway watch paths fixed** (bba0997 + dashboard). The API service
+   was watching `/apps/web/**` (the frontend dir!), so backend pushes
+   were skipped as "No changes to watched files" — this is why prod ran
+   stale code through both incidents. Patterns now: `/apps/api/**`,
+   `/packages/**`, `/scripts/**`, `/railway.json`, `/Dockerfile` — in
+   the dashboard AND in `railway.json` (config-as-code).
+
+Verified after deploy: auth ~0.5s, matches/profile 0.2–0.4s warm, no
+worker sessions on the DB, 0 blocked queries.
+
 ## Phase 1 — YOU (needs the prod DB password; ~10 minutes)
 
 From the repo root:
