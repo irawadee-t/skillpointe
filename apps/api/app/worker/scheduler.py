@@ -876,6 +876,12 @@ async def _debounced_recompute(*, job_id: str | None = None, applicant_id: str |
             await conn.execute("NOTIFY match_queue")
         _ensure_match_worker()
     except Exception as exc:
+        if not background_jobs_allowed():
+            logger.warning(
+                "match_queue enqueue failed (%s) — background jobs disabled, "
+                "target %s:%s will be picked up on the next enabled run",
+                exc, etype, eid)
+            return
         logger.warning("match_queue enqueue failed (%s) — subprocess fallback", exc)
         target_key = f"job:{job_id}" if job_id else f"applicant:{applicant_id}"
         if not await _acquire_recompute_slot(target_key):
@@ -886,6 +892,24 @@ async def _debounced_recompute(*, job_id: str | None = None, applicant_id: str |
 _match_worker_proc = None
 
 
+def background_jobs_allowed() -> bool:
+    """Single switch for anything that spawns work beyond the request itself.
+
+    Mirrors the boot-time scheduler gate in main.py: production must opt in
+    with BACKGROUND_JOBS_ENABLED=true. Request handlers still enqueue to
+    match_queue (cheap, and the work runs whenever a worker exists), but
+    they must not spawn daemons or recompute subprocesses inside an
+    unprovisioned deployment.
+    """
+    import os
+    settings = get_settings()
+    if not settings.background_jobs_enabled:
+        return False
+    if settings.app_env == "production":
+        return os.environ.get("BACKGROUND_JOBS_ENABLED", "").lower() == "true"
+    return True
+
+
 def _ensure_match_worker() -> None:
     """Keep exactly one resident match worker alive.
 
@@ -894,6 +918,8 @@ def _ensure_match_worker() -> None:
     to be best-effort.
     """
     global _match_worker_proc
+    if not background_jobs_allowed():
+        return
     if _match_worker_proc is not None and _match_worker_proc.poll() is None:
         return
     script = _REPO_ROOT / "scripts" / "match_worker_daemon.py"
