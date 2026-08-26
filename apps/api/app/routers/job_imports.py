@@ -11,6 +11,7 @@ Notifications are written to public.notifications. Email delivery is stubbed.
 """
 from __future__ import annotations
 
+import logging
 from typing import Annotated, Any, Optional
 
 import asyncpg
@@ -27,6 +28,8 @@ from app.util.review_queue import (
     batch_review_state,
     count_awaiting_import_review,
 )
+
+logger = logging.getLogger(__name__)
 
 emp_router = APIRouter(prefix="/employer/jobs/imports", tags=["job-imports"])
 adm_router = APIRouter(prefix="/admin/job-imports", tags=["job-imports-admin"])

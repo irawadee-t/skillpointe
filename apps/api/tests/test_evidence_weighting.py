@@ -4,8 +4,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "packages"))
 
-from matching.scorer import DimensionScore  # noqa: E402
 from matching import state_adjacency  # noqa: E402
+from matching.scorer import DimensionScore  # noqa: E402
 
 
 class TestEvidenceRenormalization:
@@ -13,9 +13,9 @@ class TestEvidenceRenormalization:
     dimensions; defaults no longer dilute every list into a narrow band."""
 
     def _score(self, app_overrides=None, job_overrides=None):
-        from matching.scorer import compute_structured_score
         from matching.config import load_config
         from matching.normalizer import TimingResult
+        from matching.scorer import compute_structured_score
         config = load_config()
         app = {
             "canonical_job_family_code": "hvac_r", "state": "GA",
