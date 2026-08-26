@@ -8,6 +8,26 @@ Prod data is also the July seed (393 jobs, no PSA applicants).
 
 Time to full parity: ~2.5–4 hours, mostly unattended.
 
+## Phase 0 — THE BLOCKER FOUND IN THE DASHBOARD (2026-08-26)
+
+The Supabase org (irawadee-t's Org) is on the FREE plan and the banner
+reads EXCEEDING USAGE LIMITS: Database Size 0.691 / 0.5 GB (138%) — with
+only July's data. Free-tier overage triggers service restrictions, and
+the launch dataset needs far more room: the full local database is 16 GB
+(matches ~7 GB + per-dimension scores ~9 GB, including bloat; a fresh
+load lands roughly 4–8 GB).
+
+REQUIRED FIRST: upgrade the org to Pro ($25/mo, 8 GB disk included,
+auto-expanding beyond) in the Supabase dashboard -> Organization ->
+Billing. This is a purchase — only you can click it. Without it, the
+migration push may fail against an over-quota project and the data sync
+cannot fit at all.
+
+Optional slimming if you want to stay near 8 GB: per-dimension score rows
+for VISIBLE matches only (the invisible ineligible rows' breakdowns are
+never rendered) — say the word and Claude will add that switch to the
+recompute before you run Phase 2.
+
 ## Phase 1 — YOU (needs the prod DB password; ~10 minutes)
 
 From the repo root:
