@@ -46,6 +46,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "packages"))
 from matching.config import load_config
 from matching.engine import MatchResult, compute_match
 
+# View-time breakdowns (app.skilled_pro.live_dimensions) replaced stored
+# per-dimension rows by default; --store-dims re-enables persistence.
+STORE_DIMENSION_ROWS = False
+
 
 def main() -> int:
     parser = argparse.ArgumentParser(
@@ -72,6 +76,11 @@ def main() -> int:
                              "either side has no field). Pairs outside the "
                              "filter would gate out as ineligible anyway and "
                              "are not stored.")
+    parser.add_argument("--store-dims", action="store_true",
+                        help="Persist per-dimension breakdown rows (9 per pair). "
+                             "Default OFF: breakdowns are computed at view time "
+                             "(deterministic engine, <1ms/pair) — storing them "
+                             "was 9 GB / 19M rows of rarely-read data.")
     parser.add_argument("--skip-geocode", action="store_true",
                         help="Skip the coordinate backfill step (offline runs)")
     args = parser.parse_args()
@@ -214,6 +223,9 @@ def main() -> int:
     # ----------------------------------------------------------------
     counters = {"total": 0, "eligible": 0, "near_fit": 0, "ineligible": 0,
                 "error": 0, "strong_fit": 0, "good_fit": 0}
+
+    global STORE_DIMENSION_ROWS
+    STORE_DIMENSION_ROWS = bool(args.store_dims)
 
     BATCH = 1000  # pairs per batched flush (3 SQL statements per batch)
     _batch_buffer: list[MatchResult] = []
@@ -756,6 +768,8 @@ def _flush_batch(conn, results: list[MatchResult]) -> None:
             "DELETE FROM public.match_dimension_scores WHERE match_id = ANY(%s::uuid[])",
             (match_ids,),
         )
+        if not STORE_DIMENSION_ROWS:
+            return
         dim_rows = []
         for r in results:
             mid = id_by_pair.get((str(r.applicant_id), str(r.job_id)))

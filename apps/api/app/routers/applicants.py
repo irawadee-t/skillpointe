@@ -761,16 +761,8 @@ async def get_match_detail(
                 match_id,
             )
 
-        dim_rows = await conn.fetch(
-            """
-            SELECT dimension, weight, raw_score, weighted_score,
-                   rationale, null_handling_applied, null_handling_default
-            FROM public.match_dimension_scores
-            WHERE match_id = $1::uuid
-            ORDER BY weighted_score DESC
-            """,
-            match_id,
-        )
+        from app.skilled_pro.live_dimensions import fetch_or_compute_dimensions
+        dim_rows = await fetch_or_compute_dimensions(conn, match_id)
 
     row_dict = dict(row)
 
