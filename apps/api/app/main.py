@@ -89,14 +89,34 @@ async def lifespan(app: FastAPI):
     await get_pool()
     logger.info("Database connection pool ready")
 
-    scheduler = create_scheduler()
-    scheduler.start()
-    logger.info("APScheduler started — full recompute every 6 hours")
+    # Background machinery is a deliberate choice per environment. In
+    # production it stays OFF unless BACKGROUND_JOBS_ENABLED=true is set —
+    # the scheduler's periodic jobs and worker supervision hold database
+    # connections and run recurring scans, and on an unprovisioned hosted
+    # DB they starve the request path (2026-08 incident: 37/60 connections,
+    # 56% sustained DB CPU, 10s page loads, auth timeouts).
+    import os
+    settings = get_settings()
+    run_jobs = settings.background_jobs_enabled and (
+        settings.app_env != "production"
+        or os.environ.get("BACKGROUND_JOBS_ENABLED", "").lower() == "true"
+    )
+    scheduler = None
+    if run_jobs:
+        scheduler = create_scheduler()
+        scheduler.start()
+        logger.info("APScheduler started — background jobs active")
+    else:
+        logger.warning(
+            "Background jobs DISABLED (%s) — serving requests only. Set "
+            "BACKGROUND_JOBS_ENABLED=true once the database is provisioned.",
+            settings.app_env)
     try:
         yield
     finally:
-        scheduler.shutdown(wait=False)
-        logger.info("APScheduler stopped")
+        if scheduler is not None:
+            scheduler.shutdown(wait=False)
+            logger.info("APScheduler stopped")
         await close_db_pool()
         logger.info("Database connection pool closed")
 

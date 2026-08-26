@@ -20,6 +20,15 @@ class Settings(BaseSettings):
     # Environment
     app_env: Literal["local", "test", "staging", "production"] = "local"
 
+    # Background machinery master switch. The scheduler's periodic jobs and
+    # the resident match worker hold database connections and run recurring
+    # scans; on small hosted databases they can starve the request path
+    # (2026-08 prod incident: 37/60 connections, 56% sustained DB CPU,
+    # 10s page loads). Deployed environments must OPT IN by setting
+    # BACKGROUND_JOBS_ENABLED=true once the database is provisioned for it;
+    # local keeps everything on by default via .env.
+    background_jobs_enabled: bool = True
+
     # Supabase
     supabase_url: str
     supabase_anon_key: str
