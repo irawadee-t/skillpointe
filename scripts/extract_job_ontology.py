@@ -41,6 +41,11 @@ async def _run(dry: bool) -> int:
     # Delegates to the live pipeline stage so batch and pipeline can't drift.
     from app.skilled_pro.job_enrichment import enrich_jobs
     conn = await asyncpg.connect(DSN)
+    # Bulk enrichment IS the recompute input — its job updates must not fire
+    # the enqueue triggers, or a resident worker re-enriches every row behind
+    # us (the 2026-09-01 incident: 95k queue entries and a stale-code daemon
+    # reverting fresh flags mid-recompute).
+    await conn.execute("SET skilled.skip_match_enqueue = 'on'")
     # Match the app pool's jsonb codec so enrich_jobs can pass Python objects.
     import json as _json
     await conn.set_type_codec("jsonb", encoder=_json.dumps, decoder=_json.loads, schema="pg_catalog")

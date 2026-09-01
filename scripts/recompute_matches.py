@@ -100,6 +100,13 @@ def main() -> int:
         print("Is Supabase running?  Run: supabase start")
         return 1
 
+    # This script IS the recompute — its own writes must not enqueue more
+    # recompute work through the DB triggers, or a resident worker replays
+    # everything behind it.
+    with conn.cursor() as _c:
+        _c.execute("SET skilled.skip_match_enqueue = 'on'")
+    conn.commit()
+
     config = _load_active_config(conn)
     print(f"Loaded policy config version: {config.version}")
 
