@@ -36,7 +36,18 @@ from dataclasses import dataclass, field
 _ENTRY_TITLE = re.compile(
     r"\b(apprentice|helper|trainee|entry[ -]level|junior|jr\.?|intern(ship)?|"
     r"assembler|laborer|general labor|associate technician|tech(nician)?\s+i\b|"
-    r"level\s+1|starter|beginner|new grad(uate)?s?)\b",
+    r"level\s+1|starter|beginner|new grad(uate)?s?|"
+    # O*NET Zone 1-2 occupational titles: little-preparation roles that carry
+    # no seniority qualifier at all (53-7062 laborers/material movers,
+    # 53-7065 stockers, 43-5071 shipping/receiving, 51-9111 packers, ...)
+    r"freight|receiving|stocker|stocking|material handler|package handler|"
+    r"warehouse (associate|worker)|order (filler|picker|selector)|"
+    r"picker|packer|loader|unloader|cart attendant|lot associate|"
+    r"sales associate|store associate|garden associate|crew member|"
+    r"production (associate|operator|worker)|line (worker|operator)|"
+    r"machine operator|utility worker|yard (worker|hand)|groundskeeper|"
+    r"custodian|janitor|porter|housekeep(er|ing)|dishwasher|"
+    r"cashier|courtesy clerk|greeter)\b",
     re.IGNORECASE,
 )
 _SENIOR_TITLE = re.compile(
@@ -148,7 +159,7 @@ def classify_seniority(
             level = "mid"
         else:
             level = "entry"
-        return SeniorityResult(level, _ZONE[level], years, friendly, evidence)
+        return SeniorityResult(level, _ZONE[level], years, friendly or level == "entry", evidence)
 
     # Title cues, strongest first.
     if _SENIOR_TITLE.search(title):
@@ -156,7 +167,10 @@ def classify_seniority(
         return SeniorityResult("senior", _ZONE["senior"], None, friendly, evidence)
     if _ENTRY_TITLE.search(title):
         evidence.append(f"entry title: {_ENTRY_TITLE.search(title).group(0)}")
-        return SeniorityResult("entry", _ZONE["entry"], None, friendly, evidence)
+        # Zone 1-2 means little/some preparation BY DEFINITION — an entry
+        # classification is itself the entry-friendly signal, whether or not
+        # the posting spells out "we will train".
+        return SeniorityResult("entry", _ZONE["entry"], None, True, evidence)
     if _MID_TITLE.search(title):
         evidence.append(f"skilled-craft title: {_MID_TITLE.search(title).group(0)}")
         return SeniorityResult("mid", _ZONE["mid"], None, friendly, evidence)

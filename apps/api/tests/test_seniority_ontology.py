@@ -190,3 +190,40 @@ class TestEntryFriendlyCredentialConsistency:
             applicant_certs=["OSHA 10"], job_entry_friendly=False,
         )
         assert g.result == "fail"
+
+
+class TestZoneOneTwoTitlesAreEntryFriendly:
+    """O*NET Zone 1-2 occupational titles carry no seniority qualifier, and an
+    entry classification IS the entry-friendly signal (little preparation by
+    definition) — the 2026-09 Home Depot audit found 1,741 Freight/Receiving
+    postings defaulted to mid/not-friendly for lack of a "we will train"."""
+
+    def _c(self, title, body=None):
+        from matching.seniority import classify_seniority
+        return classify_seniority(title, body)
+
+    def test_freight_receiving_is_entry_and_friendly(self):
+        s = self._c("Freight/Receiving")
+        assert s.level == "entry"
+        assert s.entry_friendly is True
+
+    def test_material_mover_titles(self):
+        for t in ("Warehouse Associate", "Material Handler", "Order Picker",
+                  "Machine Operator", "Custodian", "Lot Associate"):
+            s = self._c(t)
+            assert s.level == "entry", t
+            assert s.entry_friendly is True, t
+
+    def test_one_year_ask_is_entry_friendly(self):
+        s = self._c("Production Technician", "1 year of experience required")
+        assert s.level == "entry"
+        assert s.entry_friendly is True
+
+    def test_bare_technician_still_defaults_mid_not_friendly(self):
+        s = self._c("Repair and tool Technician")
+        assert s.level == "mid"
+        assert s.entry_friendly is False
+
+    def test_senior_and_management_untouched(self):
+        assert self._c("Senior Electrician").entry_friendly is False
+        assert self._c("Warehouse Supervisor").level == "management"
