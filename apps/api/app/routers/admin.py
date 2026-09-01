@@ -178,7 +178,35 @@ def _geocode(city: str | None, state: str | None) -> tuple[float, float] | None:
 # Endpoints
 # ---------------------------------------------------------------------------
 
+_ANALYTICS_CACHE: dict[str, tuple[float, object]] = {}
+
+
+def _cached_analytics(ttl_s: int = 90):
+    """In-process TTL cache for parameterless admin analytics reads.
+
+    These endpoints aggregate over the full matches/applicants tables
+    (2M+ rows); on the small hosted database each render costs seconds.
+    Admin dashboards tolerate a minute of staleness, and one process
+    serves all admins, so a module-level cache is enough.
+    """
+    import functools
+    import time as _t
+
+    def wrap(fn):
+        @functools.wraps(fn)
+        async def inner(*args, **kwargs):
+            hit = _ANALYTICS_CACHE.get(fn.__name__)
+            if hit and _t.monotonic() - hit[0] < ttl_s:
+                return hit[1]
+            result = await fn(*args, **kwargs)
+            _ANALYTICS_CACHE[fn.__name__] = (_t.monotonic(), result)
+            return result
+        return inner
+    return wrap
+
+
 @router.get("/analytics/dashboard", response_model=AdminDashboard)
+@_cached_analytics(90)
 async def admin_dashboard(user=Depends(require_admin)):
     """Comprehensive admin dashboard data — all analytics in one call."""
     async with get_db() as conn:
@@ -344,6 +372,7 @@ async def admin_dashboard(user=Depends(require_admin)):
 
 
 @router.get("/analytics/overview")
+@_cached_analytics(90)
 async def admin_overview(user=Depends(require_admin)):
     """Granular, cross-domain platform metrics — the admin command center.
     One aggregation call covering acquisition, verification, consent, matching,
@@ -601,6 +630,7 @@ async def admin_overview(user=Depends(require_admin)):
 
 
 @router.get("/analytics/cluster-jobs", response_model=list[ClusterJob])
+@_cached_analytics(300)
 async def cluster_jobs(city: str, state: str, user=Depends(require_admin)):
     """Fetch jobs at a specific city/state for map drill-down."""
     async with get_db() as conn:
@@ -625,6 +655,7 @@ async def cluster_jobs(city: str, state: str, user=Depends(require_admin)):
 
 
 @router.get("/analytics/job-map", response_model=list[CityJobCluster])
+@_cached_analytics(300)
 async def job_map_data(user=Depends(require_admin)):
     """Job distribution data for map visualization."""
     async with get_db() as conn:
@@ -716,6 +747,7 @@ async def _resolve_city_coords(
 
 
 @router.get("/analytics/applicant-map", response_model=list[CityApplicantCluster])
+@_cached_analytics(300)
 async def applicant_map_data(user=Depends(require_admin)):
     """Applicant distribution for the admin map. City-level counts only — no PII."""
     async with get_db() as conn:
@@ -1492,6 +1524,7 @@ class EngagementAnalytics(BaseModel):
 
 
 @router.get("/analytics/engagement", response_model=EngagementAnalytics)
+@_cached_analytics(60)
 async def engagement_analytics(user=Depends(require_admin)):
     """Platform engagement metrics for admin: DMs, interest signals, outreach, hires."""
     async with get_db() as conn:
@@ -2480,6 +2513,7 @@ async def get_test_applicant_matches(
 # precomputed, so it is always honest about the current state.
 
 @router.get("/analytics/marketplace")
+@_cached_analytics(120)
 async def marketplace_analytics(user=Depends(require_admin)):
     from datetime import datetime, timezone
     async with get_db() as conn:
