@@ -84,7 +84,39 @@ Also, in the Railway dashboard → the API service → Variables: set
 `SUPABASE_ANON_KEY` (from Supabase dashboard → Settings → API). The
 health endpoint has reported it missing since day one.
 
-## Phase 2 — YOU run, unattended (~60–90 min total)
+## Phase 2 — DONE differently (2026-09-01, run by Claude via the linked CLI)
+
+The password-based plan below was superseded: the Supabase CLI's login
+session (minted login role — no DB password touched) applied the whole
+data sync as throwaway migrations. What went to prod:
+
+- 43,002 scholars (regenerated plausible placeholder names — coherent
+  first/last pairings, gender-aware; real names await Tom's export),
+  30,419 PSA application rows, credentials
+- 13 partner employers + 5,211 jobs (3,380 active) + career sources,
+  pull history, and job display sections, straight from the local
+  scrape (fresh within a day)
+- 2,112,033 precomputed matches (rationale text kept for the top 25
+  per job + demo applicant; recomputable for the rest), taxonomy,
+  policy config, geocode cache
+- account re-links by email (applicant@test.local, employer@test.local)
+  and ANALYZE, in the final migration
+
+Entry-level classification was fixed first (O*NET Zone 1-2 titles are
+entry + entry-friendly by definition — commit 0ad8330) and all matches
+recomputed with the corrected gates before dumping. The sync migration
+files are git-ignored (*psync*) and were repaired out of prod's
+migration history after apply — see "After the sync" below.
+
+### After the sync (housekeeping)
+- `supabase migration repair --status reverted 202609011500xx ...` for
+  all 31 psync versions, then delete the local files, so future
+  `db push` runs stay clean.
+- Local dev processes MUST be restarted after pulling matching-engine
+  changes — a long-lived uvicorn/worker holds old code and will fight
+  bulk scripts (see commit 37f57f8).
+
+## Phase 2 (original password-based plan — superseded)
 
 ```bash
 cd apps/api && source .venv/bin/activate && cd ../..
