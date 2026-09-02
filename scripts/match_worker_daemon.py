@@ -41,6 +41,9 @@ log = logging.getLogger("match_worker")
 CACHE_TTL_S = 600          # idle refresh cadence (burst-start reloads dominate)
 BURST_STALENESS_S = 30     # a work burst never scores against a pool older than this
 POLL_S = 10                # fallback wake if a NOTIFY is missed
+JOB_THROTTLE_S = 0.5       # breath between job recomputes: a burst of queued
+                           # jobs must never saturate a small database — new
+                           # applicants keep priority and jobs drain politely
 ADVISORY_LOCK_KEY = 0x534B4D57  # "SKMW" — single-instance guard
 
 FLUSH_EVERY = 1000
@@ -419,6 +422,8 @@ def main() -> int:
                     "WHERE id = %s", (err, qid))
             conn.commit()
             log.info("%s %s: %s in %.1fs", etype, eid, counters, time.monotonic() - t0)
+            if etype == "job":
+                time.sleep(JOB_THROTTLE_S)
 
         cache.maybe_refresh(conn)
         # Sleep until NOTIFY or POLL_S timeout. A dead LISTEN connection
