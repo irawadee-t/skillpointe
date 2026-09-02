@@ -255,6 +255,17 @@ export function UsMapFrame({ children, apiRef, onUserViewChange }: Props) {
     };
   }, [apiRef, zoomTo, reset]);
 
+  // Default filter blocks ctrlKey events, which is what trackpad pinches
+  // arrive as — allow everything except non-primary buttons. MUST be a
+  // stable identity: react-simple-maps re-creates and re-binds the whole
+  // d3-zoom behavior whenever this prop changes, and an inline arrow gave
+  // it a new identity every render — rebinding zoom MID-GESTURE, which is
+  // exactly the "zoom feels broken" bug.
+  const filterZoomEvent = useCallback((evt: unknown) => {
+    const e = evt as { button?: number };
+    return !e.button;
+  }, []);
+
   // Geographies re-render only when k crosses a half-step bucket.
   const kBucket = Math.max(1, Math.round(k * 2) / 2);
 
@@ -302,12 +313,7 @@ export function UsMapFrame({ children, apiRef, onUserViewChange }: Props) {
             [0, 0],
             [MAP_WIDTH, MAP_HEIGHT],
           ]}
-          // Default filter blocks ctrlKey events, which is what trackpad
-          // pinches arrive as — allow everything except non-primary buttons.
-          filterZoomEvent={(evt) => {
-            const e = evt as unknown as { button?: number };
-            return !e.button;
-          }}
+          filterZoomEvent={filterZoomEvent}
           onMove={handleMove}
           onMoveEnd={handleMoveEnd}
         >
