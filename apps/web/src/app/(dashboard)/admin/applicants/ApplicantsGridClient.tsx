@@ -115,6 +115,20 @@ export function ApplicantsGridClient({
         meta: { align: "right", skeletonWidth: 32 },
       },
       {
+        id: "joined",
+        header: "Joined",
+        accessorFn: (r) => r.created_at ?? "",
+        cell: (info) => {
+          const v = info.getValue<string>();
+          if (!v) return "—";
+          const d = new Date(v);
+          return Number.isNaN(d.getTime())
+            ? "—"
+            : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+        },
+        meta: { skeletonWidth: 72 },
+      },
+      {
         id: "actions",
         header: "",
         enableSorting: false,

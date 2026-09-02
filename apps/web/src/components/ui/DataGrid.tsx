@@ -427,7 +427,16 @@ export function DataGrid<T>({
       <div
         ref={scrollRef}
         onKeyDown={handleKeyDown}
-        className="overflow-auto overscroll-contain rounded-[10px] border border-hairline bg-white"
+        // overflow-x only: a wide table scrolls sideways inside its own box,
+        // but a vertical wheel must scroll the PAGE — a full overflow-auto +
+        // overscroll-contain here swallowed wheel events over the table and
+        // made directory pages feel unscrollable. Virtualized grids (bounded
+        // height) keep their own vertical scroll.
+        className={
+          virtualized
+            ? "overflow-auto overscroll-contain rounded-[10px] border border-hairline bg-white"
+            : "overflow-x-auto rounded-[10px] border border-hairline bg-white"
+        }
         style={virtualized ? { maxHeight } : undefined}
       >
         <table

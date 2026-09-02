@@ -285,21 +285,49 @@ def validate(job: MappedJob, row_number: int) -> tuple[bool, list[str]]:
 # Helpers
 # ---------------------------------------------------------------------------
 
+_MULTI_LOCATION = re.compile(r"^\d+\s+locations?$", re.IGNORECASE)
+_US_COUNTRY_PREFIX = re.compile(r"^(?:US|USA|UNITED STATES)\s*,\s*", re.IGNORECASE)
+_CA_PROVINCES = frozenset("ON BC AB QC MB SK NS NB NL PE YT NT NU".split())
+
+
 def _parse_first_location(locations_str: str) -> tuple[str | None, str | None]:
     """
     Parse the first entry from a semicolon-delimited locations string.
-    Input:  "Detroit, MI; Dallas, TX; Raleigh, NC"
-    Output: ("Detroit", "MI")
+
+    Handles both orderings feeds actually send:
+      "Detroit, MI; Dallas, TX"      -> ("Detroit", "MI")
+      "US, IL, Chicago"              -> ("Chicago", "IL")   (country-first)
+      "US, MN"                       -> (None, "MN")
+      "3 Locations"                  -> (None, None)        (placeholder)
+      "JP"                           -> (None, None)        (foreign code —
+                                        never a city, never a state)
+    coerce_state validates against the real USPS set, so a country code can
+    no longer masquerade as a state.
     """
     if not locations_str:
         return None, None
     first = locations_str.split(";")[0].strip()
+    if not first or _MULTI_LOCATION.match(first):
+        return None, None
+    first = _US_COUNTRY_PREFIX.sub("", first).strip()
     if "," in first:
-        parts = [p.strip() for p in first.split(",", 1)]
-        city = parts[0] or None
-        state = coerce_state(parts[1]) if len(parts) > 1 else None
-        return city, state
-    # No comma — treat the whole thing as city-ish
+        a, b = (p.strip() for p in first.split(",", 1))
+        # "ON, CA" is Ontario, Canada — not a California city called ON.
+        if a.upper() in _CA_PROVINCES and b.upper().split(",")[0].strip() in ("CA", "CAN", "CANADA"):
+            return None, None
+        b_state = coerce_state(b)
+        if b_state:
+            return (a or None), b_state          # "City, ST"
+        a_state = coerce_state(a)
+        if a_state:
+            return (b or None), a_state          # "ST, City" (country-first)
+        return (a or None), None
+    # Bare token: a state code/name, a foreign country code, or a city name.
+    state = coerce_state(first)
+    if state:
+        return None, state
+    if re.fullmatch(r"[A-Za-z]{2}", first):
+        return None, None                        # 2-letter non-US code
     return first or None, None
 
 

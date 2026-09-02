@@ -937,14 +937,14 @@ function ExpandableJobCard({ job, token, applied, geoActive, highlighted, onHove
       onMouseEnter={() => onHoverChange(true)}
       onMouseLeave={() => onHoverChange(false)}
       className={cn(
-        "rounded-[14px] border bg-white transition-[color,background-color,border-color,box-shadow] duration-200 ease-cohere hover:border-cohere-ink hover:shadow-float",
-        highlighted ? "border-cohere-ink shadow-float" : "border-hairline",
+        "rounded-[14px] border bg-white transition-[color,background-color,border-color,box-shadow,transform] duration-200 ease-cohere hover:border-cohere-ink hover:shadow-float hover:-translate-y-[2px] motion-reduce:hover:translate-y-0",
+        highlighted ? "border-cohere-ink shadow-float -translate-y-[2px] motion-reduce:translate-y-0" : "border-hairline",
       )}
     >
       <div className="p-6">
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
-            <h3 className="text-[1.0625rem] font-medium text-cohere-ink leading-snug">{job.title}</h3>
+            <h3 className="text-[1.1875rem] font-medium text-cohere-ink leading-snug">{job.title}</h3>
             <p className="text-body text-slate mt-0.5 flex items-center gap-1">
               <Building2 className="w-3.5 h-3.5 shrink-0" />
               {job.employer_name}

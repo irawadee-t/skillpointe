@@ -73,12 +73,45 @@ def coerce_text(value: str | None) -> str | None:
     return v if v else None
 
 
+#: Every USPS state/territory code the platform serves. Feeds routinely put
+#: country codes ("JP", "CN") or arbitrary tokens in the state slot — an
+#: unvalidated uppercase pass-through let those masquerade as states and leak
+#: into geography gating and the admin views.
+US_STATES = frozenset(
+    "AL AK AZ AR CA CO CT DE FL GA HI ID IL IN IA KS KY LA ME MD MA MI MN MS "
+    "MO MT NE NV NH NJ NM NY NC ND OH OK OR PA RI SC SD TN TX UT VT VA WA WV "
+    "WI WY DC PR GU VI AS MP".split()
+)
+
+_STATE_NAMES = {
+    "ALABAMA": "AL", "ALASKA": "AK", "ARIZONA": "AZ", "ARKANSAS": "AR",
+    "CALIFORNIA": "CA", "COLORADO": "CO", "CONNECTICUT": "CT", "DELAWARE": "DE",
+    "FLORIDA": "FL", "GEORGIA": "GA", "HAWAII": "HI", "IDAHO": "ID",
+    "ILLINOIS": "IL", "INDIANA": "IN", "IOWA": "IA", "KANSAS": "KS",
+    "KENTUCKY": "KY", "LOUISIANA": "LA", "MAINE": "ME", "MARYLAND": "MD",
+    "MASSACHUSETTS": "MA", "MICHIGAN": "MI", "MINNESOTA": "MN",
+    "MISSISSIPPI": "MS", "MISSOURI": "MO", "MONTANA": "MT", "NEBRASKA": "NE",
+    "NEVADA": "NV", "NEW HAMPSHIRE": "NH", "NEW JERSEY": "NJ",
+    "NEW MEXICO": "NM", "NEW YORK": "NY", "NORTH CAROLINA": "NC",
+    "NORTH DAKOTA": "ND", "OHIO": "OH", "OKLAHOMA": "OK", "OREGON": "OR",
+    "PENNSYLVANIA": "PA", "RHODE ISLAND": "RI", "SOUTH CAROLINA": "SC",
+    "SOUTH DAKOTA": "SD", "TENNESSEE": "TN", "TEXAS": "TX", "UTAH": "UT",
+    "VERMONT": "VT", "VIRGINIA": "VA", "WASHINGTON": "WA",
+    "WEST VIRGINIA": "WV", "WISCONSIN": "WI", "WYOMING": "WY",
+    "WASHINGTON DC": "DC", "DISTRICT OF COLUMBIA": "DC", "PUERTO RICO": "PR",
+}
+
+
 def coerce_state(value: str | None) -> str | None:
-    """Uppercase and strip a US state code."""
+    """A real US state/territory code, or None — never a passthrough."""
     if value is None:
         return None
-    v = str(value).strip().upper()
-    return v if v else None
+    v = str(value).strip().upper().rstrip(".")
+    if not v:
+        return None
+    if v in US_STATES:
+        return v
+    return _STATE_NAMES.get(v)
 
 
 def split_full_name(value: str | None) -> tuple[str | None, str | None]:

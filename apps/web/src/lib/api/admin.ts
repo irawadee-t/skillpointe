@@ -200,6 +200,7 @@ export interface AdminApplicantRow {
   willing_to_relocate: boolean;
   eligible_count: number;
   near_fit_count: number;
+  created_at: string | null;
 }
 
 export interface AdminApplicantList {

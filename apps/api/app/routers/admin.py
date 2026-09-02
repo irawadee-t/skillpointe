@@ -1076,6 +1076,7 @@ async def list_applicants(
                 COALESCE(a.available_from_date::text, a.expected_completion_date::text) AS available_from,
                 a.job_family_code,
                 a.job_family_name,
+                a.created_at::text AS created_at,
                 mc.eligible_count,
                 mc.near_fit_count
             FROM (

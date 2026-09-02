@@ -125,7 +125,17 @@ class TestCoerceText:
 class TestCoerceState:
     def test_uppercases(self):
         assert coerce_state("ny") == "NY"
-        assert coerce_state("California") == "CALIFORNIA"
+
+    def test_full_names_map_to_codes(self):
+        assert coerce_state("California") == "CA"
+        assert coerce_state("north carolina") == "NC"
+
+    def test_non_us_codes_rejected(self):
+        # Feeds put country codes in the state slot ("JP", "CN"); an
+        # unvalidated passthrough let them masquerade as states.
+        assert coerce_state("JP") is None
+        assert coerce_state("CN") is None
+        assert coerce_state("gibberish") is None
 
     def test_none(self):
         assert coerce_state(None) is None
