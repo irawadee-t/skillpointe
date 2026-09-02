@@ -44,7 +44,11 @@ const nextConfig: NextConfig = {
     // regardless of the router cache, and match/analytics data changes on
     // scoring-run cadence, not seconds.
     staleTimes: {
-      dynamic: 30,
+      // 3 minutes: flipping between sidebar tabs re-uses the cached page
+      // instead of a full SSR round trip. The live surfaces (DM inboxes,
+      // admin badges) poll client-side regardless, and directory/analytics
+      // data changes on sync cadence, not seconds.
+      dynamic: 180,
     },
   },
   // Optional override so `next build` / `next start` can run against a
