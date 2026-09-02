@@ -350,6 +350,21 @@ async def _apply_link_recheck_tick() -> None:
                         '[{"flag_type": "broken_apply_link"}]',
                     )
                     newly_broken += 1
+                # A posting nobody can reach is not a live posting. External-
+                # apply jobs with a confirmed-dead link retire on the spot
+                # (and their matches with them); internal-apply jobs stay —
+                # the broken link is just their source reference.
+                if link_status == "broken":
+                    await conn.execute(
+                        """UPDATE public.jobs SET is_active = FALSE
+                           WHERE id = $1::uuid AND accepts_internal_applications = FALSE""",
+                        str(r["id"]),
+                    )
+                    await conn.execute(
+                        """DELETE FROM public.matches m USING public.jobs j
+                           WHERE m.job_id = j.id AND j.id = $1::uuid AND j.is_active = FALSE""",
+                        str(r["id"]),
+                    )
         logger.info(
             "Apply-link recheck: %d checked, %d newly flagged", len(rows), newly_broken,
         )

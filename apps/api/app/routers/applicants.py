@@ -573,7 +573,7 @@ async def get_my_matches(
                 sj.interest_level AS applicant_interest
             FROM public.matches m
             JOIN public.applicants a ON a.id = m.applicant_id
-            JOIN public.jobs j        ON j.id = m.job_id
+            JOIN public.jobs j        ON j.id = m.job_id AND j.is_active = TRUE
             JOIN public.employers e   ON e.id = j.employer_id
             LEFT JOIN public.canonical_job_families jf ON jf.id = j.canonical_job_family_id
             LEFT JOIN public.saved_jobs sj ON sj.applicant_id = a.id AND sj.job_id = m.job_id
@@ -722,7 +722,7 @@ async def get_match_detail(
                 a.region       AS app_region
             FROM public.matches m
             JOIN public.applicants a ON a.id = m.applicant_id
-            JOIN public.jobs j        ON j.id = m.job_id
+            JOIN public.jobs j        ON j.id = m.job_id AND j.is_active = TRUE
             JOIN public.employers e   ON e.id = j.employer_id
             LEFT JOIN public.canonical_job_families jf ON jf.id = j.canonical_job_family_id
             WHERE m.id = $1::uuid
