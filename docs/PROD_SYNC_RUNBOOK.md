@@ -142,7 +142,26 @@ python scripts/extract_job_ontology.py
 for K in 0 1 2 3 4 5 6 7; do python scripts/recompute_matches.py --prefilter --skip-geocode --shard $K/8 & done; wait
 ```
 
-## Phase 3 — Claude can drive (through the prod API, no secrets needed)
+## Phase 3 — DONE (2026-09-01 evening)
+
+All flows verified against prod after the sync: applicant login →
+profile + 8 near-fit matches with named gaps; employer login → company,
+jobs, ranked candidates (4,048 visible on the Welder posting); admin →
+dashboard, marketplace, readiness (43,002 applicants, verdict computed
+live), job map, applicants/employers lists, engagement. All endpoints
+200; warm latencies 0.2–0.6s.
+
+Infra note: compute was upgraded nano → micro during the load
+(free on Pro — same $9.68/month, 1GB dedicated + 2-core). The nano
+tier was swapping under the bulk insert and took the site down with
+it; micro absorbed the same load with the site staying sub-second.
+
+**Before the demo:** open the admin dashboard once (or curl the
+analytics endpoints) ~30 min before — first render after a deploy or
+cache expiry costs up to ~35s on marketplace/readiness; every view
+after that is instant for the cache TTL (30–60 min).
+
+## Phase 3 (original plan — superseded)
 
 Once Phase 1–2 are done, say the word and I will, against prod:
 - create the six new partner employers + career sources
