@@ -357,7 +357,7 @@ async def _apply_link_recheck_tick() -> None:
                 if link_status == "broken":
                     await conn.execute(
                         """UPDATE public.jobs SET is_active = FALSE
-                           WHERE id = $1::uuid AND accepts_internal_applications = FALSE""",
+                           WHERE id = $1::uuid AND COALESCE(accepts_internal_applications, FALSE) = FALSE""",
                         str(r["id"]),
                     )
                     await conn.execute(
