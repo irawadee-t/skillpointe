@@ -324,6 +324,12 @@ def _process(conn, cache: Cache, entity_type: str, entity_id: str) -> dict:
 
 
 def main() -> int:
+    # --drain: process everything pending, then exit. Used by the API when
+    # background jobs are disabled — a user-initiated write (an employer
+    # posting a job, an applicant finishing setup) still deserves its
+    # matches, as bounded one-shot work rather than a resident daemon.
+    drain_only = "--drain" in sys.argv
+
     from etl.db import get_connection
     conn = get_connection()
     conn.autocommit = False
@@ -424,6 +430,19 @@ def main() -> int:
             log.info("%s %s: %s in %.1fs", etype, eid, counters, time.monotonic() - t0)
             if etype == "job":
                 time.sleep(JOB_THROTTLE_S)
+
+        if drain_only:
+            # One more pass may have work enqueued during this one; loop
+            # until a full pass claims nothing, then exit.
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT 1 FROM public.match_queue WHERE processed_at IS NULL LIMIT 1")
+                more = cur.fetchone() is not None
+            conn.commit()
+            if more:
+                continue
+            log.info("drain complete — exiting")
+            return 0
 
         cache.maybe_refresh(conn)
         # Sleep until NOTIFY or POLL_S timeout. A dead LISTEN connection

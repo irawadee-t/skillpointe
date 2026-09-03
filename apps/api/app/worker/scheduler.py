@@ -933,22 +933,28 @@ def _ensure_match_worker() -> None:
     to be best-effort.
     """
     global _match_worker_proc
-    if not background_jobs_allowed():
-        return
     if _match_worker_proc is not None and _match_worker_proc.poll() is None:
         return
     script = _REPO_ROOT / "scripts" / "match_worker_daemon.py"
     if not script.exists():
         logger.warning("match_worker_daemon.py not found — resident worker unavailable")
         return
+    # With background jobs disabled, user-initiated writes (a posted job, a
+    # finished profile) still deserve their matches — as bounded one-shot
+    # work: the worker drains the queue and exits instead of residing.
+    # The liveness check above caps this at one process at a time.
+    args = [sys.executable, str(script)]
+    if not background_jobs_allowed():
+        args.append("--drain")
     import subprocess
     _match_worker_proc = subprocess.Popen(
-        [sys.executable, str(script)],
+        args,
         stdout=open("/tmp/match_worker.log", "ab"),
         stderr=subprocess.STDOUT,
         cwd=str(_REPO_ROOT),
     )
-    logger.info("resident match worker started (pid %s)", _match_worker_proc.pid)
+    logger.info("match worker started (pid %s, mode=%s)",
+                _match_worker_proc.pid, "drain" if "--drain" in args else "resident")
 
 
 async def trigger_recompute_for_job(job_id: str) -> None:

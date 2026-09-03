@@ -1019,7 +1019,7 @@ async def get_interest_signal(
 
         signal_row = await conn.fetchrow(
             """
-            SELECT interest_level, updated_at::text
+            SELECT sj.interest_level, sj.updated_at::text AS updated_at
             FROM public.saved_jobs sj
             JOIN public.applicants a ON a.id = sj.applicant_id
             WHERE sj.job_id = $1::uuid
