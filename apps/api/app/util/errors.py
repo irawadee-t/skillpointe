@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 
+from asyncpg.exceptions import DataError, ForeignKeyViolationError
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -70,6 +71,27 @@ def install_error_handlers(app: FastAPI) -> None:
             for err in exc.errors()
         ]
         return _problem(422, "Request validation failed.", extra={"errors": safe_errors})
+
+    @app.exception_handler(ForeignKeyViolationError)
+    async def _pg_fk_error(request: Request, exc: ForeignKeyViolationError):
+        # A write referencing a row that does not exist (e.g. a conversation
+        # started against a deleted job/applicant from a stale client) — the
+        # referenced entity is gone, so this is a 409/404-class client error,
+        # never a 500. No internal detail is echoed.
+        logger.info("Rejected FK violation on %s %s",
+                    request.method, request.url.path)
+        return _problem(409, "A referenced item no longer exists.")
+
+    @app.exception_handler(DataError)
+    async def _pg_data_error(request: Request, exc: DataError):
+        # asyncpg raises DataError for malformed inputs that reach a raw SQL
+        # cast — e.g. a non-UUID string in a "$1::uuid" path param, or a value
+        # outside an enum. That is a client mistake (bad path/query value), not
+        # a server fault, so it must be a clean 422, never a 500. The specific
+        # value is never echoed back.
+        logger.info("Rejected malformed input on %s %s: %s",
+                    request.method, request.url.path, type(exc).__name__)
+        return _problem(422, "A value in the request was not a valid format.")
 
     @app.exception_handler(Exception)
     async def _unhandled(request: Request, exc: Exception):

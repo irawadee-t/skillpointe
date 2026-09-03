@@ -2588,15 +2588,15 @@ async def marketplace_analytics(user=Depends(require_admin)):
         partners = [dict(r) for r in await conn.fetch("""
             SELECT COALESCE(e.name, initcap(j.source)) AS partner,
                    count(*) AS active_jobs,
-                   round(100.0*count(*) FILTER (WHERE j.experience_level='entry')/count(*),1)      AS pct_entry,
-                   round(100.0*count(*) FILTER (WHERE j.experience_level='mid')/count(*),1)        AS pct_mid,
-                   round(100.0*count(*) FILTER (WHERE j.experience_level='senior')/count(*),1)     AS pct_senior,
-                   round(100.0*count(*) FILTER (WHERE j.experience_level='management')/count(*),1) AS pct_management,
-                   round(100.0*count(*) FILTER (WHERE j.entry_friendly)/count(*),1)                AS pct_will_train,
-                   round(100.0*count(*) FILTER (WHERE j.is_apprenticeship)/count(*),1)             AS pct_apprenticeship,
+                   round(100.0*count(*) FILTER (WHERE j.experience_level='entry')/ NULLIF(count(*), 0),1)      AS pct_entry,
+                   round(100.0*count(*) FILTER (WHERE j.experience_level='mid')/ NULLIF(count(*), 0),1)        AS pct_mid,
+                   round(100.0*count(*) FILTER (WHERE j.experience_level='senior')/ NULLIF(count(*), 0),1)     AS pct_senior,
+                   round(100.0*count(*) FILTER (WHERE j.experience_level='management')/ NULLIF(count(*), 0),1) AS pct_management,
+                   round(100.0*count(*) FILTER (WHERE j.entry_friendly)/ NULLIF(count(*), 0),1)                AS pct_will_train,
+                   round(100.0*count(*) FILTER (WHERE j.is_apprenticeship)/ NULLIF(count(*), 0),1)             AS pct_apprenticeship,
                    round(100.0*count(*) FILTER (WHERE jsonb_array_length(
-                       COALESCE(j.required_credentials_canonical,'[]'::jsonb)) > 0)/count(*),1)    AS pct_with_credentials,
-                   round(100.0*count(*) FILTER (WHERE j.pay_min IS NOT NULL)/count(*),1)           AS pct_with_pay,
+                       COALESCE(j.required_credentials_canonical,'[]'::jsonb)) > 0)/ NULLIF(count(*), 0),1)    AS pct_with_credentials,
+                   round(100.0*count(*) FILTER (WHERE j.pay_min IS NOT NULL)/ NULLIF(count(*), 0),1)           AS pct_with_pay,
                    count(DISTINCT j.state) AS states
               FROM public.jobs j
               LEFT JOIN public.employers e ON e.id = j.employer_id
@@ -2662,11 +2662,11 @@ async def marketplace_analytics(user=Depends(require_admin)):
              WHERE eligibility_status = 'near_fit'
                AND primary_gap IN ('readiness_timing','timing_readiness')""") or 0)
         field_cov = dict(await conn.fetchrow("""
-            SELECT round(100.0*count(expected_completion_date)/count(*),1) AS timing_pct,
-                   round(100.0*count(NULLIF(specific_career,''))/count(*),1) AS stated_career_pct,
-                   round(100.0*count(canonical_job_family_id)/count(*),1) AS classified_pct,
-                   round(100.0*count(NULLIF(city,''))/count(*),1) AS city_pct,
-                   round(100.0*count(commute_radius_miles)/count(*),1) AS radius_pct
+            SELECT round(100.0*count(expected_completion_date)/ NULLIF(count(*), 0),1) AS timing_pct,
+                   round(100.0*count(NULLIF(specific_career,''))/ NULLIF(count(*), 0),1) AS stated_career_pct,
+                   round(100.0*count(canonical_job_family_id)/ NULLIF(count(*), 0),1) AS classified_pct,
+                   round(100.0*count(NULLIF(city,''))/ NULLIF(count(*), 0),1) AS city_pct,
+                   round(100.0*count(commute_radius_miles)/ NULLIF(count(*), 0),1) AS radius_pct
               FROM public.applicants"""))
         creds_disclosed = int(await conn.fetchval(
             "SELECT count(DISTINCT applicant_id) FROM public.credentials") or 0)
@@ -2801,9 +2801,9 @@ async def readiness_report(user=Depends(require_admin)):
             jj AS (
               SELECT j.employer_id, count(*) AS jobs,
                      count(DISTINCT j.state) AS states,
-                     round(100.0*count(*) FILTER (WHERE j.experience_level='entry')/count(*),0) AS entry_pct,
-                     round(100.0*count(*) FILTER (WHERE j.entry_friendly)/count(*),0) AS will_train_pct,
-                     round(100.0*count(*) FILTER (WHERE j.is_apprenticeship)/count(*),0) AS apprentice_pct
+                     round(100.0*count(*) FILTER (WHERE j.experience_level='entry')/ NULLIF(count(*), 0),0) AS entry_pct,
+                     round(100.0*count(*) FILTER (WHERE j.entry_friendly)/ NULLIF(count(*), 0),0) AS will_train_pct,
+                     round(100.0*count(*) FILTER (WHERE j.is_apprenticeship)/ NULLIF(count(*), 0),0) AS apprentice_pct
                 FROM public.jobs j WHERE j.is_active GROUP BY j.employer_id),
             mm AS (
               SELECT j.employer_id,

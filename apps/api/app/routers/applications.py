@@ -848,6 +848,22 @@ async def list_employer_applications(
 @employer_router.get("/jobs/{job_id}/applications", response_model=list[ApplicationOut])
 async def list_job_applications(job_id: UUID, user: CurrentUser = Depends(require_employer_or_admin)):
     async with get_db() as conn:
+        # Tenant scoping: an employer may only list applications for a job they
+        # own. Without this, any employer could pass another employer's job_id
+        # and read applicant PII (names, resume snapshots, cover notes,
+        # screening answers). Admins may view any job (read-only). Mirrors the
+        # ownership check in get_employer_application below.
+        if user.role != "admin":
+            owns = await conn.fetchrow(
+                """SELECT 1 FROM public.jobs j
+                     JOIN public.employer_contacts ec ON ec.employer_id = j.employer_id
+                    WHERE j.id = $1 AND ec.user_id = $2""",
+                job_id, user.user_id,
+            )
+            if not owns:
+                # 404 (not 403) so a foreign job_id is indistinguishable from a
+                # nonexistent one — no existence oracle.
+                raise HTTPException(status_code=404, detail="Job not found.")
         rows = await conn.fetch(_APP_SELECT + " WHERE a.job_id = $1 ORDER BY a.submitted_at DESC", job_id)
     return [_row_to_out(r) for r in rows]
 
