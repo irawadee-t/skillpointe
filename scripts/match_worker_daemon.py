@@ -368,7 +368,9 @@ def main() -> int:
         # Drain everything pending. People first: an applicant edit has a
         # human waiting at the matches page; bulk job rescores do not.
         # Applicant tasks are claimed in batches (surge path); jobs one at
-        # a time (each is its own large candidate set).
+        # a time (each is its own large candidate set). NEWEST-FIRST within
+        # each: whoever just acted — posted a job, finished a profile — is
+        # the one watching, and must never wait behind an older backlog.
         while True:
             with conn.cursor() as cur:
                 cur.execute("""
@@ -376,7 +378,7 @@ def main() -> int:
                      WHERE id IN (SELECT id FROM public.match_queue
                                   WHERE processed_at IS NULL
                                     AND entity_type = 'applicant'
-                                  ORDER BY enqueued_at
+                                  ORDER BY enqueued_at DESC
                                   FOR UPDATE SKIP LOCKED LIMIT %s)
                     RETURNING id, entity_id""", (APPLICANT_CLAIM_BATCH,))
                 app_rows = cur.fetchall()
@@ -406,7 +408,7 @@ def main() -> int:
                     UPDATE public.match_queue SET claimed_at = now()
                      WHERE id = (SELECT id FROM public.match_queue
                                   WHERE processed_at IS NULL
-                                  ORDER BY enqueued_at
+                                  ORDER BY enqueued_at DESC
                                   FOR UPDATE SKIP LOCKED LIMIT 1)
                     RETURNING id, entity_type, entity_id""")
                 row = cur.fetchone()
