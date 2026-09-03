@@ -580,7 +580,9 @@ async def resync_batch(batch_id: str,
         )
         detail = await _batch_out(conn, rowrec, include_rows=True)
         # Attach counts so the UI can render "N new · M stale" toast.
-        return {**detail.model_dump(), "resync_new": len(new_rows), "resync_stale": marked_stale}
+        # _batch_out returns a plain dict — spread it directly (was .model_dump()
+        # on a dict, a guaranteed 500 on every resync).
+        return {**detail, "resync_new": len(new_rows), "resync_stale": marked_stale}
 
 
 @emp_router.post("/{batch_id}/submit", response_model=BatchOut)

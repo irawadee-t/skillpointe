@@ -621,6 +621,9 @@ class TestApplyContext:
         assert set(body["missing_required"]) == {"contact", "resume"}  # location complete
         assert body["already_applied"] is None
         assert len(body["questions"]) == 1
+        # SECURITY: the employer's expected knockout answer must never be
+        # shipped to the applicant (would defeat the screening gate).
+        assert "required_answer" not in body["questions"][0]
 
     def test_context_reports_reapply_eligibility(self, client: TestClient) -> None:
         from datetime import datetime, timezone

@@ -10,9 +10,11 @@ from __future__ import annotations
 
 import logging
 
-from asyncpg.exceptions import DataError, ForeignKeyViolationError
+import httpx
+from asyncpg.exceptions import DataError, ForeignKeyViolationError, UniqueViolationError
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
+from pydantic import ValidationError as _PydValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.responses import JSONResponse
 
@@ -71,6 +73,36 @@ def install_error_handlers(app: FastAPI) -> None:
             for err in exc.errors()
         ]
         return _problem(422, "Request validation failed.", extra={"errors": safe_errors})
+
+    @app.exception_handler(_PydValidationError)
+    async def _pyd_validation(request: Request, exc: _PydValidationError):
+        # A pydantic model built INSIDE a handler from external data (an
+        # uploaded CSV row, an LLM extraction) failed validation — FastAPI's
+        # RequestValidationError handler only covers models bound at the
+        # request boundary, so this would otherwise 500. A malformed input row
+        # is the client's, so it is a 422. Field values are not echoed.
+        logger.info("In-handler validation failure on %s %s",
+                    request.method, request.url.path)
+        return _problem(422, "Some submitted data was not in a valid format.")
+
+    @app.exception_handler(httpx.HTTPError)
+    async def _httpx_error(request: Request, exc: httpx.HTTPError):
+        # An outbound call to a third party (credential verifier, background
+        # check, scraper) failed at the transport level — a network/timeout
+        # problem on THEIR side, not a bug on ours. Surface a clean 502 so the
+        # client can retry, instead of a 500 that reads as our fault.
+        logger.warning("Upstream call failed on %s %s: %s",
+                       request.method, request.url.path, type(exc).__name__)
+        return _problem(502, "An upstream service did not respond. Please try again.")
+
+    @app.exception_handler(UniqueViolationError)
+    async def _pg_unique_error(request: Request, exc: UniqueViolationError):
+        # A duplicate insert that raced a read-then-check (e.g. two concurrent
+        # submits of a one-per-record action) — the record already exists, so
+        # this is a 409, never a 500.
+        logger.info("Rejected duplicate insert on %s %s",
+                    request.method, request.url.path)
+        return _problem(409, "That item already exists.")
 
     @app.exception_handler(ForeignKeyViolationError)
     async def _pg_fk_error(request: Request, exc: ForeignKeyViolationError):

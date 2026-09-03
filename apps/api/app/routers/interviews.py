@@ -297,9 +297,15 @@ async def propose_slots(  # employer-only: admin does not schedule interviews fo
                     interviewer_contact_id, interviewer_name, interviewer_email, interviewer_title,
                 )
 
-            # Move application status forward
+            # Move application status forward — but ONLY from a live state.
+            # Proposing slots on a withdrawn/rejected/hired application must not
+            # silently resurrect it to "interviewing" and notify the applicant
+            # about a role they left or were rejected for.
             await conn.execute(
-                "UPDATE public.applications SET status = 'interviewing'::application_status_enum, updated_at = NOW() WHERE id = $1",
+                """UPDATE public.applications
+                      SET status = 'interviewing'::application_status_enum, updated_at = NOW()
+                    WHERE id = $1
+                      AND status NOT IN ('withdrawn','rejected','hired')""",
                 application_id,
             )
 

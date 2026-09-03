@@ -60,6 +60,19 @@ class ScreeningQuestion(BaseModel):
     is_knockout: bool = True
 
 
+class PublicScreeningQuestion(BaseModel):
+    """Applicant-facing screening question. Deliberately OMITS required_answer:
+    the employer's expected knockout answer must never reach the applicant, or
+    the knockout gate is trivially defeated (they'd know exactly what to type).
+    is_knockout is kept only as a neutral "this one matters" display hint."""
+    id: Optional[UUID] = None
+    position: int = 0
+    kind: str
+    prompt: str
+    options: list[str] = Field(default_factory=list)
+    is_knockout: bool = True
+
+
 class ScreeningAnswer(BaseModel):
     question_id: UUID
     answer: str = Field(max_length=2000)
@@ -190,7 +203,7 @@ class ApplyContext(BaseModel):
     required_fields: list[str] = Field(default_factory=list)
     missing_required: list[str] = Field(default_factory=list)
     profile: ApplyContextProfile
-    questions: list[ScreeningQuestion] = Field(default_factory=list)
+    questions: list[PublicScreeningQuestion] = Field(default_factory=list)
 
 
 def _missing_groups(
@@ -319,7 +332,7 @@ async def get_apply_context(job_id: UUID, user: CurrentUser = Depends(require_ap
             credentials=creds,
             resume_filename=resume_filename,
         ),
-        questions=[ScreeningQuestion(**dict(q)) for q in questions],
+        questions=[PublicScreeningQuestion(**{k: v for k, v in dict(q).items() if k != "required_answer"}) for q in questions],
     )
 
 
@@ -327,12 +340,12 @@ async def get_apply_context(job_id: UUID, user: CurrentUser = Depends(require_ap
 # Applicant: screening questions for a job
 # ---------------------------------------------------------------------------
 
-@applicant_router.get("/jobs/{job_id}/screening", response_model=list[ScreeningQuestion])
+@applicant_router.get("/jobs/{job_id}/screening", response_model=list[PublicScreeningQuestion])
 async def get_job_screening(job_id: UUID, _: CurrentUser = Depends(require_applicant)):
     async with get_db() as conn:
         rows = await conn.fetch(
             """
-            SELECT id, position, kind::text, prompt, options, required_answer, is_knockout
+            SELECT id, position, kind::text, prompt, options, is_knockout
               FROM public.job_screening_questions
              WHERE job_id = $1
           ORDER BY position, created_at
@@ -947,6 +960,18 @@ async def patch_employer_application(
 
         status_changing = bool(body.status) and body.status != row["status"]
 
+        # Transition legality: a terminal application (already hired, rejected,
+        # or withdrawn by the applicant) cannot be re-decided. Without this an
+        # employer could PATCH a withdrawn candidate straight to "hired",
+        # writing a spurious hire_outcomes row and a hire_reported event that
+        # corrupts both employer and admin analytics.
+        _TERMINAL = {"hired", "rejected", "withdrawn"}
+        if status_changing and row["status"] in _TERMINAL:
+            raise HTTPException(
+                status_code=409,
+                detail=f"This application is already {row['status']} and cannot be changed.",
+            )
+
         set_parts = ["updated_at = NOW()"]
         args: list = []
         idx = 1
@@ -964,6 +989,13 @@ async def patch_employer_application(
             set_parts.append(f"decision_note = ${idx}")
             args.append(body.decision_note)
             idx += 1
+        # Rejecting an application must tear down any open/booked interview
+        # slots — otherwise the ICS feed keeps emitting a confirmed interview
+        # and the applicant still believes it's on (mirrors withdraw_application).
+        if body.status == "rejected" and status_changing:
+            from app.routers.interviews import cancel_open_slots
+            await cancel_open_slots(conn, application_id)
+
         args.append(application_id)
         await conn.execute(
             f"UPDATE public.applications SET {', '.join(set_parts)} WHERE id = ${idx}",
