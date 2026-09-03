@@ -228,6 +228,35 @@ def _cached_analytics(ttl_s: int = 90):
     return wrap
 
 
+async def warm_analytics_caches() -> None:
+    """Prime every cached admin dashboard, one at a time.
+
+    The caches are in-process, so a deploy or restart empties them — and
+    without this, the first admin to visit after a restart pays the cold
+    30-110s aggregates (or, on a stressed database, gets failed by them:
+    the 2026-09-03 "could not load the command center" incident, minutes
+    before a partner meeting). Boot runs this in the background instead,
+    so a human is never the first caller. Sequential on purpose — one
+    aggregate at a time is the gentlest possible warm. With the
+    serve-stale decorator, later expiries never block anyone either.
+    """
+    targets = [
+        admin_dashboard,
+        admin_overview,
+        marketplace_analytics,
+        readiness_report,
+        job_map_data,
+        applicant_map_data,
+        engagement_analytics,
+    ]
+    for fn in targets:
+        try:
+            await fn(user=None)  # user is only a route guard; bodies ignore it
+            logger.info("analytics warm: %s ready", fn.__name__)
+        except Exception:
+            logger.exception("analytics warm failed: %s (stale-serve will retry)", fn.__name__)
+
+
 @router.get("/analytics/dashboard", response_model=AdminDashboard)
 @_cached_analytics(600)
 async def admin_dashboard(user=Depends(require_admin)):

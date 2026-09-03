@@ -107,9 +107,26 @@ async def lifespan(app: FastAPI):
             "Background jobs DISABLED (%s) — serving requests only. Set "
             "BACKGROUND_JOBS_ENABLED=true once the database is provisioned.",
             get_settings().app_env)
+    # Warm the admin analytics caches shortly after boot (any environment —
+    # it is a one-shot read pass, not a recurring job): a deploy empties the
+    # in-process caches, and no human should ever be the first caller of a
+    # cold 2M-row aggregate.
+    warm_task = None
+    if get_settings().app_env != "test":
+        import asyncio as _aio
+
+        async def _warm_later():
+            await _aio.sleep(20)
+            from app.routers.admin import warm_analytics_caches
+            await warm_analytics_caches()
+
+        warm_task = _aio.create_task(_warm_later())
+
     try:
         yield
     finally:
+        if warm_task is not None:
+            warm_task.cancel()
         if scheduler is not None:
             scheduler.shutdown(wait=False)
             logger.info("APScheduler stopped")
