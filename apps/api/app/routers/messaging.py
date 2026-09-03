@@ -207,6 +207,49 @@ async def start_conversation(
                 raise HTTPException(status_code=422, detail="applicant_id required")
             applicant_id = body.applicant_id
             employer_id = my_employer_id
+            # Invariant: an employer may only start a conversation with an
+            # applicant surfaced for one of THEIR jobs (a real match, or one
+            # who applied). Without this an employer could message any
+            # applicant by id, and stamp the row with a foreign job/match id.
+            surfaced = await conn.fetchval(
+                """
+                SELECT 1
+                  FROM public.matches m
+                  JOIN public.jobs j ON j.id = m.job_id
+                 WHERE m.applicant_id = $1::uuid
+                   AND j.employer_id = $2::uuid
+                   AND m.eligibility_status IN ('eligible', 'near_fit')
+                 LIMIT 1
+                """,
+                applicant_id, employer_id,
+            )
+            if not surfaced:
+                surfaced = await conn.fetchval(
+                    """SELECT 1 FROM public.applications
+                        WHERE applicant_id = $1::uuid AND employer_id = $2::uuid LIMIT 1""",
+                    applicant_id, employer_id,
+                )
+            if not surfaced:
+                raise HTTPException(
+                    status_code=403,
+                    detail="You can only message applicants surfaced for your jobs.",
+                )
+            # A job_id/match_id, when supplied, must belong to this employer.
+            if body.job_id:
+                owns_job = await conn.fetchval(
+                    "SELECT 1 FROM public.jobs WHERE id = $1::uuid AND employer_id = $2::uuid",
+                    body.job_id, employer_id,
+                )
+                if not owns_job:
+                    raise HTTPException(status_code=403, detail="That job is not yours.")
+            if body.match_id:
+                owns_match = await conn.fetchval(
+                    """SELECT 1 FROM public.matches m JOIN public.jobs j ON j.id = m.job_id
+                        WHERE m.id = $1::uuid AND j.employer_id = $2::uuid""",
+                    body.match_id, employer_id,
+                )
+                if not owns_match:
+                    raise HTTPException(status_code=403, detail="That match is not yours.")
 
         # Find or create conversation
         if body.job_id:
