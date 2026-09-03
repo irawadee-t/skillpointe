@@ -179,6 +179,7 @@ def _geocode(city: str | None, state: str | None) -> tuple[float, float] | None:
 # ---------------------------------------------------------------------------
 
 _ANALYTICS_CACHE: dict[str, tuple[float, object]] = {}
+_ANALYTICS_REFRESHING: set[str] = set()
 
 
 def _cached_analytics(ttl_s: int = 90):
@@ -189,6 +190,7 @@ def _cached_analytics(ttl_s: int = 90):
     Admin dashboards tolerate a minute of staleness, and one process
     serves all admins, so a module-level cache is enough.
     """
+    import asyncio as _aio
     import functools
     import time as _t
 
@@ -196,8 +198,29 @@ def _cached_analytics(ttl_s: int = 90):
         @functools.wraps(fn)
         async def inner(*args, **kwargs):
             hit = _ANALYTICS_CACHE.get(fn.__name__)
-            if hit and _t.monotonic() - hit[0] < ttl_s:
+            fresh = hit and _t.monotonic() - hit[0] < ttl_s
+            if fresh:
                 return hit[1]
+            if hit:
+                # Serve-stale-while-revalidate: once a dashboard has EVER
+                # rendered, no admin ever waits on (or is failed by) the
+                # aggregate again — the stale value returns instantly and one
+                # background task refreshes the cache for the next viewer.
+                if fn.__name__ not in _ANALYTICS_REFRESHING:
+                    _ANALYTICS_REFRESHING.add(fn.__name__)
+
+                    async def _refresh():
+                        try:
+                            result = await fn(*args, **kwargs)
+                            _ANALYTICS_CACHE[fn.__name__] = (_t.monotonic(), result)
+                        except Exception:
+                            logger.exception("analytics refresh failed: %s", fn.__name__)
+                        finally:
+                            _ANALYTICS_REFRESHING.discard(fn.__name__)
+
+                    _aio.create_task(_refresh())
+                return hit[1]
+            # First-ever call has nothing to serve — compute inline.
             result = await fn(*args, **kwargs)
             _ANALYTICS_CACHE[fn.__name__] = (_t.monotonic(), result)
             return result

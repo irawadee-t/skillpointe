@@ -43,7 +43,10 @@ class Settings(BaseSettings):
     # database_url at Supabase's pooler and set db_use_pgbouncer=true.
     db_pool_min_size: int = 2
     db_pool_max_size: int = 10
-    db_command_timeout: float = 30.0
+    # 30s killed the admin analytics aggregates on a cold database, and a
+    # killed query can never warm the cache that would make it fast — the
+    # dashboards stayed broken until someone intervened (2026-09-03).
+    db_command_timeout: float = 120.0
     db_use_pgbouncer: bool = False
 
     # Redis
