@@ -128,17 +128,12 @@ def main() -> int:
     # ----------------------------------------------------------------
     # Scoped runs REPLACE the target's matches: a reclassified job (or
     # edited applicant) may have pairs that are no longer candidates at all,
-    # and an upsert alone would leave their stale rows standing.
-    if args.job_id:
-        with conn.cursor() as _c:
-            _c.execute("DELETE FROM public.matches WHERE job_id = %s", (args.job_id,))
-            print(f"Cleared {_c.rowcount} existing matches for job {args.job_id}")
-        conn.commit()
-    elif args.applicant_id:
-        with conn.cursor() as _c:
-            _c.execute("DELETE FROM public.matches WHERE applicant_id = %s", (args.applicant_id,))
-            print(f"Cleared {_c.rowcount} existing matches for applicant {args.applicant_id}")
-        conn.commit()
+    # and an upsert alone would leave their stale rows standing. But deleting
+    # up front regenerates every surviving pair's match id (the upsert never
+    # sees a conflict), which 404s open match links / interest buttons on
+    # every rescore. So we score FIRST (upsert keeps the id) and delete only
+    # the untouched stale rows afterwards, keyed on this run's scoring_run_id.
+    # (The delete happens after the final flush, below.)
 
     applicants = _fetch_applicants(conn, applicant_id=args.applicant_id, limit=args.limit)
     if args.shard:
@@ -292,6 +287,25 @@ def main() -> int:
     if not args.dry_run:
         _flush_batch(conn, _batch_buffer)
         conn.commit()
+        # Stable-ID scoped cleanup: now that fresh scores are upserted (each
+        # surviving pair keeping its match id and stamped with this run_id),
+        # drop only the target's pairs this run did NOT touch.
+        if args.job_id:
+            with conn.cursor() as _c:
+                _c.execute(
+                    "DELETE FROM public.matches WHERE job_id = %s "
+                    "AND scoring_run_id IS DISTINCT FROM %s::uuid",
+                    (args.job_id, run_id))
+                print(f"Cleared {_c.rowcount} stale matches for job {args.job_id}")
+            conn.commit()
+        elif args.applicant_id:
+            with conn.cursor() as _c:
+                _c.execute(
+                    "DELETE FROM public.matches WHERE applicant_id = %s "
+                    "AND scoring_run_id IS DISTINCT FROM %s::uuid",
+                    (args.applicant_id, run_id))
+                print(f"Cleared {_c.rowcount} stale matches for applicant {args.applicant_id}")
+            conn.commit()
     conn.close()
 
     # ----------------------------------------------------------------

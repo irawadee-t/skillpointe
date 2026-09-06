@@ -227,16 +227,23 @@ def _process_applicant_batch(conn, cache: Cache, aids: list[str]) -> dict:
         sigs = rm._fetch_applicant_signals(conn)
         rm._canonicalize_credential_inputs([], fresh, sigs, creds)
         cache.app_signals.update(sigs)
-        with conn.cursor() as cur:
-            cur.execute("DELETE FROM public.matches WHERE applicant_id = ANY(%s::uuid[])",
-                        (aids,))
-        conn.commit()
 
         def gen():
             for a in fresh:
                 for j in _candidate_jobs(cache, a):
                     yield a, j
         counters = _score_pairs(conn, cache, gen(), run_id)
+        # Stable-ID recompute: score first (the upsert's ON CONFLICT keeps each
+        # surviving pair's match id and stamps it with this run_id), THEN drop
+        # only the pairs this run did NOT touch. Deleting up front would
+        # regenerate every match id, 404-ing open match links / interest
+        # buttons across tabs on every rescore.
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM public.matches WHERE applicant_id = ANY(%s::uuid[]) "
+                "AND scoring_run_id IS DISTINCT FROM %s::uuid",
+                (aids, run_id))
+        conn.commit()
         counters["applicants"] = len(fresh)
         counters["missing_or_deleted"] = len(aids) - len(fresh)
         with conn.cursor() as cur:
@@ -280,11 +287,15 @@ def _process(conn, cache: Cache, entity_type: str, entity_id: str) -> dict:
                 job = fresh[0]
                 cache.job_signals.update(rm._fetch_job_signals(conn))
                 rm._canonicalize_credential_inputs([job], [], {}, {})
-                with conn.cursor() as cur:
-                    cur.execute("DELETE FROM public.matches WHERE job_id = %s", (entity_id,))
-                conn.commit()
                 cands = _candidate_applicants(cache, job)
                 counters = _score_pairs(conn, cache, ((a, job) for a in cands), run_id)
+                # Stable-ID: upsert first, then drop only stale (untouched) pairs.
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM public.matches WHERE job_id = %s "
+                        "AND scoring_run_id IS DISTINCT FROM %s::uuid",
+                        (entity_id, run_id))
+                conn.commit()
                 counters["candidates"] = len(cands)
         else:
             fresh = rm._fetch_applicants(conn, applicant_id=entity_id)
@@ -301,11 +312,15 @@ def _process(conn, cache: Cache, entity_type: str, entity_id: str) -> dict:
                 rm._canonicalize_credential_inputs([], [app], self_sig, creds)
                 if self_sig:
                     cache.app_signals.update(self_sig)
-                with conn.cursor() as cur:
-                    cur.execute("DELETE FROM public.matches WHERE applicant_id = %s", (entity_id,))
-                conn.commit()
                 cands = _candidate_jobs(cache, app)
                 counters = _score_pairs(conn, cache, ((app, j) for j in cands), run_id)
+                # Stable-ID: upsert first, then drop only stale (untouched) pairs.
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "DELETE FROM public.matches WHERE applicant_id = %s "
+                        "AND scoring_run_id IS DISTINCT FROM %s::uuid",
+                        (entity_id, run_id))
+                conn.commit()
                 counters["candidates"] = len(cands)
         with conn.cursor() as cur:
             cur.execute(
