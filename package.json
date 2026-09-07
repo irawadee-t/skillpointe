@@ -10,6 +10,6 @@
     "typecheck": "pnpm --filter web typecheck"
   },
   "devDependencies": {
-    "turbo": "^2.0.0"
+    "turbo": "^2.10.12"
   }
 }
